@@ -200,7 +200,7 @@
    "fieldname": "os_type",
    "fieldtype": "Select",
    "label": "OS Type",
-   "options": "Ubuntu",
+   "options": "Ubuntu\nDebian",
    "reqd": 1
   },
   {

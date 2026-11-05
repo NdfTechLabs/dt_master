@@ -1,0 +1,39 @@
+{
+  "status": "Approved VM tools downloaded (126,218,348 bytes), integrity/version verified. Browser-only profile, normal sandbox and exact-hash action guards passed. Separately approved clone-only template CSP applied. Real UI checks partially succeeded; business/UI acceptance remains blocked. See UI_ACCEPTANCE_RESULT.md.",
+  "browser": {
+    "product": "Chrome for Testing headless shell",
+    "version": "156.0.8078.47",
+    "revision": "1706539",
+    "platform": "linux64",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-headless-shell-linux64.zip",
+    "bytes": 125799226,
+    "object_generation": "1792451312950552",
+    "object_crc32c_base64": "zgGWVg==",
+    "channel_metadata_sha256": "df717330cd42fb7c8b117d33d558fb451985a0f4e68a871a659ba34b0e204bfd"
+  },
+  "support_packages": [
+    {
+      "name": "libasound2t64",
+      "version": "1.2.11-1ubuntu0.3",
+      "bytes": 397772,
+      "sha256": "5d17bfb5683eb99f1be951fe48e1be5bf3c52391913b6b74a8aecf9b4f5e779f",
+      "repository": "https://archive.ubuntu.com/ubuntu/",
+      "filename": "pool/main/a/alsa-lib/libasound2t64_1.2.11-1ubuntu0.3_amd64.deb"
+    },
+    {
+      "name": "libasound2-data",
+      "version": "1.2.11-1ubuntu0.3",
+      "bytes": 21350,
+      "sha256": "0c26896193480d9dbb055e85e8ddfb9c9f34cf19afee340987cd6311e2886fc1",
+      "repository": "https://archive.ubuntu.com/ubuntu/",
+      "filename": "pool/main/a/alsa-lib/libasound2-data_1.2.11-1ubuntu0.3_all.deb"
+    }
+  ],
+  "total_artifact_bytes": 126218348,
+  "proposed_additional_download_cap_bytes": 150000000,
+  "proposed_ui_added_disk_cap_bytes": 1073741824,
+  "keep_existing_rehearsal_disk_cap_gib": 8,
+  "host_free_floor_gib": 60,
+  "method": "Direct VM download after approval only; verify pinned Google generation/length/CRC32C and zip integrity, record SHA-256. Ubuntu packages verified via signed cached indexes and exact package SHA-256. Extract privately, never install host packages; copy only needed existing native dependencies.",
+  "security": "New rootless browser container, clone-only proxy/request allowlist, no public ports/live data volumes/source credentials. Keep global limits; try normal browser sandbox. Stop for review if a security relaxation/missing artifact/additional download is needed. No silent --no-sandbox or host policy change."
+}

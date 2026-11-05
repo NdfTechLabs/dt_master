@@ -1,0 +1,7 @@
+# The integrated builder cannot resolve our digest-qualified local export.
+# The helper pins this local tag to c498d968... before/after and checks child layers.
+FROM ndf-local/exact-runtime:dalali-v1
+USER root
+COPY --chown=frappe:frappe yarn/ /opt/ndf-native/yarn/
+COPY --chmod=0755 ndf-native-exec /usr/local/bin/ndf-native-exec
+USER frappe

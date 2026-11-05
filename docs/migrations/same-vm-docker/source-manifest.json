@@ -1,0 +1,28 @@
+{
+  "pilot": "dalali.ndftechlabs.com",
+  "observed_at_utc": "2026-10-24T23:21:31.194998+00:00",
+  "migration_policy": "No application or runtime upgrade; preserve exact deployed sources",
+  "runtime": {
+    "frappe": "16.53.0",
+    "erpnext": "16.52.1",
+    "python": "3.14.3",
+    "node": "24.14.0",
+    "yarn": "1.22.22",
+    "database": "MariaDB 10.11.14",
+    "wkhtmltopdf": "0.12.6"
+  },
+  "apps": [
+    {"app": "frappe", "version": "16.53.0", "branch": "version-16", "commit": "e8d41dd0061a32ee781caefe5d0b0d2bb7c15362", "dirty": false},
+    {"app": "erpnext", "version": "16.52.1", "branch": "version-16", "commit": "ade850bbd6a7412e9994a9637d2c5c713771632a", "dirty": false},
+    {"app": "payments", "version": "0.0.1", "branch": "version-16", "commit": "cca07d9f9392e2ea0e521c5975151db9e4b6c321", "dirty": false},
+    {"app": "flutterwave_gateway", "version": "0.1.0", "branch": "version-1", "commit": "a2fe269167a2c884b69327024f4ce6804b271120", "dirty": false},
+    {"app": "webshop", "version": "0.0.1", "branch": "version-16", "commit": "3afd734a495d5869f05a4f0ae36fc76330eb7734", "dirty": false},
+    {"app": "dt_ecommerce", "version": "1.1.18", "branch": "version-1", "commit": "9c5e61b771f0a52b3599d8cc96cdb084473845c7", "dirty": false},
+    {"app": "dt_tenant", "version": "1.7.0", "branch": "version-1", "commit": "94fdef6460b28037a6a64bb977c01da22437eba5", "dirty": false},
+    {"app": "dt_recomendations", "version": "1.0.7", "branch": "version-1", "commit": "1135f32d6569939dd73a0eca6c7dd95fb44268d4", "dirty": false},
+    {"app": "dt_dalali_ecommerce", "version": "1.0.5", "branch": "version-1", "commit": "937c0783e719804df217528412b9b781e4baaf37", "dirty": false},
+    {"app": "hrms", "version": "16.18.1", "branch": "version-16", "commit": "a4768b441cff346def505e27f2a2229ee1e05b9b", "dirty": false},
+    {"app": "lending", "version": "16.5.0", "branch": "version-16", "commit": "06fc075ae062ce38ac38a763f7f290da4ddd6fdb", "dirty": false},
+    {"app": "frappe_mpsa_payments", "version": "0.0.1", "branch": "version-16", "commit": "dfa9a23b88dbf68563f54622cc5455af76c0df94", "dirty": false}
+  ]
+}

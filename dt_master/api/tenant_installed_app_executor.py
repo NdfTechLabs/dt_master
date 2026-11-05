@@ -1,10 +1,8 @@
-import subprocess
-import shlex
-import json
 import requests
 
 import frappe
 from frappe.utils import now_datetime
+from dt_master.api.script_contract import app_environment, parse_output, run_remote_script, tag_ref
 
 BASE_DIR = "/home/frappe/scripts"
 SCRIPTS_BASE_DIR = f"{BASE_DIR}/bin/app/"
@@ -15,7 +13,7 @@ SCRIPT_LIB_DIR = f"{BASE_DIR}/lib/"
 # ---------------------------------------------------------------------
 APP_ACTIONS = {
     "install": {
-        "from_status": ["Pending", "Failed"],
+        "from_status": ["Pending", "Failed", "Uninstalled"],
         "script": "install_app.sh",
         "success_status": "Installed",
         "failure_status": "Failed",
@@ -34,7 +32,7 @@ APP_ACTIONS = {
     },
     "reinstall": {
         "from_status": ["Failed"],
-        "script": "reinstall_app.sh",
+        "script": "install_app.sh",
         "success_status": "Installed",
         "failure_status": "Failed",
     },
@@ -51,12 +49,12 @@ APP_ACTIONS = {
         "failure_status": "Failed",
     },
     "check_version": {
-        "from_status": ["Installed", "Uninstalled"],
+        "from_status": ["Pending", "Failed", "Installed", "Uninstalled", "Disabled"],
         "script": "check_version.sh",
         "readonly": True,
     },
     "check_app": {
-        "from_status": ["Installed", "Uninstalled"],
+        "from_status": ["Pending", "Failed", "Installed", "Uninstalled", "Disabled"],
         "script": "check_app.sh",
         "readonly": True,
     },
@@ -94,8 +92,10 @@ def _get_ssh_config(node):
 # ---------------------------------------------------------------------
 def _load_action_context(tenant_name, row_name):
     tenant = frappe.get_doc("Tenant Site", tenant_name)
+    tenant.check_permission("write")
     app_row = next(r for r in tenant.installed_apps if r.name == row_name)
     node = frappe.get_doc("Infrastructure Node", tenant.node)
+    node.check_permission("write")
     return tenant, app_row, node
 
 # ---------------------------------------------------------------------
@@ -131,144 +131,10 @@ def _mark_action_running(tenant, app_row, action):
 # ---------------------------------------------------------------------
 def _execute_ssh_script(node, tenant, app_row, script_name):
     ssh = _get_ssh_config(node)
-
-    if not node.scripts_base_dir:
-        frappe.throw("Scripts base directory not configured on node")
-
-    SCRIPTS_BASE_DIR = f"{node.scripts_base_dir}/bin/app/"
-    SCRIPT_LIB_DIR = f"{node.scripts_base_dir}/lib/"
-
-    fv = frappe.get_doc("Framework Version", node.frappe_version)
-
-    frappe_context = {
-        "name": fv.name,
-        "framework": fv.framework,
-        "version": fv.version,
-        "python_version": fv.python_version,
-        "node_version": fv.node_version,
-        "bench_package": fv.bench_package,
-        "description": fv.description,
-    }
-
-    extension_version = None
-    extension = None
-
-    if app_row.extension_version:
-        extension_version = frappe.get_doc(
-            "Extension Version",
-            app_row.extension_version
-        )
-        extension = frappe.get_doc(
-            "Extension",
-            extension_version.extension
-        )
-
-    env = (
-        f"export APP_NAME='{app_row.app_name}'; "
-        f"export TARGET_VERSION='v{app_row.target_version or ''}'; "
-
-        f"export SCRIPTS_BASE_DIR='{SCRIPTS_BASE_DIR}'; "
-        f"export PROJECT_BASE_DIR='{node.project_base_dir}'; "
-        f"export PROJECT_LOGS_DIR='{node.project_logs_dir}'; "
-        f"export BENCH_DIR='{node.project_base_dir}/bench'; "
-        f"export SCRIPT_LIB_DIR='{SCRIPT_LIB_DIR}'; "
-        f"export BASE_DIR='{BASE_DIR}'; "
-
-        f"export SITE_NAME='{tenant.fqdn}'; "
-        f"export DB_NAME='{tenant.database_name}'; "
-        f"export ADMIN_PASSWORD='{tenant.admin_password}'; "
-        f"export MYSQL_ROOT_USER='{tenant.mysql_root_user_name}'; "
-        f"export MYSQL_ROOT_PASSWORD='{tenant.mysql_root_user_password}'; "
-        f"export FRAPPE_UPSTREAM_PORT='{tenant.port}'; "
-
-        # 🔥 Correct version (not doc name)
-        f"export FRAPPE_VERSION='{fv.version}'; "
-        f"export FRAMEWORK_NAME='{fv.framework}'; "
-
-        # Runtime hints
-        f"export PYTHON_VERSION='{fv.python_version or ''}'; "
-        f"export NODE_VERSION='{fv.node_version or ''}'; "
-        f"export BENCH_PACKAGE='{fv.bench_package or ''}'; "
-
-        # Full structured context (future-proof)
-        f"export FRAMEWORK_CONTEXT='{json.dumps(frappe_context)}'; "
-
-        f"export INSTALL_MODE='{extension.install_mode if extension else ''}'; "
-        f"export SOURCE_REF='{extension_version.source_ref if extension_version else ''}'; "
-        f"export REF_TYPE='{extension_version.ref_type if extension_version else ''}'; "
-        f"export REPOSITORY_URL='{extension.repository_url if extension else ''}'; "
-        f"export FRAPPE_HOME='/home/frappe'; "
+    return run_remote_script(
+        node, ssh, "app", script_name, app_environment(node, tenant, app_row),
+        "tenant_app_log", {"tenant": tenant.name, "row": app_row.name},
     )
-
-    remote_cmd = (
-        f"sudo -n bash -c "
-        f"{shlex.quote(env + f'bash {SCRIPTS_BASE_DIR}{script_name}')}"
-    )
-
-    ssh_command = (
-        f"ssh -p {ssh['port']} "
-        f"{ssh['user']}@{ssh['host']} "
-        f"{shlex.quote(remote_cmd)}"
-    )
-
-    proc = subprocess.Popen(
-        ssh_command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
-    )
-
-    stdout_lines = []
-    stderr_lines = []
-
-    for line in iter(proc.stdout.readline, ''):
-        line = line.rstrip()
-        stdout_lines.append(line)
-
-        frappe.publish_realtime(
-            "tenant_app_log",
-            {
-                "tenant": tenant.name,
-                "row": app_row.name,
-                "line": line,
-                "stream": "stdout"
-            },
-            user=frappe.session.user
-        )
-
-    for line in iter(proc.stderr.readline, ''):
-        line = line.rstrip()
-        stderr_lines.append(line)
-
-        frappe.publish_realtime(
-            "tenant_app_log",
-            {
-                "tenant": tenant.name,
-                "row": app_row.name,
-                "line": line,
-                "stream": "stderr"
-            },
-            user=frappe.session.user
-        )
-
-    proc.wait()
-
-    stdout = "\n".join(stdout_lines)
-    stderr = "\n".join(stderr_lines)
-
-    frappe.publish_realtime(
-        "tenant_app_log",
-        {
-            "tenant": tenant.name,
-            "row": app_row.name,
-            "status": "Completed" if proc.returncode == 0 else "Failed"
-        },
-        user=frappe.session.user
-    )
-
-    return proc.returncode, stdout, stderr
 
 # ---------------------------------------------------------------------
 # EXECUTION WRAPPER
@@ -293,13 +159,7 @@ def _execute_action(node, tenant, app_row, script):
 # OUTPUT PARSING
 # ---------------------------------------------------------------------
 def _parse_kv_output(stdout: str) -> dict:
-    data = {}
-    for line in stdout.splitlines():
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        data[key.strip()] = value.strip()
-    return data
+    return parse_output(stdout)
 
 # ---------------------------------------------------------------------
 # ERROR EXTRACTION
@@ -353,7 +213,7 @@ def extract_major_versions(parsed: dict) -> set[int]:
         val = parsed.get(key)
         if val:
             try:
-                majors.add(int(val.split(".", 1)[0]))
+                majors.add(int(val.removeprefix("v").split(".", 1)[0]))
             except ValueError:
                 pass
 
@@ -376,6 +236,18 @@ def reconcile_extension_major_versions(extension, parsed):
     )
 
     for major in sorted(majors):
+        resolved_ref = f"version-{major}"
+        if ref_type == "tag":
+            candidates = [parsed.get(key, "") for key in (
+                "installed_version", "next_major_version", "latest_major_version", "latest_minor_version"
+            )]
+            resolved_ref = next((tag_ref(value) for value in candidates
+                                 if value.removeprefix("v").split(".", 1)[0] == str(major)), "")
+            if not resolved_ref:
+                continue
+        elif ref_type != "branch":
+            # A commit ref cannot be inferred from a semantic version number.
+            continue
         name = f"{extension.name}-v{major}.*"
 
         if frappe.db.exists("Extension Version", name):
@@ -392,7 +264,7 @@ def reconcile_extension_major_versions(extension, parsed):
             "frappe_max": f"{major}.999.999",
             "release_notes": f"Frappe Version {major}",
             "deprecated": 0,
-            "source_ref": f"version-{major}",
+            "source_ref": resolved_ref,
             "ref_type": ref_type,
             "install_strategy": install_strategy,
             "status": "Approved",
@@ -418,6 +290,8 @@ def _handle_readonly_result(tenant, app_row, result, action):
         raise frappe.ValidationError(result["error"])
 
     parsed = _parse_kv_output(result["stdout"])
+    if parsed.get("app_name") != app_row.app_name or parsed.get("installed") not in {"true", "false"}:
+        raise frappe.ValidationError("Invalid app inspection result from shell script")
     if action == "check_version":
         extension = get_or_create_extension(parsed)
         extension_versions = reconcile_extension_major_versions(extension, parsed)
@@ -431,7 +305,7 @@ def _handle_readonly_result(tenant, app_row, result, action):
     app_row.git_branch = parsed.get("git_branch")
     app_row.git_commit = parsed.get("git_commit")
     app_row.git_dirty = parsed.get("dirty") == "true"
-    app_row.git_head_state = parsed.get("git_head_state")
+    app_row.git_head_state = parsed.get("git_head_state", parsed.get("head_state"))
 
     tenant.save(ignore_permissions=True)
     frappe.db.commit()
@@ -439,30 +313,37 @@ def _handle_readonly_result(tenant, app_row, result, action):
     return parsed
 
 def _handle_mutating_result(tenant, app_row, action_def, result):
+    previous_status = app_row.status
+    parsed = _parse_kv_output(result["stdout"])
+    if result["exit_code"] == 0:
+        script = action_def["script"]
+        expected = "uninstalled" if script == "uninstall_app.sh" else "removed" if script == "remove_app.sh" else "installed"
+        if parsed.get("app_name") != app_row.app_name or parsed.get(expected) not in {"true", "false"}:
+            raise frappe.ValidationError(f"Invalid {expected} result from shell script")
+        if expected != "uninstalled" and parsed[expected] != "true":
+            raise frappe.ValidationError(f"Shell script did not confirm {expected}")
     if result["exit_code"] == 0:
         app_row.status = action_def["success_status"]
-        app_row.installed_version = (
-            app_row.target_version or app_row.installed_version
-        )
-        app_row.installed_at = now_datetime()
+        if parsed.get("installed") == "true":
+            app_row.installed_at = now_datetime()
         app_row.last_action_status = "Success"
         app_row.last_error = None
     else:
         app_row.status = action_def["failure_status"]
         app_row.last_action_status = "Failed"
         app_row.last_error = result["error"]
-    parsed = _parse_kv_output(result["stdout"])
-    app_row.target_version = parsed.get("latest_minor_version") or app_row.target_version
-    app_row.status = (
-        "Installed" if parsed.get("installed") == "true" else "Uninstalled"
-    )
-    app_row.installed_version = (
-        parsed.get("installed_version") or app_row.installed_version
-    )
-    app_row.git_branch = parsed.get("git_branch")
-    app_row.git_commit = parsed.get("git_commit")
-    app_row.git_dirty = parsed.get("dirty") == "true"
-    app_row.git_head_state = parsed.get("git_head_state")
+    if result["exit_code"] == 0:
+        if "installed" in parsed:
+            app_row.status = "Installed" if parsed["installed"] == "true" else "Uninstalled"
+        elif parsed.get("uninstalled") == "false":
+            # A successful no-op is not evidence that the site was uninstalled.
+            app_row.status = previous_status
+        app_row.installed_version = parsed.get("installed_version") or app_row.installed_version
+        for key in ("git_branch", "git_commit", "git_head_state"):
+            if key in parsed:
+                setattr(app_row, key, parsed[key])
+        if "dirty" in parsed:
+            app_row.git_dirty = parsed["dirty"] == "true"
     app_row.last_updated = now_datetime()
     tenant.save(ignore_permissions=True)
     frappe.db.commit()
@@ -508,7 +389,8 @@ def _run_app_action(tenant_name, row_name, action, source=None):
         # capture traceback
         error = frappe.get_traceback()
 
-        app_row.status = "Failed"
+        if not action_def.get("readonly"):
+            app_row.status = "Failed"
         app_row.last_action_status = "Failed"
         app_row.last_error = error
         app_row.last_updated = now_datetime()
@@ -536,11 +418,9 @@ def tenant_base_url(tenant):
         return f"https://{fqdn}"
 
     if protocol == "http":
-        # Dev/local access must have a port
-        if not port:
-            raise ValueError(f"HTTP tenant '{fqdn}' requires a port")
-
-        return f"http://{fqdn}:{port}"
+        # configure_tenant_proxy.sh exposes HTTP on port 80. tenant.port is
+        # the private Gunicorn upstream, not the public API port.
+        return f"http://{fqdn}"
 
     raise ValueError(f"Unsupported protocol: {protocol}")
 
@@ -607,7 +487,7 @@ def downgrade_app(tenant_name, row_name, source=None):
 
 @frappe.whitelist()
 def reinstall_app(tenant_name, row_name, source=None):
-    return _run_app_action(tenant_name, row_name, "install", source=source)
+    return _run_app_action(tenant_name, row_name, "reinstall", source=source)
 
 @frappe.whitelist()
 def uninstall_app(tenant_name, row_name, source=None):

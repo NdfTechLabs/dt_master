@@ -1,11 +1,9 @@
-import subprocess
-import shlex
 import datetime
 import json
-import base64
 
 import frappe
 from frappe.utils import now_datetime
+from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script
 
 
 BASE_DIR="/home/frank/scripts"
@@ -94,6 +92,7 @@ def _validate_transition(from_state, to_state):
 
 
 def _get_ssh_config(node):
+    node.check_permission("write")
     if not node.project_base_dir or not node.project_logs_dir:
        frappe.throw("Project paths not configured on node")
 
@@ -135,119 +134,14 @@ def _get_node_dependencies(node):
 
     return result
 
-import json
-
 def _execute_ssh_script(node, script_name):
     ssh = _get_ssh_config(node)
-
-    if not node.scripts_base_dir:
-        frappe.throw("Scripts base directory not configured on node")
-
-    SCRIPT_BASE_DIR = f"{node.scripts_base_dir}/bin/node"
-    SCRIPT_LIB_DIR = f"{node.scripts_base_dir}/lib"
-
-    # -------------------------------------------------
-    # Resolve Framework Version Doc
-    # -------------------------------------------------
-    fv = frappe.get_doc("Framework Version", node.frappe_version)
-
-    frappe_context = {
-        "name": fv.name,
-        "framework": fv.framework,
-        "version": fv.version,
-        "python_version": fv.python_version,
-        "node_version": fv.node_version,
-        "bench_package": fv.bench_package,
-        "description": fv.description,
-    }
-
-    # -------------------------------------------------
-    # Dependencies
-    # -------------------------------------------------
-    deps = _get_node_dependencies(node)
-    encoded = base64.b64encode(json.dumps(frappe_context).encode()).decode()
-    # -------------------------------------------------
-    # Environment exports
-    # -------------------------------------------------
-    env_exports = (
-        f"export PROJECT_BASE_DIR='{node.project_base_dir}'; "
-        f"export PROJECT_LOGS_DIR='{node.project_logs_dir}'; "
-
-        # 🔥 Correct version (not doc name)
-        f"export FRAPPE_VERSION='{fv.version}'; "
-        f"export FRAMEWORK_NAME='{fv.framework}'; "
-
-        # Runtime hints
-        f"export PYTHON_VERSION='{fv.python_version or ''}'; "
-        f"export NODE_VERSION='{fv.node_version or ''}'; "
-        f"export BENCH_PACKAGE='{fv.bench_package or ''}'; "
-
-        # Paths
-        f"export SCRIPT_BASE_DIR='{SCRIPT_BASE_DIR}'; "
-        f"export SCRIPT_LIB_DIR='{SCRIPT_LIB_DIR}'; "
-        f"export BASE_DIR='{BASE_DIR}'; "
-
-        # Full structured context (future-proof)
-        # f"export FRAMEWORK_CONTEXT='{json.dumps(frappe_context)}'; "
-
-        # Dependency graph
-        f"export SYSTEM_DEPENDENCIES='{json.dumps(deps)}'; "
+    env = framework_environment(node)
+    env["SYSTEM_DEPENDENCIES"] = json.dumps(_get_node_dependencies(node))
+    return run_remote_script(
+        node, ssh, "node", script_name, env, "script_execution_log",
+        {"execution": script_name, "node": node.name},
     )
-
-    env_exports += f"export FRAMEWORK_CONTEXT_B64='{encoded}'; "
-
-    remote_cmd = (
-        f"sudo -n bash -c "
-        f"{shlex.quote(env_exports + f'bash {SCRIPT_BASE_DIR}/{script_name}')}"
-    )
-
-    ssh_command = (
-        f"ssh -p {ssh['port']} "
-        f"{ssh['user']}@{ssh['host']} "
-        f"{shlex.quote(remote_cmd)}"
-    )
-
-    process = subprocess.Popen(
-        ssh_command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
-
-    stdout_lines = []
-
-    for line in iter(process.stdout.readline, ''):
-        line = line.rstrip()
-        stdout_lines.append(line)
-
-        frappe.publish_realtime(
-            "script_execution_log",
-            {
-                "execution": script_name,
-                "line": line
-            },
-            user=frappe.session.user
-        )
-
-    process.wait()
-
-    stdout = "\n".join(stdout_lines)
-    stderr = ""
-
-    exec_status = "Completed" if process.returncode == 0 else "Failed"
-
-    frappe.publish_realtime(
-        "script_execution_log",
-        {
-            "execution": script_name,
-            "status": exec_status
-        },
-        user=frappe.session.user
-    )
-
-    return process.returncode, stdout, stderr
 
 def _log_node_action(
     node,
@@ -268,8 +162,8 @@ def _log_node_action(
         "triggered_by": frappe.session.user,
         "started_at": started_at or datetime.datetime.now(),
         "finished_at": finished_at or datetime.datetime.now(),
-        "node_state_before": state_before,
-        "node_state_after": state_after,
+        "state_before": state_before,
+        "state_after": state_after,
         "result": result,
         "exit_code": exit_code,
         "stdout": stdout,
@@ -278,6 +172,96 @@ def _log_node_action(
 
     node.save(ignore_permissions=True)
     frappe.db.commit()
+
+
+BENCH_ACTIONS = {
+    "backup": ("backup_bench.sh", "backups_taken"),
+    "update": ("update_bench.sh", "bench_updated"),
+    "migrate": ("migrate_bench.sh", "bench_migrated"),
+    "restore": ("restore_backup.sh", "site_restored"),
+    "remove": ("remove_bench.sh", "bench_removed"),
+}
+
+
+def _run_bench_action(node_name, action, tenant_name=None, restore_dir=None, stop_only=False):
+    node = frappe.get_doc("Infrastructure Node", node_name)
+    node.check_permission("write")
+    frappe.only_for("System Manager")
+    if node.state not in {"Initialized", "Healthy", "Running", "Stopped", "Error"}:
+        frappe.throw(f"Bench action not allowed from node state '{node.state}'")
+    script, expected_key = BENCH_ACTIONS[action]
+    env = framework_environment(node)
+    if tenant_name:
+        tenant = frappe.get_doc("Tenant Site", tenant_name)
+        tenant.check_permission("write")
+        if tenant.node != node.name:
+            frappe.throw("Tenant Site belongs to another node")
+        env.update({"SITE_NAME": tenant.fqdn, "MYSQL_ROOT_USER": tenant.mysql_root_user_name,
+                    "MYSQL_ROOT_PASSWORD": tenant.mysql_root_user_password})
+    if action == "restore":
+        if not tenant_name or not restore_dir or not str(restore_dir).startswith("/"):
+            frappe.throw("Restore requires a Tenant Site and an absolute backup directory")
+        env["RESTORE_DIR"] = restore_dir
+    if action == "remove":
+        env["REMOVE_STOP_ONLY"] = "true" if str(stop_only).lower() in {"1", "true"} else "false"
+    state_before = node.state
+    started = now_datetime()
+    code, stdout, stderr = -1, "", ""
+    try:
+        code, stdout, stderr = run_remote_script(
+            node, _get_ssh_config(node), "node", script, env, "script_execution_log",
+            {"execution": script, "node": node.name},
+        )
+        parsed = parse_output(stdout)
+        if code != 0:
+            raise frappe.ValidationError(stderr or stdout or f"Bench action exited with {code}")
+        if expected_key not in parsed:
+            raise frappe.ValidationError(f"Missing script result: {expected_key}")
+        if action == "backup":
+            if not parsed[expected_key].isdigit():
+                raise frappe.ValidationError("Invalid backup count from script")
+        elif action != "remove" and parsed[expected_key] != "true":
+            raise frappe.ValidationError(f"Script did not confirm {expected_key}")
+        if action == "remove":
+            if parsed["bench_removed"] == "true":
+                node.state, node.status = "Decommissioned", "Retired"
+            elif parsed.get("stop_only") == "true":
+                node.state, node.status = "Stopped", "Maintenance"
+            else:
+                raise frappe.ValidationError("Bench removal did not confirm its outcome")
+    except Exception as exc:
+        node.state, node.status = "Error", "Maintenance"
+        _log_node_action(node, f"Bench {action.title()}", "Bench", state_before, node.state,
+                         "Failed", code, stdout, stderr or str(exc), started, now_datetime())
+        raise
+    _log_node_action(node, f"Bench {action.title()}", "Bench", state_before, node.state,
+                     "Success", code, stdout, stderr, started, now_datetime())
+    return parsed
+
+
+@frappe.whitelist()
+def backup_bench(node_name, tenant_name=None):
+    return _run_bench_action(node_name, "backup", tenant_name=tenant_name)
+
+
+@frappe.whitelist()
+def update_bench(node_name):
+    return _run_bench_action(node_name, "update")
+
+
+@frappe.whitelist()
+def migrate_bench(node_name, tenant_name=None):
+    return _run_bench_action(node_name, "migrate", tenant_name=tenant_name)
+
+
+@frappe.whitelist()
+def restore_backup(node_name, tenant_name, restore_dir):
+    return _run_bench_action(node_name, "restore", tenant_name=tenant_name, restore_dir=restore_dir)
+
+
+@frappe.whitelist()
+def remove_bench(node_name, stop_only=False):
+    return _run_bench_action(node_name, "remove", stop_only=stop_only)
 
 @frappe.whitelist()
 def install_dependencies(node_name):
@@ -912,4 +896,3 @@ def stop_project(node_name):
         )
 
     return "Production services stopped successfully"
-

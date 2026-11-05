@@ -1,0 +1,6 @@
+#!/bin/sh
+# Native Frappe/Bench commands only; not for vendor Nginx or other OS services.
+set -eu
+export PATH="/home/frappe/bench/env/bin:/home/frappe/.venv/bin:/home/frappe/.nvm/versions/node/v24.14.0/bin:/opt/ndf-native/bin:/usr/bin:/bin"
+export LD_LIBRARY_PATH=/opt/ndf-native/lib
+exec "$@"

@@ -3,7 +3,9 @@
 
 # import frappe
 from frappe.model.document import Document
+from dt_master.api.script_contract import validate_app_rows
 
 
 class TenantSite(Document):
-	pass
+	def validate(self):
+		validate_app_rows(self.get("installed_apps"))

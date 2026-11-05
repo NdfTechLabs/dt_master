@@ -1,0 +1,9 @@
+#!/bin/sh
+# Rehearsal-only native PDF tool; never change global/vendor process libraries.
+set -eu
+export LD_LIBRARY_PATH=/opt/ndf-pdf/lib:/opt/ndf-native/lib
+export QT_QPA_PLATFORM=offscreen
+export QT_QPA_PLATFORM_PLUGIN_PATH=/opt/ndf-pdf/plugins/platforms
+export QT_PLUGIN_PATH=/opt/ndf-pdf/plugins
+export FONTCONFIG_FILE=/opt/ndf-pdf/fonts.conf
+exec /opt/ndf-pdf/bin/wkhtmltopdf "$@"

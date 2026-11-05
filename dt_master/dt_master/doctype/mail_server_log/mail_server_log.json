@@ -6,7 +6,15 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_nbdv"
+  "action_name",
+  "triggered_by",
+  "started_at",
+  "finished_at",
+  "duration_seconds",
+  "result",
+  "exit_code",
+  "stdout",
+  "stderr"
  ],
  "fields": [
    {

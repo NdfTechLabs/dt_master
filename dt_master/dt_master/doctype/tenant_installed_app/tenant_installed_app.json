@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:{parent}-{app_name}",
+ "autoname": "hash",
  "creation": "2026-01-05 10:59:50.661031",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -255,7 +255,7 @@
  "modified_by": "Administrator",
  "module": "Dt Master",
  "name": "Tenant Installed App",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",

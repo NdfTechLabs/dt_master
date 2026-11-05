@@ -1,0 +1,160 @@
+name: dt-master-sandbox
+
+x-app: &app
+  image: dt-master-sandbox:local
+  build:
+    context: ../..
+    dockerfile: tests/sandbox/Dockerfile
+  working_dir: /home/frappe/bench
+  networks: [sandbox]
+  volumes:
+    - sites:/home/frappe/bench/sites
+    - logs:/home/frappe/bench/logs
+    # The base image declares VOLUMEs at its original Bench path. Explicitly
+    # map those aliases too, otherwise anonymous volumes can hide shared sites.
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+    - backups:/home/frappe/backups
+    - automation-logs:/home/frappe/automation-logs
+    - ssh:/home/frappe/.ssh
+    - ../../dt_master/scripts:/opt/dt-scripts:ro
+    - ./runner.sh:/opt/dt-sandbox/runner.sh:ro
+    - ./setup.sh:/opt/dt-sandbox/setup.sh:ro
+  environment: &environment
+    DT_DOCKER_SANDBOX: "1"
+    MASTER_SITE: master.localhost
+    TENANT_SITE: tenant.localhost
+    DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Run sandbox.sh init first}
+    ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run sandbox.sh init first}
+    SANDBOX_PORT: ${SANDBOX_PORT:-8088}
+    PROJECT_BASE_DIR: /home/frappe
+    PROJECT_LOGS_DIR: /home/frappe/automation-logs
+    SCRIPT_LIB_DIR: /opt/dt-scripts/lib
+    FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+    FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+
+services:
+  db:
+    image: mariadb:10.6.25
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --skip-character-set-client-handshake]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Run sandbox.sh init first}
+      MARIADB_ROOT_HOST: "%"
+    volumes: [db:/var/lib/mysql]
+    networks: [sandbox]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis-cache:
+    image: redis:7.4.7-alpine
+    networks: [sandbox]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis-queue:
+    image: redis:7.4.7-alpine
+    networks: [sandbox]
+    volumes: [redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  runner:
+    <<: *app
+    user: root
+    entrypoint: [bash, /opt/dt-sandbox/runner.sh]
+    healthcheck:
+      test: [CMD-SHELL, "test -s /run/sshd.pid && kill -0 \"$$(cat /run/sshd.pid)\""]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  setup:
+    <<: *app
+    entrypoint: [bash, /opt/dt-sandbox/setup.sh]
+    depends_on:
+      db: {condition: service_healthy}
+      redis-cache: {condition: service_healthy}
+      redis-queue: {condition: service_healthy}
+      runner: {condition: service_healthy}
+
+  backend:
+    <<: *app
+    command: [env/bin/gunicorn, --chdir=/home/frappe/bench/sites, --bind=0.0.0.0:8000, --threads=4, --workers=2, --timeout=120, --preload, frappe.app:application]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS -H 'Host: master.localhost' http://127.0.0.1:8000/api/method/ping >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  websocket:
+    <<: *app
+    command: [node, /home/frappe/bench/apps/frappe/socketio.js]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'echo > /dev/tcp/127.0.0.1/9000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    <<: *app
+    command: [bench, worker, --queue, "short,default,long"]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+
+  scheduler:
+    <<: *app
+    command: [bench, schedule]
+    depends_on:
+      setup: {condition: service_completed_successfully}
+
+  frontend:
+    <<: *app
+    networks: [sandbox, browser]
+    command: [nginx-entrypoint.sh]
+    environment:
+      <<: *environment
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      FRAPPE_SITE_NAME_HEADER: $$host
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: "120"
+      CLIENT_MAX_BODY_SIZE: 50m
+    ports: ["127.0.0.1:${SANDBOX_PORT:-8088}:8080"]
+    depends_on:
+      backend: {condition: service_healthy}
+      websocket: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS -H 'Host: master.localhost' http://127.0.0.1:8080/api/method/ping >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  db:
+  redis:
+  sites:
+  logs:
+  backups:
+  automation-logs:
+  ssh:
+
+networks:
+  sandbox:
+    internal: true
+  browser:
+    driver: bridge

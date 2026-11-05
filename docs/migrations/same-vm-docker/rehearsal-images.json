@@ -1,0 +1,25 @@
+{
+  "status": "Approved images pulled directly to VM and exact binaries verified; rehearsal technical checks passed within transfer cap",
+  "platform": "linux/amd64",
+  "application_image_id": "sha256:e8b4c638deb0c739fa7a2f932c5a79f6bd5a5be291393dd3f1d114840bf7e8eb",
+  "application_tag": "ndf-local/exact-runtime:dalali-v2",
+  "additional_download_cap_bytes": 180000000,
+  "compressed_layers_total_bytes": 159639248,
+  "images": [
+    {
+      "repository": "mariadb",
+      "version": "10.11.14",
+      "amd64_digest": "sha256:3a7d3cbc8b6fddf66433d80dc124c1e4e75a73ebab9c6e137529cc270bdadfc0",
+      "compressed_layer_bytes": 105369173,
+      "distribution_build": "1:10.11.14+maria~ubu2204",
+      "native_distribution_build": "10.11.14-MariaDB-0ubuntu0.24.04.1"
+    },
+    {
+      "repository": "redis",
+      "version": "8.8.0",
+      "amd64_digest": "sha256:5d2c689b4b55fc3fab4b0cc8aaa950f85b508c76c1e0f35a90d8f411d55a8b2b",
+      "compressed_layer_bytes": 54270075
+    }
+  ],
+  "verification": "Fetched official registry metadata on VM, selected unique linux/amd64 manifest, verified manifest/config SHA-256 and platform; no layers fetched. Exact runtime versions and settings still require isolated inspection after approved pull."
+}

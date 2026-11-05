@@ -32,38 +32,38 @@ function setup_automation_buttons(frm) {
         },
 
         configure_postfix: {
-            status: ["Installing"],
-            states: ["installing_stack", "failed"],
+            status: ["Installing", "Failed"],
+            states: ["configuring_postfix", "installing_stack", "failed"],
             method: "dt_master.api.mail_server_executor.configure_postfix"
         },
 
         configure_dovecot: {
-            status: ["Installing"],
-            states: ["configuring_postfix", "failed"],
+            status: ["Installing", "Failed"],
+            states: ["configuring_dovecot", "configuring_postfix", "failed"],
             method: "dt_master.api.mail_server_executor.configure_dovecot"
         },
 
         configure_rspamd: {
-            status: ["Installing"],
-            states: ["configuring_dovecot", "failed"],
+            status: ["Installing", "Failed"],
+            states: ["configuring_rspamd", "configuring_dovecot", "failed"],
             method: "dt_master.api.mail_server_executor.configure_rspamd"
         },
 
         configure_opendkim: {
-            status: ["Installing"],
-            states: ["configuring_rspamd", "failed"],
+            status: ["Installing", "Failed"],
+            states: ["configuring_opendkim", "configuring_rspamd", "failed"],
             method: "dt_master.api.mail_server_executor.configure_opendkim"
         },
 
         configure_dns: {
-            status: ["Installing"],
-            states: ["configuring_opendkim", "failed"],
+            status: ["Installing", "Failed"],
+            states: ["configuring_dns", "configuring_opendkim", "failed"],
             method: "dt_master.api.mail_server_executor.configure_dns"
         },
 
         verify_mail_server: {
-            status: ["Installing"],
-            states: ["configuring_dns", "failed"],
+            status: ["Installing", "Active", "Failed"],
+            states: ["verifying", "configuring_dns", "ready", "failed"],
             method: "dt_master.api.mail_server_executor.verify_mail_server"
         }
 

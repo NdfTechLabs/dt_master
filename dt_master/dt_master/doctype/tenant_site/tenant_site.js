@@ -37,8 +37,8 @@ function setup_tenant_automation_buttons(frm) {
         },
 
         verify_site: {
-            status: ["Provisioning", "Active"],
-            states: ["installing_apps","failed","ready"],
+            status: ["Provisioning", "Active", "Suspended"],
+            states: ["idle", "creating_site", "installing_apps","failed","ready"],
             method: "dt_master.api.tenant_site_executor.verify_site"
         },
 
@@ -61,8 +61,8 @@ function setup_tenant_automation_buttons(frm) {
         },
 
         destroy_site: {
-            status: ["Archived"],
-            states: ["idle","failed"],
+            status: ["Active", "Suspended", "Provisioning"],
+            states: ["ready", "idle", "failed"],
             method: "dt_master.api.tenant_site_executor.destroy_site"
         }
 
@@ -130,7 +130,7 @@ function update_child_row_buttons(frm, row, cdn) {
         return;
     }
 
-    if (row.status === "Pending") {
+    if (["Pending", "Uninstalled"].includes(row.status)) {
         grid_row.toggle_display("install", true);
     }
 
@@ -166,7 +166,7 @@ function update_child_row_buttons(frm, row, cdn) {
         grid_row.toggle_display("check_version", true);
     }
 
-    if (["Installed","Uninstalled"].includes(row.status)) {
+    if (["Pending", "Failed", "Installed", "Uninstalled", "Disabled"].includes(row.status)) {
         grid_row.toggle_display("check_app", true);
     }
 
@@ -185,7 +185,7 @@ function parse_version(v) {
 
     if (!v) return null;
 
-    const parts = v.split(".").map(n => Number(n));
+    const parts = v.replace(/^v/, "").split(".").map(n => Number(n));
 
     if (parts.some(isNaN)) return null;
 

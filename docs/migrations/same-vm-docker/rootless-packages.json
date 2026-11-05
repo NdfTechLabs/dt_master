@@ -1,0 +1,24 @@
+{
+  "purpose": "Rootless bootstrap planning; no application images/data",
+  "repository": "https://download.docker.com/linux/ubuntu",
+  "distribution": "noble",
+  "architecture": "amd64",
+  "signing_fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+  "verified_package_index_sha256": "cabe5c7534eb6e767d8dcf244d8567b161190b53dbf5e9f411067a3f791f62d7",
+  "install_method": "Verify signed repository/checksums, extract reviewed binaries only; do not dpkg-install Docker/containerd packages",
+  "packages": [
+    {"name": "docker-ce", "version": "5:29.6.1-1~ubuntu.24.04~noble", "bytes": 23298076, "sha256": "b71c54e01bf05489384b01c97621293a2803a3c38c754a655456f6c1821a6b55", "filename": "dists/noble/pool/stable/amd64/docker-ce_29.6.1-1~ubuntu.24.04~noble_amd64.deb"},
+    {"name": "docker-ce-cli", "version": "5:29.6.1-1~ubuntu.24.04~noble", "bytes": 16891052, "sha256": "bab40fb817b8b541a2eb1c33ac3285b06439de06cf05c2cd0cb47a3f87c193c4", "filename": "dists/noble/pool/stable/amd64/docker-ce-cli_29.6.1-1~ubuntu.24.04~noble_amd64.deb"},
+    {"name": "docker-ce-rootless-extras", "version": "5:29.6.1-1~ubuntu.24.04~noble", "bytes": 10168076, "sha256": "4b782529e1e43891d08deacc25b3b52a21b3fe19bd3641150c4069f9c7ece509", "filename": "dists/noble/pool/stable/amd64/docker-ce-rootless-extras_29.6.1-1~ubuntu.24.04~noble_amd64.deb"},
+    {"name": "docker-compose-plugin", "version": "5.3.1-1~ubuntu.24.04~noble", "bytes": 8099948, "sha256": "19d9473c2f011f94e1e54b035dcac170dab0c19671799db6f015e29eb9f23357", "filename": "dists/noble/pool/stable/amd64/docker-compose-plugin_5.3.1-1~ubuntu.24.04~noble_amd64.deb"},
+    {"name": "containerd.io", "version": "2.4.2-3~ubuntu.24.04~noble", "bytes": 23271468, "sha256": "f811ab57d1f4bb0cce19df7d526da8c711d8ebea0447cc83da1999188e664122", "filename": "dists/noble/pool/stable/amd64/containerd.io_2.4.2-3~ubuntu.24.04~noble_amd64.deb"}
+  ],
+  "total_package_bytes": 81728620,
+  "later_application_image_candidate_not_authorized": {
+    "image": "frappe/erpnext:v16.52.1",
+    "index_digest": "sha256:81e6ac460f55e0b84b755c991ef49b9414572ebc781b1f9b0451c9ec0bdbab90",
+    "amd64_digest": "sha256:eaf1da1478c2b99339a0a8bc37af723a67ecf9cd4f84b313a0c3765743486fcc",
+    "compressed_bytes": 981159820,
+    "parity": "Candidate only; source/runtime parity must be inspected before any production data is loaded"
+  }
+}

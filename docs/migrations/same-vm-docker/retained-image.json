@@ -1,0 +1,9 @@
+{
+  "purpose": "Validate the exact retained export after the staging disk guard canceled the build; never rebuild or claim build-command success",
+  "tag": "ndf-local/exact-runtime:dalali-v1",
+  "exported_manifest": "sha256:c498d968d41e675c3ab27a6aabaef679720e118e2be919923590b4b7e5b37147",
+  "required_base": "frappe/erpnext@sha256:eaf1da1478c2b99339a0a8bc37af723a67ecf9cd4f84b313a0c3765743486fcc",
+  "customer_data_mounts": false,
+  "new_downloads": false,
+  "cleanup": false
+}

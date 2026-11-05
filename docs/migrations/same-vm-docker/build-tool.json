@@ -1,0 +1,14 @@
+{
+  "status": "Approved package downloaded once directly to VM, hash verified, plugin installed; integrated Docker builder verified",
+  "repository": "https://download.docker.com/linux/ubuntu",
+  "signing_fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+  "verified_package_index_sha256": "cabe5c7534eb6e767d8dcf244d8567b161190b53dbf5e9f411067a3f791f62d7",
+  "name": "docker-buildx-plugin",
+  "version": "0.38.1-1~ubuntu.24.04~noble",
+  "bytes": 17800928,
+  "sha256": "642e9a8a0d115a8a57ad7045a4c7c2561522331197f0c087a762de1b72591672",
+  "filename": "dists/noble/pool/stable/amd64/docker-buildx-plugin_0.38.1-1~ubuntu.24.04~noble_amd64.deb",
+  "method": "Download directly on VM; verify size/hash; extract only reviewed plugin into new root-owned versioned path; register only for dt-containers. Do not dpkg-install Docker packages.",
+  "builder": "Docker integrated driver only; no docker-container builder or BuildKit image pull",
+  "proposed_stage_download_cap_bytes": 20000000
+}

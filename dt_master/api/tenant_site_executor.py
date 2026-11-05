@@ -1,9 +1,8 @@
 import json
-import subprocess
-import shlex
 
 import frappe
 from frappe.utils import now_datetime
+from dt_master.api.script_contract import run_remote_script, tenant_environment
 
 # ---------------------------------------------------------------------
 # CONSTANTS
@@ -19,16 +18,14 @@ SCRIPT_LIB_DIR = f"{BASE_DIR}/lib/"
 
 ALLOWED_AUTOMATION_TRANSITIONS = {
     "idle": ["idle", "queued", "resuming"],
-    "queued": ["creating_site", "installing_apps", "suspending", "resuming", "destroying"],
+    "queued": ["creating_site", "installing_apps", "suspending", "resuming", "destroying", "failed"],
     "creating_site": ["installing_apps", "failed", "queued"],
     "installing_apps": ["failed", "ready", "queued"],
     "verifying": ["verifying"],
     "suspending": ["idle", "failed", "queued"],
     "resuming": ["ready", "failed", "queued"],
-    "destroying": ["destroyed", "failed", "queued"],
+    "destroying": ["idle", "failed", "queued"],
     "ready": ["verifying", "suspending", "destroying", "queued"],
-    "suspended": ["verifying", "resuming", "destroying", "queued"],
-    "destroyed": [],
     "failed": ["queued", "creating_site", "installing_apps", "suspending", "resuming", "destroying"],
 }
 
@@ -40,13 +37,13 @@ TENANT_SITE_TRANSITIONS = {
         "failure": ("failed", "Provisioning"),
     },
     "install_apps": {
-        "from": ["creating_site"],
-        "to": None,
-        "success": None,
-        "failure": None,
+        "from": ["creating_site", "installing_apps", "ready", "failed"],
+        "to": "installing_apps",
+        "success": ("ready", "Active"),
+        "failure": ("failed", "Provisioning"),
     },
     "verify_site": {
-        "from": ["idle", "creating_site", "installing_apps", "ready", "suspended", "failed"],
+        "from": ["idle", "creating_site", "installing_apps", "ready", "failed"],
         "to": None,
         "success": None,
         "failure": None,
@@ -58,19 +55,19 @@ TENANT_SITE_TRANSITIONS = {
         "failure": ("failed", "Active"),
     },
     "resume_site": {
-        "from": ["suspended"],
+        "from": ["idle"],
         "to": "resuming",
         "success": ("ready", "Active"),
         "failure": ("failed", "Suspended"),
     },
     "destroy_site": {
-        "from": ["ready", "suspended"],
+        "from": ["ready", "idle", "failed"],
         "to": "destroying",
-        "success": ("archived", "Archived"),
-        "failure": ("failed", "Archived"),
+        "success": ("idle", "Archived"),
+        "failure": ("failed", None),
     },
     "configure_proxy": {
-        "from": ["ready", "suspended", "failed"],
+        "from": ["ready", "idle", "failed"],
         "to": None,
         "success": None,
         "failure": None,
@@ -97,6 +94,16 @@ ACTION_SCRIPT_MAP = {
 
 MAINTENANCE_ACTIONS = {"install_apps", "configure_proxy"}
 
+ACTION_STATUSES = {
+    "create_site": {"Requested", "Provisioning"},
+    "install_apps": {"Provisioning", "Active"},
+    "verify_site": {"Provisioning", "Active", "Suspended"},
+    "configure_proxy": {"Active"},
+    "suspend_site": {"Active"},
+    "resume_site": {"Suspended"},
+    "destroy_site": {"Provisioning", "Active", "Suspended"},
+}
+
 # ---------------------------------------------------------------------
 # SSH + EXECUTION
 # ---------------------------------------------------------------------
@@ -118,128 +125,12 @@ def _get_ssh_config(node):
 
 def _execute_ssh_script(node, tenant, script_name, apps=None):
     ssh = _get_ssh_config(node)
-
-    if not node.scripts_base_dir:
-        frappe.throw("Scripts base directory not configured on node")
-
-    SCRIPT_BASE_DIR = f"{node.scripts_base_dir}/bin/site"
-    SCRIPT_LIB_DIR = f"{node.scripts_base_dir}/lib"
-
-    fv = frappe.get_doc("Framework Version", node.frappe_version)
-
-    frappe_context = {
-        "name": fv.name,
-        "framework": fv.framework,
-        "version": fv.version,
-        "python_version": fv.python_version,
-        "node_version": fv.node_version,
-        "bench_package": fv.bench_package,
-        "description": fv.description,
-    }
-
-    env_exports = (
-        f"export SCRIPTS_BASE_DIR='{SCRIPT_BASE_DIR}'; "
-        f"export PROJECT_BASE_DIR='{node.project_base_dir}'; "
-        f"export PROJECT_LOGS_DIR='{node.project_logs_dir}'; "
-        f"export BENCH_DIR='{node.project_base_dir}/bench'; "
-        f"export SITE_NAME='{tenant.fqdn}'; "
-        f"export DB_NAME='{tenant.database_name}'; "
-        f"export ADMIN_PASSWORD='{tenant.admin_password}'; "
-        f"export MYSQL_ROOT_USER='{tenant.mysql_root_user_name}'; "
-        f"export MYSQL_ROOT_PASSWORD='{tenant.mysql_root_user_password}'; "
-        f"export FRAPPE_UPSTREAM_PORT='{tenant.port}'; "
-
-        # 🔥 Correct version (not doc name)
-        f"export FRAPPE_VERSION='{fv.version}'; "
-        f"export FRAMEWORK_NAME='{fv.framework}'; "
-
-        # Runtime hints
-        f"export PYTHON_VERSION='{fv.python_version or ''}'; "
-        f"export NODE_VERSION='{fv.node_version or ''}'; "
-        f"export BENCH_PACKAGE='{fv.bench_package or ''}'; "
-
-        # Full structured context (future-proof)
-        f"export FRAMEWORK_CONTEXT='{json.dumps(frappe_context)}'; "
-        
-        f"export SCRIPT_LIB_DIR='{SCRIPT_LIB_DIR}'; "
-        f"export BASE_DIR='{BASE_DIR}'; "
-        f"export TENANT_PROTOCOL='{tenant.protocol}'; "
-        f"export LOCAL_HOSTS_ENTRY='{'true' if tenant.protocol == 'http' else 'false'}'; "
+    env = tenant_environment(node, tenant)
+    if apps is not None:
+        env["APPS_JSON"] = json.dumps(apps)
+    return run_remote_script(
+        node, ssh, "site", script_name, env, "tenant_script_log", {"tenant": tenant.name},
     )
-
-    if apps:
-        env_exports += f"export APPS_JSON='{json.dumps(apps)}'; "
-
-    remote_cmd = (
-        f"sudo -n bash -c "
-        f"{shlex.quote(env_exports + f'bash {SCRIPT_BASE_DIR}/{script_name}')}"
-    )
-
-    ssh_command = (
-        f"ssh -vvv -p {ssh['port']} "
-        f"{ssh['user']}@{ssh['host']} "
-        f"{shlex.quote(remote_cmd)}"
-    )
-
-    proc = subprocess.Popen(
-        ssh_command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
-    )
-
-    stdout_lines = []
-    stderr_lines = []
-
-    # read stdout live
-    for line in iter(proc.stdout.readline, ''):
-        line = line.rstrip()
-
-        stdout_lines.append(line)
-
-        frappe.publish_realtime(
-            "tenant_script_log",
-            {
-                "tenant": tenant.name,
-                "line": line,
-                "stream": "stdout"
-            },
-            user=frappe.session.user
-        )
-
-    # read remaining stderr
-    for line in iter(proc.stderr.readline, ''):
-        line = line.rstrip()
-
-        stderr_lines.append(line)
-
-        frappe.publish_realtime(
-            "tenant_script_log",
-            {
-                "tenant": tenant.name,
-                "line": line,
-                "stream": "stderr"
-            },
-            user=frappe.session.user
-        )
-
-    proc.wait()
-
-    stdout = "\n".join(stdout_lines)
-    stderr = "\n".join(stderr_lines)
-
-    frappe.publish_realtime(
-        "tenant_script_log",
-        {
-            "tenant": tenant.name,
-            "status": "Completed" if proc.returncode == 0 else "Failed"
-        },
-        user=frappe.session.user
-    )
-
-    return proc.returncode, stdout, stderr
 
 
 def _extract_meaningful_error(stdout, stderr, exit_code):
@@ -290,10 +181,9 @@ def _log_tenant_action(
         "triggered_by": frappe.session.user,
         "started_at": started_at,
         "finished_at": finished_at,
-        "duration_seconds": (finished_at - started_at).total_seconds(),
         "state_before": automation_before,
         "state_after": automation_after,
-        "status": tenant.status,
+        "state": tenant.automation_state,
         "result": result,
         "exit_code": exit_code,
         "stdout": stdout,
@@ -337,8 +227,9 @@ def _run_maintenance_action(tenant, node, apps, script_name, state_before, actio
     finished_at = now_datetime()
     result = "Success" if exit_code == 0 else "Failed"
 
+    app_names = {app["app_name"] for app in apps}
     for row in tenant.installed_apps:
-        if row.app_name in apps:
+        if row.app_name in app_names:
             row.status = "Installed" if exit_code == 0 else "Failed"
             row.last_error = error
             row.last_updated = now_datetime()
@@ -397,13 +288,14 @@ def _run_readonly_action(tenant, node, action, script_name, state_before,apps):
 
 
 def _resolve_lifecycle_outcome(tenant, action, apps, transition, exit_code, error):
+    app_names = {app["app_name"] for app in apps}
     if exit_code == 0:
         next_state, next_status = transition["success"]
         result = "Success"
 
         if action == "install_apps":
             for row in tenant.installed_apps:
-                if row.app_name in apps:
+                if row.app_name in app_names:
                     row.status = "Installed"
                     row.last_error = None
                     row.installed_at = now_datetime()
@@ -414,12 +306,12 @@ def _resolve_lifecycle_outcome(tenant, action, apps, transition, exit_code, erro
 
         if action == "install_apps":
             for row in tenant.installed_apps:
-                if row.app_name in apps:
+                if row.app_name in app_names:
                     row.status = "Failed"
                     row.last_error = error
                     row.last_updated = now_datetime()
 
-    return next_state, next_status, result
+    return next_state, next_status or tenant.status, result
 
 # ---------------------------------------------------------------------
 # MAIN ENTRY
@@ -432,9 +324,21 @@ def _run_tenant_action(tenant_name, action):
 
     tenant = frappe.get_doc("Tenant Site", tenant_name)
     node = frappe.get_doc("Infrastructure Node", tenant.node)
+    tenant.check_permission("write")
+    node.check_permission("write")
 
     state_before = tenant.automation_state or "idle"
     status_before = tenant.status
+
+    if status_before not in ACTION_STATUSES[action]:
+        frappe.throw(f"Action '{action}' not allowed for status '{status_before}'")
+
+    if state_before not in transition["from"]:
+        frappe.throw(f"Action '{action}' not allowed from state '{state_before}'")
+    if action == "resume_site" and tenant.status != "Suspended":
+        frappe.throw("Only suspended sites can be resumed")
+    if action != "destroy_site" and tenant.status == "Archived":
+        frappe.throw("Archived sites cannot be operated on")
 
     target_state, script_name = ACTION_SCRIPT_MAP[action]
 
@@ -458,8 +362,8 @@ def _run_tenant_action(tenant_name, action):
                 "ref_type": ev.ref_type or "branch",
                 "install_strategy": ev.install_strategy or "git_branch",
             })
-            if not apps:
-                frappe.throw("No pending apps to install")
+        if not apps:
+            frappe.throw("No pending apps to install")
 
     # Maintenance
     if _is_maintenance_action(action, tenant):

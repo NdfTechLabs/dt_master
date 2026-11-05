@@ -1,6 +1,6 @@
 app_name = "dt_master"
 app_title = "Dt Master"
-app_publisher = "Dhana Technologies"
+app_publisher = "NDF Technology Labs Solutions LTD"
 app_description = "Dhana technologies master site generates, configures and manages tenant sites"
 app_email = "enquiries@dhanatechnologies.com"
 app_license = "agpl-3.0"
@@ -17,15 +17,15 @@ website_context = {
 required_apps = ['frappe','erpnext']
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "dt_master",
-# 		"logo": "/assets/dt_master/logo.png",
-# 		"title": "Dt Master",
-# 		"route": "/dt_master",
-# 		"has_permission": "dt_master.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "dt_master",
+		"logo": "/assets/dt_master/images/DHANA.png",
+		"title": "Master",
+		"route": "/desk/master",
+		# "has_permission": "dt_master.api.permission.has_app_permission"
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -256,4 +256,3 @@ required_apps = ['frappe','erpnext']
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-

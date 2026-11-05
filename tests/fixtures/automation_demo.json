@@ -1,0 +1,37 @@
+{
+  "node": {
+    "name": "demo-node", "node_name": "demo-node", "state": "Running", "status": "Active",
+    "scripts_base_dir": "/srv/demo scripts", "project_base_dir": "/srv/demo project",
+    "project_logs_dir": "/srv/demo logs", "frappe_version": "Frappe-15",
+    "ip_address": "192.0.2.10", "ssh_user": "demo", "ssh_port": 22, "access_verified": 1
+  },
+  "framework": {
+    "name": "Frappe-15", "framework": "Frappe", "version": "15",
+    "python_version": "3.11", "node_version": "18.20.8", "bench_package": "frappe-bench",
+    "description": "Demo's framework; no real credentials"
+  },
+  "tenant": {
+    "name": "demo-tenant", "fqdn": "demo.example.test", "node": "demo-node",
+    "database_name": "demo_db", "admin_password": "demo'password;$NOT_CODE",
+    "mysql_root_user_name": "demo_admin", "mysql_root_user_password": "demo'root;&password",
+    "protocol": "https", "port": "8000", "automation_state": "ready", "status": "Active"
+  },
+  "app": {
+    "name": "demo-app-row", "app_name": "demo_app", "extension_version": "demo-app-v1",
+    "extension": "demo-extension", "target_version": "v1.2.3", "installed_version": "1.2.2",
+    "status": "Installed", "enabled": 1, "git_branch": "version-1", "git_commit": "abc1234",
+    "git_dirty": 0, "git_head_state": "branch", "last_action_status": "Success"
+  },
+  "extension": {"name": "demo-extension", "app_name": "demo_app", "install_mode": "rolling", "repository_url": "https://example.test/demo_app.git"},
+  "extension_version": {"name": "demo-app-v1", "extension": "demo-extension", "source_ref": "version-1", "ref_type": "branch", "install_strategy": "git_branch"},
+  "mail_server": {
+    "name": "demo-mail", "node": "demo-node", "tenant_site": "demo-tenant",
+    "domain": "example.test", "hostname": "mail.example.test", "smtp_port": 587,
+    "imap_port": 993, "dkim_selector": "mail", "automation_state": "ready", "status": "Active"
+  },
+  "mail_user": {"name": "demo-mail-user", "email": "alice@example.test", "password": "demo'email;&password", "status": "Pending", "active": 0},
+  "dependencies": [
+    {"name": "demo-package", "install_method": "apt", "group": "system", "version": "", "repository": ""},
+    {"name": "node", "install_method": "nvm", "group": "node", "version": "18.20.8", "repository": ""}
+  ]
+}

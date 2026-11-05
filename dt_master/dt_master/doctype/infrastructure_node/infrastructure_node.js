@@ -60,8 +60,39 @@ frappe.ui.form.on("Infrastructure Node", {
                 show_and_bind(frm, label, cfg.method);
             }
         });
+
+        if (frappe.user_roles.includes("System Manager") && ["Initialized", "Healthy", "Running", "Stopped", "Error"].includes(state)) {
+            for (const [method, label] of Object.entries({
+                backup_bench: "Backup Bench", update_bench: "Update Bench",
+                migrate_bench: "Migrate Bench", remove_bench: "Remove Bench"
+            })) {
+                frm.add_custom_button(__(label), () => {
+                    frappe.confirm(__(method === "remove_bench"
+                        ? "Remove this bench and its virtualenv? Databases will be kept."
+                        : "Run this bench operation? Updates and migrations take backups first."),
+                        () => run_bench_operation(frm, method));
+                }, __("Bench"));
+            }
+            frm.add_custom_button(__("Restore Backup"), () => {
+                frappe.prompt([
+                    {fieldname: "tenant_name", fieldtype: "Link", options: "Tenant Site", label: "Tenant Site", reqd: 1, get_query: () => ({filters: {node: frm.doc.name}})},
+                    {fieldname: "restore_dir", fieldtype: "Data", label: "Absolute backup directory on node", reqd: 1}
+                ], values => frappe.confirm(__("Replace the site's database and files with this backup?"),
+                    () => run_bench_operation(frm, "restore_backup", values)), __("Restore Backup"));
+            }, __("Bench"));
+        }
     }
 });
+
+function run_bench_operation(frm, method, args = {}) {
+    const dialog = create_log_dialog(method);
+    start_execution_log_stream(dialog, frm.doc.name);
+    frappe.call({
+        method: `dt_master.api.infrastructure_node.${method}`,
+        args: {node_name: frm.doc.name, ...args},
+        callback: () => frm.reload_doc()
+    });
+}
 
 function create_log_dialog(title) {
 
@@ -105,7 +136,7 @@ function show_and_bind(frm, label, method) {
         const dialog = create_log_dialog(label);
 
         // start listener first
-        start_execution_log_stream(dialog);
+        start_execution_log_stream(dialog, frm.doc.name);
 
         frappe.call({
             method,
@@ -118,11 +149,13 @@ function show_and_bind(frm, label, method) {
     });
 }
 
-function start_execution_log_stream(dialog) {
+function start_execution_log_stream(dialog, node_name) {
 
     let first_line_received = false;
 
+    frappe.realtime.off("script_execution_log");
     frappe.realtime.on("script_execution_log", data => {
+        if (data.node !== node_name) return;
 
         if (data.line) {
 

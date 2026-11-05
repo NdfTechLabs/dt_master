@@ -1,7 +1,6 @@
 import frappe
-import shlex
-import subprocess
 from frappe.utils import now_datetime
+from dt_master.api.script_contract import mail_environment, run_remote_script
 
 
 BASE_DIR = "/home/frappe/scripts"
@@ -74,42 +73,42 @@ MAIL_SERVER_TRANSITIONS = {
     },
 
     "configure_postfix": {
-        "from": ["installing_stack"],
+        "from": ["installing_stack", "configuring_postfix", "failed"],
         "to": "configuring_postfix",
         "success": ("configuring_dovecot", "Installing"),
         "failure": ("failed", "Failed"),
     },
 
     "configure_dovecot": {
-        "from": ["configuring_postfix"],
+        "from": ["configuring_postfix", "configuring_dovecot", "failed"],
         "to": "configuring_dovecot",
         "success": ("configuring_rspamd", "Installing"),
         "failure": ("failed", "Failed"),
     },
 
     "configure_rspamd": {
-        "from": ["configuring_dovecot"],
+        "from": ["configuring_dovecot", "configuring_rspamd", "failed"],
         "to": "configuring_rspamd",
         "success": ("configuring_opendkim", "Installing"),
         "failure": ("failed", "Failed"),
     },
 
     "configure_opendkim": {
-        "from": ["configuring_rspamd"],
+        "from": ["configuring_rspamd", "configuring_opendkim", "failed"],
         "to": "configuring_opendkim",
         "success": ("configuring_dns", "Installing"),
         "failure": ("failed", "Failed"),
     },
 
     "configure_dns": {
-        "from": ["configuring_opendkim"],
+        "from": ["configuring_opendkim", "configuring_dns", "failed"],
         "to": "configuring_dns",
         "success": ("verifying", "Installing"),
         "failure": ("failed", "Failed"),
     },
 
     "verify_mail": {
-        "from": ["verifying", "configuring_dns", "failed"],
+        "from": ["verifying", "configuring_dns", "failed", "ready"],
         "to": "verifying",
         "success": ("ready", "Active"),
         "failure": ("failed", "Failed"),
@@ -215,101 +214,16 @@ def _get_ssh_config(node):
 # -----------------------------------------------------------
 
 def _execute_mail_script(node, mail_server, script_name, mail_user=None):
-
     ssh = _get_ssh_config(node)
-
-    if not node.scripts_base_dir:
-        frappe.throw("Scripts base directory not configured on node")
-
-    tenant = None
-    if mail_server.tenant_site:
-        tenant = frappe.get_doc("Tenant Site", mail_server.tenant_site)
-
-    SCRIPT_BASE_DIR = f"{node.scripts_base_dir}/bin/mail"
-    SCRIPT_LIB_DIR = f"{node.scripts_base_dir}/lib"
-
-    env_exports = (
-        f"export SCRIPTS_BASE_DIR='{SCRIPT_BASE_DIR}'; "
-        f"export SCRIPT_LIB_DIR='{SCRIPT_LIB_DIR}'; "
-        f"export BASE_DIR='{BASE_DIR}'; "
-        f"export MAIL_DOMAIN='{mail_server.domain}'; "
-        f"export MAIL_HOSTNAME='{mail_server.hostname}'; "
-        f"export MAIL_IP='{node.ip_address}'; "
-        f"export SMTP_PORT='{mail_server.smtp_port}'; "
-        f"export IMAP_PORT='{mail_server.imap_port}'; "
-        f"export DKIM_SELECTOR='{mail_server.dkim_selector}'; "
-        f"export PROJECT_BASE_DIR='{node.project_base_dir}'; "
-        f"export PROJECT_LOGS_DIR='{node.project_logs_dir}'; "
+    env = mail_environment(node, mail_server, mail_user)
+    if script_name in {"configure_postfix.sh", "configure_dovecot.sh", "add_user.sh", "remove_user.sh", "list_users.sh", "update_user_password.sh"}:
+        if not env.get("MYSQL_ROOT_USER") or not env.get("MYSQL_ROOT_PASSWORD"):
+            frappe.throw("Link a Tenant Site with database credentials before running this mail action")
+    if script_name in {"add_user.sh", "remove_user.sh", "update_user_password.sh"} and mail_user is None:
+        frappe.throw("A mailbox user is required for this action")
+    return run_remote_script(
+        node, ssh, "mail", script_name, env, "mail_executor_log", {"server": mail_server.name},
     )
-
-    if tenant:
-        env_exports += (
-            f"export SITE_NAME='{tenant.fqdn}'; "
-            f"export TENANT_PROTOCOL='{tenant.protocol or 'https'}'; "
-            f"export FRAPPE_UPSTREAM_PORT='{tenant.port or ''}'; "
-            f"export DB_NAME='{tenant.database_name or ''}'; "
-            f"export ADMIN_PASSWORD='{tenant.admin_password or ''}'; "
-            f"export MYSQL_ROOT_USER='{tenant.mysql_root_user_name or ''}'; "
-            f"export MYSQL_ROOT_PASSWORD='{tenant.mysql_root_user_password or ''}'; "
-        )
-
-        if mail_user:
-            local, domain = mail_user.email.split("@")
-            env_exports += f"export MAIL_USER='{local}'; "
-
-            if mail_user.password:
-                env_exports += f"export MAIL_PASSWORD='{mail_user.get_password('password')}'; "
-
-    remote_cmd = (
-        f"sudo -n bash -c "
-        f"{shlex.quote(env_exports + f'bash {SCRIPT_BASE_DIR}/{script_name}')}"
-    )
-
-    ssh_command = (
-        f"ssh -p {ssh['port']} "
-        f"{ssh['user']}@{ssh['host']} "
-        f"{shlex.quote(remote_cmd)}"
-    )
-
-    proc = subprocess.Popen(
-        ssh_command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
-
-    output_lines = []
-
-    for line in iter(proc.stdout.readline, ''):
-        line = line.rstrip()
-        output_lines.append(line)
-
-        print(line)  # also print to local stdout for debugging
-        frappe.publish_realtime(
-            "mail_executor_log",
-            {
-                "server": mail_server.name,
-                "line": line
-            },
-            user=frappe.session.user
-        )
-
-    proc.wait()
-
-    stdout = "\n".join(output_lines)
-
-    frappe.publish_realtime(
-        "mail_executor_log",
-        {
-            "server": mail_server.name,
-            "status": "Completed" if proc.returncode == 0 else "Failed"
-        },
-        user=frappe.session.user
-    )
-
-    return proc.returncode, stdout, ""
 
 
 # -----------------------------------------------------------
@@ -374,6 +288,8 @@ def _run_mail_action(mail_server_name, action, mail_user=None):
 
     mail_server = frappe.get_doc("Mail Server", mail_server_name)
     node = frappe.get_doc("Infrastructure Node", mail_server.node)
+    mail_server.check_permission("write")
+    node.check_permission("write")
 
     transition = MAIL_SERVER_TRANSITIONS.get(action)
 
@@ -430,7 +346,14 @@ def _run_mail_action(mail_server_name, action, mail_user=None):
 
         if action == "remove_user" and mail_user:
 
-            frappe.delete_doc("Master Mail Users", mail_user.name, ignore_permissions=True)
+            mail_server.set("mail_users", [row for row in mail_server.mail_users if row.name != mail_user.name])
+
+        if mail_user and action in {"add_user", "update_user_password"}:
+            for row in mail_server.mail_users:
+                if row.name == mail_user.name:
+                    row.status = "Active"
+                    row.active = 1
+                    row.last_password_change = now_datetime()
 
         mail_server.save(ignore_permissions=True)
         frappe.db.commit()
