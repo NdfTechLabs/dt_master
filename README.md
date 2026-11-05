@@ -58,6 +58,7 @@ Installation provides the app's records and interfaces; it does not provision se
 | `dt_master/dt_master/doctype/` | Infrastructure, tenant, extension, capability, framework, mail, and log records |
 | `dt_master/scripts/` | Infrastructure automation scripts and supporting files |
 | `dt_master/testing/` | Integration and Docker sandbox helpers; review prerequisites before running |
+| `docs/migrations/` | Current M4 NDF Frappe Docker integration status and historical migration records |
 | `dt_master/hooks.py` | App metadata, required apps, branding, and management app-screen entry |
 
 ## Development
