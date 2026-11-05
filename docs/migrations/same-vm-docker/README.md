@@ -1,3 +1,20 @@
+> [!IMPORTANT]
+> **Historical / superseded for M4 (updated 2026-11-05).** This directory
+> records a separate Dalali same-VM migration experiment. Its rootless Docker
+> runtime, dedicated dt-containers account, socket, images, volumes and
+> deployment approach have been retired and removed from the server. Do not
+> follow its rootless installation or deployment instructions for current work.
+>
+> The current integration direction is documented in
+> [M4 — NDF Frappe Docker integration](../M4_NDF_FRAPPE_DOCKER_INTEGRATION.md).
+> M4 uses the existing system Docker Engine and consumes product images and
+> deployment definitions from NDF Frappe Docker. The historical rehearsal
+> results remain reference evidence only; they do not validate the NDF product
+> image or DT Master integration. Existing host-native production deployments
+> remain separate and are not implicitly migrated.
+
+---
+
 # Same-VM Frappe → Docker migration
 
 ## Status and agreed scope
