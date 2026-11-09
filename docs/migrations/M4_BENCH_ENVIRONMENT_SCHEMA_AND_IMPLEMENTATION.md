@@ -1624,12 +1624,17 @@ be fixed and verified before DT Master trusts it.
 | Integrate Tenant Site/DT Tenant lifecycle and service identities | M4.6 |
 | Perform end-to-end compatibility, migration, permission, security, rollback and production-readiness testing | M4.7 |
 
-**Approval boundary:** The artifact separation, ownership, SHA-enforcement
-requirement, candidate/result exchange, Compose boundary, descriptor content,
-release/product approval separation and milestone placement above are the
-proposed M4.1 NDF integration contract. Explicit review is required before
-marking it resolved. All implementation fixes remain in their assigned
-milestones; no NDF or DT Master code changes are authorized by this record.
+**Approval boundary:** The NDF artifact/build/deployment architecture in this
+section is accepted for M4.1, including application identity ownership,
+immutable release descriptors, composition resolution, SHA-enforced build
+inputs, digest-pinned base images, Product Deployment Descriptor, artifact
+signatures and provenance verification, declarative service topology,
+authenticated asynchronous build request/result, NDF-only registry publishing,
+Host/Docker artifact distinction, existing pipeline extension and separate
+marketplace/product approval. The accepted artifact trust model is mandatory
+for production deployment and fails closed on missing, invalid, untrusted or
+mismatched signatures, attestations or digests. Implementation remains assigned
+to M4.2–M4.7; this approval does not authorize code or runtime changes.
 
 
 ## 17. M4.1 architecture review and exit assessment
@@ -1679,9 +1684,9 @@ The following architecture decisions are recorded as resolved in Sections
 
 | Contract | Current record | Status / remaining closure requirement |
 |---|---|---|
-| Cross-repository security/authorization | Section 15 | **Policy accepted.** Reconcile documentation across both repositories. Concrete Frappe roles, endpoint enforcement, credential migration, operation implementation and runtime verification remain assigned implementation work. |
-| NDF integration/artifact contract | Section 16 | **Review/approval pending.** Approve Marketplace App Descriptor, Product Composition Manifest, Deployment Candidate, Product Deployment Descriptor, build/result and Compose/runtime ownership. |
-| Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md | **Source dispositions reviewed and consolidated.** External/private/deployed callers cannot be ruled out from the two accessible repository trees; retain this verification limitation. |
+| Cross-repository security/authorization | Section 15 | **Policy accepted and documentation reconciled.** Concrete Frappe roles, endpoint enforcement, credential migration, operation implementation and runtime verification remain assigned implementation work. |
+| NDF integration/artifact contract | Section 16 | **Accepted for M4.1.** Artifact ownership, immutable releases, composition/build contract, descriptor, signature/attestation verification, service topology, asynchronous request/result, registry permissions and Host/Docker distinction are accepted. Implementation remains assigned to M4.2–M4.7. |
+| Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md and M4_API_CALLER_AND_SECURITY_AUDIT_ADDENDUM.md | **Source dispositions reviewed and consolidated.** Platform owner confirms no additional DT Master API consumers are known outside DT Tenant (2026-11-09); independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. |
 | Migration and rollback | Sections 14.12–14.13 and the replacement migration contract in Section 14.14 | **Policy accepted.** Isolated database/file copies are mandatory for replacement preparation; write-freeze and final synchronization precede cutover; pre-commit rollback preserves the original Bench; post-commit return requires separately validated recovery/reconciliation. Implementation details remain assigned to M4.2–M4.7. |
 
 ### 17.3 Remaining implementation dependencies by milestone
@@ -1753,14 +1758,15 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
       lifecycle contracts are approved.
 - [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
-- [ ] The Section 16 NDF artifact/build/deployment contract is approved.
-- [ ] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
+- [x] The Section 16 NDF artifact/build/deployment contract is approved; implementation remains assigned to M4.2–M4.7.
+- [x] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
       M4.2 blocker, not treated as an already-satisfied immutable build.
-- [ ] The cross-repository caller/disposition audit is reviewed, with external
-      caller limitations recorded.
+- [x] The cross-repository caller/disposition audit is reviewed; no additional
+      consumers are known to the platform owner, and external/private/deployed
+      caller verification limitations are recorded.
 - [x] The ordered data migration, backup, resumability and rollback policy is accepted; isolated replacement copies and the pre-/post-commit rollback boundary are recorded. Implementation and rehearsal remain assigned to M4.2–M4.7.
 - [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
 - [ ] Explicit authorization is obtained before implementation starts.
 
-**Current assessment:** The architecture and source audits are substantially complete. The Section 15 cross-repository authorization policy decisions have been accepted and are being reconciled across repository documentation. Section 16 NDF integration/artifact approval, final migration/rollback review, remaining external caller verification and final owner architecture acceptance remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization policy, Section 16 NDF artifact/build/deployment contract and migration/rollback policy have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Final consolidated architecture review and explicit M4.1 closure/implementation authorization remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
