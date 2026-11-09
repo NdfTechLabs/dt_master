@@ -1335,17 +1335,64 @@ Every mutating cross-repository request must carry or resolve to:
 - schema/contract version and request timestamp;
 - safe result/error code and operation state.
 
-Master creates the durable operation/request record before queueing work. Each mutating operation has a unique operation ID and records tenant ID, Bench Environment ID, application, operation, requesting user, initiating service identity, status (Pending/Running/Completed/Failed), start/completion timestamps and sanitized error information. Duplicate idempotency keys return the existing operation result or a defined conflict; they must not schedule duplicate mutations. Retry and reconciliation must be controlled and must not repeat a destructive action blindly.
+Operation record ownership is split by application responsibility:
 
-The initiating human actor is captured at request acceptance and explicitly
-propagated to the worker. Scheduled jobs use a distinct service/system actor.
-A worker's current frappe.session.user is not treated as proof of the
-initiating actor.
+- DT Master owns authoritative operation records for Infrastructure Nodes,
+  Bench Environments, infrastructure and deployment operations.
+- DT Tenant owns authoritative records for tenant-originated requests and
+  tenant-side operations.
+- A cross-repository workflow carries a shared correlation ID. Each
+  application retains its own operation ID, record, lifecycle and audit
+  history; neither application becomes the record owner for the other's
+  responsibilities.
 
-Callbacks are authenticated, bound to an outstanding operation, validated
-against the expected state transition and replay-safe. They carry operation
-identity and safe status only; raw tracebacks, shell output and secret values
-are excluded.
+The owning application creates its durable operation record before queueing
+work. Each mutating operation records its operation ID, correlation ID where
+applicable, target resource, tenant and Bench context where applicable,
+application/action, initiating human actor, authenticated service identity,
+business state, execution state, timestamps and sanitized result/error
+information. The initiating human actor is captured at request acceptance
+and explicitly propagated to workers. Scheduled jobs use a distinct
+service/system actor. A worker's current frappe.session.user is not proof of
+the initiating actor.
+
+Business state and execution state are separate. A request may be Accepted
+while execution remains Queued or Pending. The business lifecycle represents
+the request decision and outcome; the execution lifecycle represents the
+actual work performed. Each has explicit permitted transitions, terminal
+states and recovery rules. An operation must not be reported as business-
+completed merely because it was queued or accepted.
+
+A resource-level execution lock prevents conflicting mutations against the
+same protected resource and any shared resource whose isolation cannot be
+proven. Parallel operations are permitted only where resource ownership and
+isolation make them safe. Lock acquisition, ownership, expiry/lease and
+release are recorded and recoverable; a stale worker must not continue a
+mutation after losing its lease.
+
+Idempotency keys are scoped to the owning application and operation contract.
+A repeated key with the same request returns the existing operation/result;
+reuse with a materially different request returns a defined conflict. The
+key's retention period and exact storage/index implementation are specified
+with the owning operation model. Duplicate requests must never schedule
+duplicate mutations.
+
+Retry policy is explicit per operation. Automatic retries are limited to
+operations classified as safe and idempotent. Destructive operations are
+never blindly retried. Ambiguous outcomes, expired execution leases or
+partial mutations enter controlled reconciliation/recovery and may require
+operator intervention. Cancellation and timeout behavior must define whether
+work can stop safely, whether compensation is possible and when the outcome
+must instead be reconciled.
+
+The initiating application remains authoritative for its local operation
+record. Cross-repository callbacks and status updates carry the shared
+correlation ID and the remote operation reference, are authenticated,
+bound to the expected operation, validated against permitted state
+transitions and replay-safe. They update the receiving application's
+correlated view without transferring ownership of the originating record.
+Callbacks carry safe status only; raw tracebacks, shell output and secret
+values are excluded.
 
 ### 15.7 Realtime authorization
 
@@ -1364,12 +1411,26 @@ are excluded.
 
 - Replace ordinary Tenant Site and Tenant Settings credential fields with
   protected Runtime Secret/provider references.
+- DT Master owns platform and infrastructure secrets. DT Tenant owns
+  tenant-specific credentials and settings secrets. Each application resolves
+  only secrets within its authorized ownership boundary; neither application
+  may resolve the other's secrets merely because it holds a reference.
 - Keep tenant-to-Master credentials, Master-to-Tenant callback credentials,
   bootstrap credentials, Frappe Administrator/bootstrap credentials, database
   administrator credentials and mailbox passwords as separate trust domains.
-- Resolve secret material only inside the authorized server-side execution
-  adapter. Do not put secrets in command-line arguments, serialized SSH
-  command strings, Compose descriptors, deployment metadata, realtime events,
+- Secret references, not secret values, are passed between applications and
+  components. A reference identifies the provider-managed secret and its
+  authorized scope; it is not itself authority to resolve the secret.
+- Secret material is delivered to another component only when execution
+  requires it, through a protected, short-lived delivery mechanism. Resolution
+  occurs within an authorized server-side execution boundary. Exact delivery
+  mechanism and provider integration are implementation work for M4.3/M4.6.
+- Docker Compose definitions, NDF deployment descriptors, deployment
+  candidates and other deployment metadata contain secret references only,
+  never secret values. The runtime execution layer resolves and delivers
+  material securely when required.
+- Do not put secrets in command-line arguments, serialized SSH command
+  strings, container image layers, environment dumps, realtime events,
   ordinary API responses or logs.
 - Replace the broad frappe NOPASSWD:ALL sudo grant with narrowly scoped
   privileged operations.
@@ -1380,6 +1441,13 @@ are excluded.
   sensitive.
 - Backups containing site_config.json, database contents or private files
   require encryption, access control, retrieval audit and defined retention.
+- Rotation and revocation are explicit, audited lifecycle operations. Rotation
+  provisions and validates the replacement before switching consumers; old
+  versions are retired or revoked according to the operation's recovery policy.
+- Restoring an application/database backup must reconcile secret references,
+  current provider versions and authoritative revocation state. A backup must
+  never silently reactivate a credential that was revoked after the backup
+  was created.
 
 ### 15.9 Enforcement and recovery rules
 
@@ -1713,16 +1781,18 @@ The following architecture decisions are recorded as resolved in Sections
 | NDF integration/artifact contract | Section 16 | **Accepted for M4.1.** Artifact ownership, immutable releases, composition/build contract, descriptor, signature/attestation verification, service topology, asynchronous request/result, registry permissions and Host/Docker distinction are accepted. Implementation remains assigned to M4.2–M4.7. |
 | Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md and M4_API_CALLER_AND_SECURITY_AUDIT_ADDENDUM.md | **Source dispositions reviewed and consolidated.** Platform owner confirms no additional DT Master API consumers are known outside DT Tenant (2026-11-09); independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. |
 | Migration and rollback | Sections 14.12–14.13 and the replacement migration contract in Section 14.14 | **Policy accepted.** Isolated database/file copies are mandatory for replacement preparation; write-freeze and final synchronization precede cutover; pre-commit rollback preserves the original Bench; post-commit return requires separately validated recovery/reconciliation. Implementation details remain assigned to M4.2–M4.7. |
+| Durable operation contract | Section 15.6 and the common runtime adapter contract | **Accepted for M4.1.** DT Master and DT Tenant retain authoritative records for their respective responsibilities; cross-repository workflows use shared correlation IDs; resource-level locks prevent conflicting mutations; business and execution states are distinct; retry, cancellation, timeout and recovery rules are explicit. Exact state schemas, lock/lease implementation and operation-specific policies remain implementation work. |
+| Secret transport contract | Section 15.8 and the Runtime Secret/provider model | **Accepted for M4.1.** Secret ownership is split between DT Master (platform/infrastructure) and DT Tenant (tenant-specific); references cross boundaries, values do not; runtime resolution and short-lived protected delivery are execution-bound; Compose and deployment descriptors contain references only; rotation, revocation and backup-restore reconciliation are explicit. Provider and delivery implementation remain assigned to M4.3/M4.6. |
 
 ### 17.3 Remaining implementation dependencies by milestone
 
 | Milestone | Dependencies that must be implemented there |
 |---|---|
 | M4.2 — Runtime Infrastructure Enhancements (frappe_docker) | Marketplace App Descriptor and schema; app identity/release references; runtime and Python/Node/OS dependency resolution; deterministic lock extension; enforcement of compatibility/development-ref policy; SHA-enforced app and Frappe builds; immutable base image references; service topology; Product Deployment Descriptor; candidate-driven NDF build/publish/result workflow. |
-| M4.3 — Docker Orchestration Engine (dt_master) | Node Docker readiness/capacity; least-privilege Docker execution; Host/Docker runtime adapters; Bench lifecycle ownership; durable operation coordinator, idempotency/leases/timeouts; endpoint registration; Node port allocation; Nginx ingress manager; protected secret resolution. |
+| M4.3 — Docker Orchestration Engine (dt_master) | Node Docker readiness/capacity; least-privilege Docker execution; Host/Docker runtime adapters; Bench lifecycle ownership; Master-owned durable operation coordinator, resource locks/leases, idempotency and operation-specific timeout/retry/recovery; endpoint registration; Node port allocation; Nginx ingress manager; platform/infrastructure secret provider and protected short-lived runtime delivery. |
 | M4.4 — Product Image Deployment (dt_master) | Deployment Candidate and Deployment Build lifecycle; GitHub Actions request/poll/result; descriptor and digest verification; product capacity checks; replacement Bench provisioning; deployment stages/readiness gates; atomic traffic cutover and rollback. |
 | M4.5 — Runtime Application Management (Both) | NDF descriptor synchronization; Extension/Extension Version provenance; Bench app availability; App Installation Request; Product Inclusion Request; no in-place shared Bench code mutation; site-level install only after Bench availability validation. |
-| M4.6 — Tenant Site and DT Tenant Integration (Both + dt_tenant) | Tenant Site → Bench Environment migration; separate directional service identities; tenant-bound API authorization; Tenant Settings and Tenant Site secret migration; Tenant Manager/User policy; capability sync/lifecycle correction; site lifecycle and callback integration. |
+| M4.6 — Tenant Site and DT Tenant Integration (Both + dt_tenant) | Tenant Site → Bench Environment migration; separate directional service identities; tenant-bound API authorization; Tenant-owned operation records and cross-repository correlation/callback integration; Tenant Settings and Tenant Site secret migration; tenant secret provider/ownership and protected delivery; Tenant Manager/User policy; capability sync/lifecycle correction; site lifecycle integration. |
 | M4.7 — Integration Testing and Production Readiness | Migration rehearsal; Host/Docker and multi-Bench/multi-Site tests; authorization/negative tests; worker/realtime verification; actual installed-commit and descriptor verification; backup/restore; concurrency; observability; failure recovery; rollback and production acceptance. |
 
 ### 17.4 Migration sequence and safeguards
