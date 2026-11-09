@@ -286,35 +286,54 @@ M1–M3 of NDF Frappe Docker are completed project milestones preceding M4.
 They are not sub-milestones of M4. M4 is the integration milestone; publishing
 an image alone does not complete it.
 
-## 9. Discovery checklist and implementation gates
+## 9. M4.1 completion position and later implementation gates
 
-Before code changes or destructive repository cleanup:
+The source-level discovery and repository audit have progressed. The following
+table distinguishes completed M4.1 audit work from architecture contracts
+awaiting approval and work that belongs to later implementation milestones.
 
-1. Complete a file-level audit of Docker-related code, DocTypes, scripts,
-   configuration and tests in dt_master:develop. Classify each item as
-   remove, replace, preserve or adapt.
-2. Inspect the full schemas and relationships for Infrastructure Node,
-   Tenant Site, Tenant Installed App, Framework Version, Extension,
-   Extension Version and related execution records.
-3. Map current node, bench and site call paths and determine how a Bench
-   deployment is represented and addressed.
-4. Inspect NDF manifests, schema, resolver, lock output, Compose definitions,
-   image metadata and release workflow. Establish the exact deployment
-   contract and compatibility evidence.
-5. Define the system Docker execution identity, least-privilege access,
-   resource labels/ownership, network/volume naming, port allocation and
-   safe deletion rules.
-6. Define separate master and tenant bench provisioning flows.
-7. Define controlled image and app upgrades, approval, rollback and recovery.
-8. Adapt integration tests to validate the actual NDF image contract and
-   DT Master orchestration.
-9. Deploy isolated staging master and tenant benches on the live server,
-   without changing existing host-native production sites.
-10. Require explicit acceptance and rollback evidence before any production
-    migration or traffic cutover.
+| Workstream | Current position | Milestone |
+|---|---|---|
+| DT Master and DT Tenant repository tree inventory | Full develop-branch trees retrieved; grouped dispositions recorded in M4_FILE_DISPOSITION_MATRIX.md | M4.1 — source audit completed |
+| Existing DocType/schema/ownership audit | Node → Bench Environment → Tenant Site hierarchy and migration dispositions documented | M4.1 — architecture resolved |
+| Existing API, UI, execution and security audit | Principal source paths reviewed; findings and proposed dispositions recorded | M4.1 — source audit completed |
+| Cross-repository service identity and authorization | Proposed actor/scope, directional identity, tenant binding, secret and realtime contract in Section 15 of the canonical schema specification | M4.1 — policy approval pending |
+| NDF manifest, lock, build and workflow audit | NDF main tree reviewed; SHA-to-build mismatch and missing descriptor/candidate/service contracts recorded in Section 12 and Section 16 of the canonical specification | M4.1 — source audit completed |
+| NDF application, composition and deployment descriptor contracts | Target contract recorded in Section 16 of the canonical schema specification | M4.1 — review/approval pending |
+| Runtime adapter and operation contracts | Ownership and execution boundaries documented; detailed adapter and operation interfaces remain part of the M4.1 contract review | M4.1 |
+| NDF descriptor/runtime/service implementation | Implement immutable build inputs, policy enforcement, runtime/dependency resolution, service definitions and deployment descriptors | M4.2 |
+| DT Master Docker orchestration | Implement Node/Bench runtime adapters and Docker/Compose lifecycle | M4.3 |
+| Candidate image deployment | Implement candidate submission, build tracking, descriptor/digest verification and replacement Bench deployment | M4.4 |
+| Marketplace release and app availability | Implement app descriptor synchronization, Bench app availability and Product Inclusion Request lifecycle | M4.5 |
+| Tenant Site and DT Tenant integration | Implement tenant service identities, Site → Bench migration and tenant lifecycle integration | M4.6 |
+| End-to-end testing, staging, recovery and production acceptance | Validate migration, compatibility, security, rollback and production operations | M4.7 |
 
-No production cutover, host-native bench migration, site deletion, Docker
-resource pruning or automatic upgrade is authorized by this document.
+### M4.1 exit criteria
+
+M4.1 may close only after:
+
+1. The repository disposition matrix and principal caller/security audit are
+   reviewed, including the explicit limitation that private/external callers
+   outside the accessible repository trees have not been proven absent.
+2. The Section 15 cross-repository authorization contract is approved,
+   including the remaining Tenant User mutation policy and billing scope.
+3. The Section 16 NDF artifact, candidate, build/result, descriptor and
+   immutable-source contracts are approved.
+4. Runtime adapter, durable operation, secret transport and migration
+   contracts are reviewed against the agreed Node → Bench Environment → Site
+   ownership model.
+5. Migration sequencing, acceptance criteria, implementation ownership and
+   rollback boundaries are agreed.
+6. The user explicitly authorizes implementation before any application code,
+   DocType, migration, script, workflow or runtime change begins.
+
+Runtime-only Frappe permission, worker identity, realtime delivery, export,
+report, print and backup checks are deferred to the relevant implementation
+and production-readiness stages. They do not require a new CI platform as an
+M4.1 prerequisite.
+
+No production cutover, host-native Bench migration, site deletion, Docker
+resource pruning or automatic upgrade is authorized by these documents.
 
 ## 10. Security and evidence handling
 
