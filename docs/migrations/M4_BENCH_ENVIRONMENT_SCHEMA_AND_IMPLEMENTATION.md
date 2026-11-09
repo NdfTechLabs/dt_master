@@ -1099,3 +1099,244 @@ The following checks remain necessary before implementation, but do not reopen t
 - `Tenant Site.region` is free text, while `Infrastructure Node.region` is a Link. Reconcile before making Site region derived.
 
 **Approval boundary:** The application identity, descriptor ownership, release synchronization, product inclusion governance, deployment logging, database/Redis profiles, secret-provider model, dependency classification, Host Bench grouping, `deployment_type` semantics, logical Frappe schema mechanics, Node-level Nginx ingress ownership, runtime endpoint registration, Node-level port allocation, Node-owned TLS lifecycle, atomic routing/cutover behavior and layered health-check architecture recorded in this section are agreed architecture decisions. Health-check field-level schema, agent transport, exact probes, intervals, thresholds, stage gates and recovery policies remain implementation-level contracts to specify; they do not reopen the agreed ownership, execution, cadence or readiness/liveness principles. The implementation verification checks above also remain. This documentation update does not authorize implementation. Explicit implementation approval is still required before DocType/controller/API/migration/runtime changes begin.
+
+
+
+## 15. Cross-repository security and authorization contract
+
+**Status:** M4.1 contract proposal for architecture review. Source-level findings
+are recorded in the API caller, UI/role and security verification audits.
+This section defines the target authorization boundary; it does not create
+Frappe Roles, service users, secrets, endpoints or implementation changes.
+
+### 15.1 Governing rules
+
+1. **Authenticate the principal, then derive the tenant.** A request-body FQDN,
+   Tenant Site name, customer, subscription, invoice or Node identifier is not
+   proof of identity or ownership.
+2. **Separate human actors from service identities.** A tenant service user is
+   not a Tenant Manager, System Manager or platform operator.
+3. **Default deny.** Every whitelisted method must enforce an explicit
+   actor/scope and resource-ownership decision at the server boundary.
+4. **Authorize before bypassing Frappe permissions.** Any
+   ignore_permissions=True operation requires a preceding explicit
+   authorization decision, validated parent/tenant relationship and audit
+   record. UI visibility is never authorization.
+5. **Preserve the ownership chain.** Tenant Site → Bench Environment →
+   Infrastructure Node is authoritative. Site operations derive Bench and
+   Node from the parent relationship; they do not trust caller-supplied Node
+   links.
+6. **Use durable operation identity.** Async workers and callbacks carry the
+   accepted actor, tenant, target, action and operation ID. Worker session user
+   is not assumed to be the initiating user.
+7. **Keep secrets out of ordinary data and diagnostics.** Secrets are resolved
+   only inside authorized server-side execution and are never serialized into
+   descriptors, command arguments, realtime payloads, logs or ordinary API
+   responses.
+
+### 15.2 Actor classes and responsibility boundaries
+
+These are authorization classes, not yet Frappe Role fixtures. Exact role names
+and bootstrap mechanics are added only after this contract is approved.
+
+| Actor class | Permitted responsibility | Explicitly excluded |
+|---|---|---|
+| Platform Operator | Infrastructure Node, Bench Environment, Tenant Site provisioning/lifecycle, deployment, ingress, backup/restore and platform recovery | Tenant billing/customer actions unless separately granted |
+| Platform Marketplace Operator | Publisher/listing governance, Extension/Extension Version approval and Product Inclusion Request governance | Node/Bench administration unless separately granted |
+| Tenant Service Identity — tenant to Master | Authenticated API calls for one bound Tenant Site and explicitly granted scopes | Desk use, arbitrary tenant selection, System Manager and platform operations |
+| Tenant Callback Identity — Master to tenant | Receive validated Master callbacks for one tenant site and one outstanding operation | General tenant administration, user management and arbitrary realtime publication |
+| Tenant Manager | Tenant users, tenant role profiles, capability-constrained role/module selection, subscription and billing workflows, and authorized marketplace requests | Infrastructure Node/Bench management, secret retrieval and platform administration |
+| Tenant User | Tenant-authorized application and marketplace use within granted tenant capabilities | Tenant settings/secrets, user/role administration, billing and infrastructure operations |
+| Read-only/Support | Explicitly scoped operational or tenant information required for support | Write/execute, unrestricted export, secret retrieval or cross-tenant access |
+| System Manager | Platform administration and audited break-glass recovery | Routine tenant service authentication or a shared tenant integration identity |
+
+System Manager must not be assigned to either tenant service identity. Tenant
+roles and capability profiles must not be able to grant platform operator or
+marketplace governance privileges.
+
+### 15.3 Operation authorization matrix
+
+| Operation | Human actor | Service principal / execution identity | Resource boundary |
+|---|---|---|---|
+| Node provisioning/maintenance | Platform Operator | Authorized Node execution component | One Infrastructure Node |
+| Bench create/update/deploy/replace/rollback | Platform Operator | DT Master operation worker and selected runtime adapter | One Bench Environment and its Node |
+| Tenant Site create/suspend/resume/destroy | Platform Operator or authorized provisioning operator | DT Master operation worker | One Tenant Site, resolved through its Bench |
+| Marketplace browse/listing read | Tenant Manager and Tenant User | Tenant-to-Master identity with marketplace.read | Only the bound Tenant Site's eligible catalogue view |
+| App install/upgrade/uninstall request | Tenant Manager by default; Tenant User mutation remains a policy decision | Tenant-to-Master identity with app.request; Master validates Bench availability and creates an App Installation Request | One Tenant Site; app must be available in its parent Bench Environment |
+| App installation execution | No direct human execution | Authorized DT Master worker after request validation | One accepted App Installation Request and target Site |
+| Extension/listing/release approval | Platform Marketplace Operator | Authenticated NDF release-notification identity for technical metadata only | One registered app/release |
+| Product inclusion approval | Authorized product maintainer / Platform Marketplace Operator | Authenticated DT Master-to-NDF request identity | One product composition and immutable app release |
+| Subscription and billing read | Tenant Manager | Tenant-to-Master identity with subscription.read / billing.read | Customer/subscription derived from bound Tenant Site |
+| Plan change, payment and payment-method mutation | Tenant Manager | Tenant-to-Master identity with explicit billing.write / billing.pay scope | Invoice/customer/subscription ownership independently verified by Master |
+| Capability fetch | No direct tenant-user execution | Tenant-to-Master identity with capability.read | One bound Tenant Site |
+| Capability synchronization and role/module reconciliation | Authorized platform/bootstrap operator or dedicated local scheduler/service identity | Serialized DT Tenant capability-sync operation | One tenant site; only Master-approved roles/modules |
+| Tenant user/role administration | Tenant Manager | Tenant app server-side controller | Users and role/module assignments within the tenant capability allowlist |
+| Tenant Settings ordinary preferences | Tenant Manager, restricted to an explicit allowlist | Tenant application server | One tenant site; cannot alter Master trust endpoint or service credentials |
+| Service credential bootstrap/rotation | Authorized provisioning/platform security operator | Dedicated bootstrap/rotation identity | One Tenant Site and one credential direction |
+| Mail Server operations | Explicitly authorized platform mail operator | Mail operation worker | One Mail Server and its Node; remains separate from Bench Environment |
+| Secret retrieval | No ordinary human or tenant actor | Authorized execution boundary only | One secret reference and one authorized operation |
+
+**Default policy:** Tenant User may browse the Add-ons page and view permitted
+application status. Mutating marketplace actions default to Tenant Manager
+until the product policy explicitly grants Tenant User request authority.
+Subscription and billing functions are Tenant Manager-only. These rules must
+be enforced by APIs as well as page/workspace visibility.
+
+### 15.4 Directional service identities
+
+The two integration directions use separate principals and credentials.
+
+**A. DT Tenant → DT Master**
+
+- Each Tenant Site has one dedicated Tenant-to-Master service principal on
+  DT Master.
+- The principal maps server-side to exactly one Tenant Site.
+- Its permissions are limited to the scopes granted in §15.5.
+- It is not a shared System Manager user and has no Node/Bench permissions.
+- DT Tenant stores its API key and secret as protected references, not ordinary
+  Tenant Settings Data fields.
+- The Master URL is a trusted destination setting; changing it requires an
+  authorized bootstrap/platform operation, not ordinary Tenant Manager access.
+
+**B. DT Master → DT Tenant**
+
+- Each Tenant Site has a separate Tenant Callback Identity on that tenant site.
+- Its credential is stored on Master as a protected secret reference.
+- It can invoke only the callback contract required for operation status and
+  other explicitly approved Master-to-Tenant notifications.
+- It cannot act as a tenant administrator or use a broad System Manager account.
+- The callback validates Master identity, target site, operation ID, expected
+  state transition, payload schema and replay/idempotency state before
+  publishing a notification.
+
+**C. Bootstrap and rotation**
+
+- Initial provisioning uses a narrowly scoped bootstrap identity/credential.
+- Bootstrap creates or binds the two directional principals, stores protected
+  references, verifies both directions and rotates/revokes bootstrap material.
+- Bootstrap credentials are not retained as permanent runtime credentials.
+- Credential rotation is explicit, audited, reversible during the transition
+  and does not expose secret values.
+
+### 15.5 API scopes and tenant binding
+
+Initial scope vocabulary:
+
+| Scope | Purpose |
+|---|---|
+| marketplace.read | Read eligible marketplace listings and approved release metadata |
+| app.request | Submit an install/upgrade/uninstall request for the bound Tenant Site |
+| subscription.read | Read the bound tenant's subscription and plan information |
+| billing.read | Read billing history and invoices belonging to the bound tenant |
+| billing.pay | Initiate an authorized payment or payment-method action for the bound tenant |
+| capability.read | Retrieve the capability snapshot for the bound Tenant Site |
+| tenant.callback | Publish a validated callback for one outstanding Master operation on the bound tenant |
+| tenant.bootstrap | Complete restricted initial registration and credential rotation |
+| platform.node / platform.bench / platform.site | Platform-internal scopes; never granted to a tenant service identity |
+
+Master resolves the authenticated API principal to its Tenant Site mapping
+before executing a method. It then verifies that the Site is active/eligible,
+derives Customer and Subscription from that Site, derives Bench Environment
+and Node through the authoritative parent relationship, and checks the
+requested scope and resource ownership.
+
+A caller-supplied FQDN may be used as a consistency assertion during migration,
+but it is not the tenant identity. A caller may not select another Tenant Site,
+customer, subscription, invoice, Bench or Node by changing request arguments.
+
+For child records, the API loads and authorizes the parent first, then resolves
+the child row from that parent's child table. A child-row name paired with a
+different parent is rejected.
+
+### 15.6 Request, operation and callback envelope
+
+Every mutating cross-repository request must carry or resolve to:
+
+- request_id and idempotency_key;
+- authenticated actor class and principal identity;
+- bound Tenant Site identity where tenant-scoped;
+- operation/action and target DocType/document;
+- requested authorization scope;
+- schema/contract version and request timestamp;
+- safe result/error code and operation state.
+
+Master creates the durable operation/request record before queueing work.
+Duplicate idempotency keys return the existing operation result or a defined
+conflict; they must not schedule duplicate mutations.
+
+The initiating human actor is captured at request acceptance and explicitly
+propagated to the worker. Scheduled jobs use a distinct service/system actor.
+A worker's current frappe.session.user is not treated as proof of the
+initiating actor.
+
+Callbacks are authenticated, bound to an outstanding operation, validated
+against the expected state transition and replay-safe. They carry operation
+identity and safe status only; raw tracebacks, shell output and secret values
+are excluded.
+
+### 15.7 Realtime authorization
+
+- Realtime publication is performed only after server-side authorization.
+- Execution events carry operation ID, tenant/site, target and safe status.
+- Recipient selection is explicit and derived from the persisted authorized
+  actor/tenant context, not from an unverified worker session.
+- Tenant callbacks do not broadcast unrestricted site-wide status/error
+  payloads.
+- Browser-side filtering by site, extension or row is presentation only and
+  never the access-control boundary.
+- Client listeners unsubscribe only their own callback.
+- Diagnostics are sanitized before persistence and publication.
+
+### 15.8 Secret and diagnostic boundary
+
+- Replace ordinary Tenant Site and Tenant Settings credential fields with
+  protected Runtime Secret/provider references.
+- Keep tenant-to-Master credentials, Master-to-Tenant callback credentials,
+  bootstrap credentials, Frappe Administrator/bootstrap credentials, database
+  administrator credentials and mailbox passwords as separate trust domains.
+- Resolve secret material only inside the authorized server-side execution
+  adapter. Do not put secrets in command-line arguments, serialized SSH
+  command strings, Compose descriptors, deployment metadata, realtime events,
+  ordinary API responses or logs.
+- Replace the broad frappe NOPASSWD:ALL sudo grant with narrowly scoped
+  privileged operations.
+- Do not execute arbitrary dependency URLs through curl piped to bash; Node
+  prerequisites require allowlisted, immutable and integrity-verified sources.
+- Redact before persistence, not only before browser publication. Error logs,
+  child logs, mail logs, exports and backups are treated as potentially
+  sensitive.
+- Backups containing site_config.json, database contents or private files
+  require encryption, access control, retrieval audit and defined retention.
+
+### 15.9 Enforcement and recovery rules
+
+- The API authorization matrix is authoritative; UI/workspace visibility is
+  supplementary.
+- Tenant Manager role/profile assignments are intersected with the Master
+  capability allowlist and must also honor the enabled state of Tenant Roles
+  and Tenant Modules.
+- Platform roles are never assignable through tenant role/profile controls.
+- Subscription lifecycle transitions modify only accounts/roles that the
+  lifecycle operation itself changed. Recovery must not re-enable users
+  disabled for unrelated security or administrative reasons.
+- Subscription request gating is not considered active until its hook and
+  policy are explicitly enabled and verified.
+- Failed authorization, invalid parent/child relationships, stale callbacks
+  and replayed requests fail closed and create safe audit records.
+
+### 15.10 Decisions requiring explicit policy approval
+
+1. Confirm whether Tenant User may submit app install/upgrade/uninstall
+   requests, or whether those mutations remain Tenant Manager-only. The
+   conservative default above is Tenant Manager-only.
+2. Confirm whether payment-method management and invoice payment remain
+   Tenant Manager-only or require a separate billing permission.
+3. Approve the actor classes and scope model before creating concrete Frappe
+   Role fixtures or service users.
+
+**Approval boundary:** This section is a proposed M4.1 cross-repository
+security/authorization contract. The actor separation, tenant-binding rules,
+directional identity separation, default-deny principle, parent-first child
+authorization, secret boundaries and realtime operation-correlation rules
+must be reviewed before being marked resolved. It does not authorize code,
+DocType, permission, credential, migration or runtime changes.
