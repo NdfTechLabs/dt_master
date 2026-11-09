@@ -113,9 +113,10 @@ The architecture baseline for integrating NDF Frappe Docker with DT Master and D
 ## M4.1 — Integration contract and architecture
 
 **Status: In progress.**  
-**Implementation status: Not started under M4.1 approval.**
+**Authorization policy: Accepted; documentation reconciliation and remaining M4.1 reviews are in progress.**  
+**Implementation status: Not started.**
 
-M4.1 will define and approve the contracts and repository-level changes before implementation begins.
+M4.1 defines and approves the cross-repository contracts before implementation begins. The Section 15 identity, authentication and application-authorization decisions are accepted. NDF artifact/build contract approval, final migration/rollback review and final architecture acceptance remain outstanding.
 
 | Workstream | Required outcome |
 |---|---|
