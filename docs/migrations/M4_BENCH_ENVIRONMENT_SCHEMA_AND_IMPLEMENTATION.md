@@ -1585,3 +1585,126 @@ release/product approval separation and milestone placement above are the
 proposed M4.1 NDF integration contract. Explicit review is required before
 marking it resolved. All implementation fixes remain in their assigned
 milestones; no NDF or DT Master code changes are authorized by this record.
+
+
+## 17. M4.1 architecture review and exit assessment
+
+**Review status:** Prepared for owner review; M4.1 is not yet closed.
+**Implementation authorization:** Not granted.
+
+### 17.1 Resolved architecture decisions
+
+The following architecture decisions are recorded as resolved in Sections
+1–14 and must remain binding:
+
+- Infrastructure Node → Bench Environment → Tenant Site ownership hierarchy.
+- A Node may host multiple Bench Environments; a Bench Environment may host
+  multiple Tenant Sites.
+- Bench Environment owns runtime type, product identity, image/digest,
+  application inventory, runtime components, storage/service references,
+  site membership and deployment state.
+- Bench Environment Application is the Bench-level availability inventory;
+  Tenant Installed App remains site-level installation state.
+- Host-native and Docker-backed Bench Environments coexist during migration.
+- Existing Host migration follows actual Bench directory/runtime grouping;
+  preserve the user's confirmed initial one-Bench-per-existing-Node baseline
+  only where filesystem/site evidence confirms it.
+- Shared Bench composition changes use immutable replacement Bench
+  deployments; all member sites move together and the prior Bench remains
+  available for rollback.
+- NDF owns product composition, dependency resolution, image construction,
+  validation, immutable publishing and deployment descriptors.
+- DT Master owns Node/Bench/Site orchestration, runtime adapters, ingress,
+  deployment state, migration and recovery coordination.
+- DT Tenant is the tenant-facing authenticated service client; it does not
+  orchestrate Node or Docker.
+- Nginx is Node-level ingress; DT Master owns desired routing configuration,
+  endpoint registration, port allocation, TLS lifecycle and atomic cutover.
+- Health checks use five layers and hybrid Node-side/control-plane execution,
+  with readiness separated from liveness and operational health separated
+  from deployment readiness.
+- Database and Redis profiles are independently Dedicated, Shared or External.
+- Runtime Secret/provider abstraction replaces ordinary credential fields.
+- Dependencies are classified as Node prerequisites, NDF image/runtime
+  dependencies or Bench external-service dependencies.
+- Marketplace app identity/release, product composition and product deployment
+  are separate artifacts and approval processes.
+
+### 17.2 Contracts drafted and awaiting explicit approval
+
+| Contract | Current record | Closure requirement |
+|---|---|---|
+| Cross-repository security/authorization | Section 15 | Approve actor classes, scopes, directional service identities, tenant binding, callback/realtime, secret and diagnostic boundaries. Confirm Tenant User app mutation policy. |
+| NDF integration/artifact contract | Section 16 | Approve Marketplace App Descriptor, Product Composition Manifest, Deployment Candidate, Product Deployment Descriptor, build/result and Compose/runtime ownership. |
+| Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md | Review grouped dispositions and acknowledge external/private callers cannot be ruled out from the two repository trees alone. |
+| Migration and rollback | Sections 14.12–14.13 and this specification | Approve ordered migration, preflight, backup, resumability, compatibility window and retirement safeguards. |
+
+### 17.3 Remaining implementation dependencies by milestone
+
+| Milestone | Dependencies that must be implemented there |
+|---|---|
+| M4.2 — Runtime Infrastructure Enhancements (frappe_docker) | Marketplace App Descriptor and schema; app identity/release references; runtime and Python/Node/OS dependency resolution; deterministic lock extension; enforcement of compatibility/development-ref policy; SHA-enforced app and Frappe builds; immutable base image references; service topology; Product Deployment Descriptor; candidate-driven NDF build/publish/result workflow. |
+| M4.3 — Docker Orchestration Engine (dt_master) | Node Docker readiness/capacity; least-privilege Docker execution; Host/Docker runtime adapters; Bench lifecycle ownership; durable operation coordinator, idempotency/leases/timeouts; endpoint registration; Node port allocation; Nginx ingress manager; protected secret resolution. |
+| M4.4 — Product Image Deployment (dt_master) | Deployment Candidate and Deployment Build lifecycle; GitHub Actions request/poll/result; descriptor and digest verification; product capacity checks; replacement Bench provisioning; deployment stages/readiness gates; atomic traffic cutover and rollback. |
+| M4.5 — Runtime Application Management (Both) | NDF descriptor synchronization; Extension/Extension Version provenance; Bench app availability; App Installation Request; Product Inclusion Request; no in-place shared Bench code mutation; site-level install only after Bench availability validation. |
+| M4.6 — Tenant Site and DT Tenant Integration (Both + dt_tenant) | Tenant Site → Bench Environment migration; separate directional service identities; tenant-bound API authorization; Tenant Settings and Tenant Site secret migration; Tenant Manager/User policy; capability sync/lifecycle correction; site lifecycle and callback integration. |
+| M4.7 — Integration Testing and Production Readiness | Migration rehearsal; Host/Docker and multi-Bench/multi-Site tests; authorization/negative tests; worker/realtime verification; actual installed-commit and descriptor verification; backup/restore; concurrency; observability; failure recovery; rollback and production acceptance. |
+
+### 17.4 Migration sequence and safeguards
+
+The approved logical sequence remains:
+
+1. Inventory Nodes, actual Host Bench directories, Tenant Sites, dependencies,
+   service identities and stored credentials.
+2. Classify Node-owned versus Bench-owned paths, ports, services and logs.
+3. Create one Host Bench Environment for each verified existing Bench.
+4. Populate Bench runtime, configuration, service, storage and app inventory.
+5. Link each Tenant Site to its verified Bench Environment and prove that the
+   derived Node matches its legacy Node.
+6. Reconcile framework/app versions and site database metadata.
+7. Reconcile Bench Environment Application inventory against actual Bench
+   source and site-level Tenant Installed App state.
+8. Classify dependencies and external service ownership.
+9. Extend framework and marketplace release metadata with immutable provenance.
+10. Migrate credentials into protected secret references and verify/rotate
+    without duplicating plaintext.
+11. Preserve/reconcile execution, action, deployment and audit history.
+12. Switch application reads and operations to the new ownership model only
+    after validation.
+13. Run representative Host migration and recovery rehearsals.
+14. Retire legacy direct Node ownership and Bench actions only after all
+    consumers are migrated and compatibility observation passes.
+
+No site regrouping, Host-to-Docker conversion, data deletion, credential
+plaintext duplication, broad Docker pruning or production cutover is implied.
+Keep old Bench resources until site migration, health verification and rollback
+window are accepted.
+
+### 17.5 M4.1 acceptance criteria
+
+M4.1 can be marked complete only when all criteria below are satisfied:
+
+- [ ] The exact M4.0–M4.7 milestone structure is used consistently across the
+      tracker and audit records.
+- [ ] Node → Bench Environment → Tenant Site ownership and all child-table
+      boundaries are approved.
+- [ ] The schema and field migration matrix is reviewed and accepted.
+- [ ] Host/Docker runtime ownership and adapter contracts are approved.
+- [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
+      lifecycle contracts are approved.
+- [ ] The Section 15 security/authorization contract is approved.
+- [ ] The Section 16 NDF artifact/build/deployment contract is approved.
+- [ ] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
+      M4.2 blocker, not treated as an already-satisfied immutable build.
+- [ ] The cross-repository caller/disposition audit is reviewed, with external
+      caller limitations recorded.
+- [ ] The ordered data migration, backup, resumability and rollback plan is
+      accepted.
+- [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
+- [ ] Explicit authorization is obtained before implementation starts.
+
+**Current assessment:** The architecture and source audits are substantially
+complete; the security and NDF integration contracts are drafted. The
+cross-repository policy decision and final owner review remain outstanding.
+Therefore M4.1 remains **In progress**. M4.2 has not started.
+
