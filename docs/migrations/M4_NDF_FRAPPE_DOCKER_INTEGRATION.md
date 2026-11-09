@@ -276,7 +276,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated acceptance review, documentation consistency check and explicit M4.1 closure/implementation authorization.
+M4.1 — Integration Contract and Architecture was formally closed/accepted on 2026-11-09 following the final 13-point architecture acceptance review and the platform owner's explicit approval. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, source-level API/UI/security audits, cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. **Implementation authorization has not been granted.** M4.2–M4.7 remain pending.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
@@ -290,7 +290,7 @@ an image alone does not complete it.
 
 ## 9. M4.1 completion position and later implementation gates
 
-The source-level discovery and repository audit are substantially complete. The authorization policy in Section 15 of the canonical Bench Environment specification has been accepted. The following table distinguishes accepted architecture decisions from remaining contract review, external verification and later implementation work.
+The source-level discovery and repository audit, architecture contracts and documentation reconciliation were accepted as the M4.1 baseline. The platform owner explicitly approved M4.1 closure on 2026-11-09. The following table distinguishes accepted architecture decisions from external verification and later implementation work.
 
 | Workstream | Current position | Milestone |
 |---|---|---|
@@ -308,9 +308,9 @@ The source-level discovery and repository audit are substantially complete. The 
 | Tenant Site and DT Tenant integration | Implement tenant service identities, Site → Bench migration and tenant lifecycle integration | M4.6 |
 | End-to-end testing, staging, recovery and production acceptance | Validate migration, compatibility, security, rollback and production operations | M4.7 |
 
-### M4.1 exit criteria
+### M4.1 exit criteria and closure record
 
-M4.1 may close only after:
+The following exit criteria were satisfied and M4.1 was formally closed on 2026-11-09 after explicit owner approval:
 
 1. The repository disposition matrix and principal caller/security audit are
    reviewed. The platform owner confirms no additional DT Master API consumers
@@ -325,14 +325,14 @@ M4.1 may close only after:
    Environment → Site ownership model.
 5. Migration sequencing, acceptance criteria, implementation ownership and
    rollback boundaries are agreed.
-6. Implementation authorization is a separate mandatory gate before any
-   application code, DocType, migration, script, workflow or runtime change;
-   it is not a prerequisite for M4.1 architecture acceptance or closure.
+6. Implementation authorization remains a separate mandatory gate before any
+   application code, DocType, migration, script, workflow or runtime change.
+   It was not granted by M4.1 closure and remains pending.
 
-Runtime-only Frappe permission, worker identity, realtime delivery, export,
-report, print and backup checks are deferred to the relevant implementation
-and production-readiness stages. They do not require a new CI platform as an
-M4.1 prerequisite.
+**Closure outcome:** M4.1 is Closed / Accepted. Runtime-only Frappe permission,
+worker identity, realtime delivery, export, report, print and backup checks are
+deferred to the relevant implementation and production-readiness stages.
+They do not reopen M4.1 or authorize implementation.
 
 No production cutover, host-native Bench migration, site deletion, Docker
 resource pruning or automatic upgrade is authorized by these documents.
