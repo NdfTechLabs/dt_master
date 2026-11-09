@@ -223,4 +223,4 @@ The following are not claimed as complete:
 4. **Sensitive-field surface test:** verify actual export, report, print, REST serialization and backups on the deployed site; inspect any custom reports not represented in the reviewed source paths.
 5. **Secret lifecycle:** confirm encryption, key custody, rotation, backup encryption and access audit in the chosen secret provider.
 
-M4.1 remains in progress because the repository-wide audit, cross-repository security/authorization contracts, NDF integration contracts and final architecture review are not yet complete. Runtime-only checks above are deferred to the relevant implementation/testing stage. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
+M4.1 remains in progress because the proposed Section 15 security/authorization contract and Section 16 NDF integration contract in the canonical Bench Environment specification still require owner approval, followed by the final architecture review. Runtime-only checks above are deferred to the relevant implementation/testing stage. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
