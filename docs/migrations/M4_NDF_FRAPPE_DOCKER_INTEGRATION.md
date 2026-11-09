@@ -1,6 +1,6 @@
 # M4 — NDF Frappe Docker integration
 
-**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress; NDF artifact contract, migration/rollback policy and owner caller-inventory confirmation accepted. Final architecture review and M4.1 closure remain pending.  
+**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress; NDF artifact contract, migration/rollback policy, candidate/build lifecycle and owner caller-inventory confirmation accepted. Final architecture review and M4.1 closure remain pending.  
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
 disrupting existing host-native deployments.
