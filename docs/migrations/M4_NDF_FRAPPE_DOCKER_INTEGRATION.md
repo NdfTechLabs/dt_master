@@ -334,3 +334,107 @@ requirements.
 - DT Master — develop: https://github.com/NdfTechLabs/dt_master/tree/develop
 - DT Tenant — develop: https://github.com/NdfTechLabs/dt_tenant/tree/develop
 - Historical same-VM Dalali migration: same-vm-docker/README.md
+
+
+## 12. NDF source audit and integration-contract findings
+
+**Audit repository:** NdfTechLabs/frappe_docker  \
+**Branch:** main (repository default branch)  \
+**Tree SHA:** 7c16ac4cf56226e417b941144da272267937dd84  \
+**Files in tree:** 198  \
+**Audit mode:** Read-only source/schema/workflow review.
+
+The DT Master and DT Tenant applications were audited on their requested
+develop branches. NDF Frappe Docker uses main as its default/source branch;
+the source review therefore uses main rather than assuming a develop branch.
+
+### 12.1 Existing capabilities to preserve
+
+- application-manifest-v1 schema and recursive manifest loader;
+- deterministic dependency graph ordering and lock generation;
+- manifest checksums and immutable Git SHA resolution in lock files;
+- image definitions mapping product IDs to GHCR repositories;
+- build preparation and metadata generation;
+- Buildx image construction, OCI labels, digest output and image-content
+  validation;
+- existing NDF build, publish and release workflows;
+- upstream Compose files and override model.
+
+These are the foundation to extend, not replace with a second builder/resolver.
+
+### 12.2 Source-level contract gaps
+
+1. **Resolved SHA is not the build input.** The resolver stores app commit SHAs
+   in lock files, but prepare_build.py writes target_ref branches into
+   apps.json. build_image.py passes framework.target_ref to FRAPPE_BRANCH.
+   Containerfile uses those refs for Bench initialization. The image validator
+   does not inspect installed Git HEADs. The lock can therefore claim a commit
+   that the built image has not proven to contain.
+2. **Base images are tag-based.** The build and runtime stages reference
+   frappe/build and frappe/base using the Frappe branch tag, not a verified
+   immutable base-image digest.
+3. **Manifest policy is not fully enforced.** allow_development_branches and
+   fail_on_unverified_compatibility are accepted by the schema but are not
+   enforced by the resolver. validation.required_checks are declarations,
+   not executable product acceptance checks. The current base manifest
+   includes telephony on develop while its resolution policy disallows
+   development branches.
+4. **No per-app Marketplace App Descriptor.** application-manifest-v1 is a
+   composition manifest; app entries use name/repository/target_ref and do
+   not provide registered app_id, release descriptor digest, compatibility
+   ranges or Python/Node/OS dependency declarations.
+5. **Service declarations are not part of the build contract.** The
+   ai-automation manifest contains services, but the resolver composes only
+   applications. The current image pipeline does not build/publish those
+   services from the declaration.
+6. **No Product Deployment Descriptor implementation.** No descriptor
+   schema/generator or digest-bound artifact was found in the audited NDF
+   tree.
+7. **No dynamic candidate workflow.** The existing workflow selects predefined
+   product IDs. No workflow input/result contract for DT Master-generated
+   Deployment Candidates was found.
+8. **No Master notification or Product Inclusion Request flow.** No
+   authenticated release callback, build-result callback or product inclusion
+   workflow was found.
+9. **Release workflow coverage is incomplete.** The current release workflow
+   promotes the DhanaERP Master image only.
+10. **Generated build files are tracked.** images/ndf/.build/dalali-v16 contains
+    apps.json and build-metadata.json. These should be ephemeral generated
+    outputs; deterministic lock files remain tracked.
+
+### 12.3 NDF integration contract
+
+The target contract is recorded in Section 16 of
+M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md. It defines:
+
+- Marketplace App Descriptor;
+- Product Composition Manifest;
+- DT Master-owned Deployment Candidate;
+- NDF Product Deployment Descriptor bound to an immutable image digest;
+- runtime/dependency resolution and deterministic locks;
+- NDF Bench service topology versus DT Master Node/Bench deployment ownership;
+- asynchronous GitHub Actions build request/result;
+- separate marketplace release approval and product inclusion governance;
+- SHA-enforced image builds and verification of actual installed commits.
+
+### 12.4 Milestone placement
+
+The contract is an M4.1 architecture deliverable. Its implementation belongs
+to the existing milestone structure:
+
+- M4.2: NDF descriptors, runtime/dependency resolution, service topology,
+  SHA-enforced builds and deployment artifacts.
+- M4.3: DT Master runtime adapters and Docker orchestration.
+- M4.4: candidate build tracking, digest/descriptor verification and product
+  image deployment.
+- M4.5: app release synchronization and marketplace/product inclusion.
+- M4.6: tenant integration.
+- M4.7: end-to-end and production-readiness verification.
+
+The SHA/build mismatch is a blocker to trusting the current lock as proof of
+the exact source inside a published image. It must be corrected and validated
+in M4.2 before DT Master treats the deployment descriptor as authoritative.
+
+No NDF, DT Master or DT Tenant application code, workflows, manifests,
+schemas, image definitions or runtime configuration were changed by this
+source audit.
