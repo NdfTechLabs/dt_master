@@ -276,7 +276,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy is accepted and reconciled. The NDF artifact/build/deployment contract and migration/rollback policy are accepted and recorded in the canonical specification. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated final architecture review of durable operation and secret transport boundaries against the accepted architecture, and explicit M4.1 closure/implementation authorization.
+M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated acceptance review, documentation consistency check and explicit M4.1 closure/implementation authorization.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
@@ -300,7 +300,7 @@ The source-level discovery and repository audit are substantially complete. The 
 | Cross-repository service identity and authorization | Section 15 of the canonical schema specification; platform/tenant/service identity separation, tenant binding, Frappe API key/secret authentication, least privilege, Tenant User read-only policy and Tenant Manager application operations accepted | M4.1 — policy accepted and documentation reconciled |
 | NDF manifest, lock, build and workflow audit | NDF main tree reviewed; SHA-to-build mismatch and missing descriptor/candidate/service contracts recorded in Section 12 and Section 16 of the canonical specification | M4.1 — source audit completed |
 | NDF application, composition and deployment descriptor contracts | Accepted contract recorded in Section 16 of the canonical schema specification, including immutable artifacts and mandatory signature/attestation verification | M4.1 — contract accepted; implementation assigned to M4.2–M4.7 |
-| Runtime adapter and operation contracts | Ownership and execution boundaries documented; detailed adapter and operation interfaces remain part of the M4.1 contract review | M4.1 |
+| Runtime adapter, durable operation and secret transport contracts | Common Host/Docker adapter contract, split operation ownership, shared cross-repository correlation, resource-level mutation locks, separate business/execution states, explicit retry/recovery policy, split secret ownership, reference-only transport, protected short-lived runtime delivery, rotation/revocation and backup-restore reconciliation accepted and recorded in the canonical specification | M4.1 — contracts accepted; exact schemas/providers/delivery mechanics remain implementation work |
 | NDF descriptor/runtime/service implementation | Implement immutable build inputs, policy enforcement, runtime/dependency resolution, service definitions and deployment descriptors | M4.2 |
 | DT Master Docker orchestration | Implement Node/Bench runtime adapters and Docker/Compose lifecycle | M4.3 |
 | Candidate image deployment | Implement candidate submission, build tracking, descriptor/digest verification and replacement Bench deployment | M4.4 |
@@ -321,8 +321,8 @@ M4.1 may close only after:
    immutable-source and mandatory artifact-trust contracts are reviewed and
    explicitly approved.
 4. Runtime adapter, durable operation, secret transport and migration
-   contracts are reviewed against the agreed Node → Bench Environment → Site
-   ownership model.
+   contracts are reviewed and accepted against the agreed Node → Bench
+   Environment → Site ownership model.
 5. Migration sequencing, acceptance criteria, implementation ownership and
    rollback boundaries are agreed.
 6. The user explicitly authorizes implementation before any application code,
