@@ -120,10 +120,10 @@ Severity reflects potential impact from the code path, not evidence of an incide
 
 ## 6. Required cross-repository API contract
 
-The consolidated target contract is now drafted in Section 15 of
+The accepted target contract is recorded in Section 15 of
 M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md. The findings and call graph
-in this addendum are evidence; Section 15 is the single proposed authorization
-and service-identity contract for review. Do not create a second role matrix.
+in this addendum are evidence; Section 15 is the single authoritative
+authorization and service-identity contract. Do not create a second role matrix.
 
 Before M4.3/M4.5/M4.6 implementation, define:
 
@@ -154,14 +154,16 @@ Completed at source-review level:
 3. Workspace/page role exposure and User permission synchronization hooks.
 4. Principal child DocType, sensitive-field and realtime findings.
 
-Remaining M4.1 work:
-1. Finalize the cross-repository service identity, authentication, tenant
-   binding and authorization-scope contract.
-2. Finalize operation/request, idempotency, replay protection and realtime
-   recipient contracts.
-3. Consolidate secret-provider, credential rotation and safe transport.
-4. Verify external/private callers outside the two accessible develop trees.
-5. Complete the NDF descriptor/deployment contracts and final M4.1 review.
+Remaining M4.1 acceptance work:
+1. Complete the consolidated acceptance review and obtain explicit M4.1 closure.
+
+The service identity, authentication, tenant binding, authorization scopes,
+operation/idempotency/replay/realtime contracts, secret ownership/transport,
+and NDF descriptor/deployment architecture are accepted in the canonical
+specification. Concrete endpoint enforcement, credential migration, provider
+implementation, external/private caller verification and NDF build workflows
+remain implementation or operational verification dependencies assigned to
+M4.2–M4.7; they do not reopen the accepted architecture contracts.
 
 
 ### 7.1 Additional repository-scope verification
