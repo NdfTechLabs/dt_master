@@ -1850,6 +1850,8 @@ M4.1 can be marked complete only when all criteria below are satisfied:
       boundaries are approved.
 - [ ] The schema and field migration matrix is reviewed and accepted.
 - [x] Host/Docker runtime ownership and the common runtime adapter contract are approved; method signatures, transport schemas and provider details remain implementation work.
+- [x] The durable operation contract is accepted: DT Master/DT Tenant record ownership, shared cross-repository correlation, resource-level mutation locks, distinct business/execution states, and explicit retry/recovery boundaries are recorded in Section 15.6.
+- [x] The secret transport contract is accepted: split secret ownership, reference-only cross-component transport, protected short-lived runtime delivery, descriptor/Compose reference-only rules, rotation/revocation and backup-restore reconciliation are recorded in Section 15.8.
 - [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
       lifecycle contracts are approved.
 - [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
@@ -1863,5 +1865,5 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
 - [ ] Explicit authorization is obtained before implementation starts.
 
-**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization policy, Section 16 NDF artifact/build/deployment contract, migration/rollback policy and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Final consolidated architecture review and explicit M4.1 closure/implementation authorization remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization, durable operation and secret transport contracts; Section 16 NDF artifact/build/deployment contract; migration/rollback policy; and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. The remaining work is the consolidated M4.1 acceptance review, closure of any outstanding acceptance checklist/documentation gaps, and explicit M4.1 closure/implementation authorization. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
