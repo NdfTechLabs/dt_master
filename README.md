@@ -129,20 +129,22 @@ M4.1 will define and approve the contracts and repository-level changes before i
 | Deployment lifecycle | Provision, readiness checks, site migration, verification, rollback and retirement |
 | Repository migration matrix | File-level ADD / EXTEND / RELOCATE / RETAIN / REMOVE decisions |
 
-### Initial DT Master DocType plan
+### DT Master schema and implementation specification
 
-The following are proposed M4 architecture additions, subject to the file-level audit and final schema design:
+The Bench Environment ownership model, parent and child DocType fields, validation rules, Tenant Site migration, Deployment Candidate/Build/Deployment records, NDF Deployment Descriptor requirements and phased implementation plan are documented in:
 
-- **Bench Environment** — runtime/deployment owner.
-- **Bench Environment Application** — Bench-level application availability (child table).
-- **Bench Runtime Component** — exact deployed runtime component inventory (child table).
-- **Deployment Candidate** — proposed complete Bench composition/runtime change.
-- **Deployment Candidate Application** — desired application inventory for a candidate (child table).
-- **Deployment Build** — NDF/GitHub Actions build request and result tracking.
-- **Bench Deployment** — actual deployment, migration, verification and rollback execution.
-- **App Installation Request** — customer application request and its orchestration status.
+- [M4.1 — Bench Environment Schema and Implementation](docs/migrations/M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md)
 
-Existing DocTypes such as Infrastructure Node, Tenant Site, Tenant Installed App, Framework Version, Extension and Extension Version are to be evaluated for extension rather than duplicated. This list is an architecture baseline, not an approved migration schema.
+The approved Bench Environment child tables are:
+
+- **Bench Environment Application** — complete app inventory available in the shared runtime, including image-baked and marketplace/custom apps.
+- **Bench Runtime Component** — exact deployed runtime component inventory.
+- **Bench Storage Reference** — persistent storage ownership and allocation references.
+- **Bench Service Definition** — NDF descriptor-derived service inventory and observed state.
+
+The deployment records are **Deployment Candidate**, **Deployment Candidate Application**, **Deployment Build** and **Bench Deployment**. **App Installation Request** remains a DT Master-owned orchestration record in the broader M4 design.
+
+Existing DocTypes such as Infrastructure Node, Tenant Site, Tenant Installed App, Framework Version, Extension and Extension Version are to be extended or refactored according to the schema specification, not duplicated. The specification records the agreed target; implementation has not started.
 
 ### Cross-repository architecture records
 
