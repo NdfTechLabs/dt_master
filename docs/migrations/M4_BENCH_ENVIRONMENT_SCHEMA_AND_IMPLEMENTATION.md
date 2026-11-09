@@ -1342,3 +1342,246 @@ directional identity separation, default-deny principle, parent-first child
 authorization, secret boundaries and realtime operation-correlation rules
 must be reviewed before being marked resolved. It does not authorize code,
 DocType, permission, credential, migration or runtime changes.
+
+
+## 16. NDF integration contract — verified source state and target acceptance
+
+**Status:** Contract requirements are defined below; current NDF implementation
+gaps are recorded from a read-only audit of NdfTechLabs/frappe_docker:main.
+M4.1 remains in progress. This section does not authorize NDF code changes.
+
+### 16.1 Artifact ownership and separation
+
+The integration uses four distinct artifact/request types:
+
+| Artifact | Owner | Meaning |
+|---|---|---|
+| Marketplace App Descriptor | NDF publishes; DT Master assigns/validates app identity and governs publisher/listing | Immutable technical description of one application release |
+| Product Composition Manifest | NDF | Product-selected set of app releases and optional capabilities |
+| Deployment Candidate | DT Master | Requested complete Bench composition and supported runtime/deployment parameters |
+| Product Deployment Descriptor | NDF | Verified description of the exact image and runtime/service composition actually built |
+
+The existing application-manifest-v1 remains the composition-manifest/lock input during
+migration. It is not the per-app Marketplace App Descriptor and must not be
+replaced by a second competing resolver. Extend the existing resolver and
+lock model to consume registered app identities and immutable release
+descriptors.
+
+### 16.2 Marketplace App Descriptor
+
+Each immutable application release descriptor must contain, at minimum:
+
+- Stable app_id assigned by DT Master during application registration.
+- Release version and descriptor schema version.
+- Repository identity and immutable source commit SHA.
+- Framework compatibility range, including Frappe and relevant ERPNext
+  compatibility.
+- Python, Node.js and package-manager compatibility ranges.
+- Declared Bench app dependencies and dependency constraints.
+- OS/system package requirements, classified as image-build dependencies.
+- Build/install metadata required to include the app in a Bench image.
+- Optional external service requirements and declared runtime capabilities.
+- Validation evidence/status and descriptor integrity digest.
+
+The descriptor does not own publisher verification, marketplace visibility,
+pricing or commercial approval. Those remain DT Master responsibilities.
+A moving branch/tag may be used during developer preparation, but a
+published descriptor must identify an immutable commit.
+
+### 16.3 Product Composition Manifest and resolution
+
+A product composition selects app_id plus release version/descriptor digest,
+not an unverified repository branch. It records required versus optional
+applications, selected capabilities and product-level compatibility policy.
+
+NDF resolves the entire composition as one compatible Bench environment:
+
+1. Validate app identities and immutable descriptor references.
+2. Intersect all required Frappe/ERPNext, Python, Node.js and package-manager
+   compatibility ranges.
+3. Resolve exact runtime versions and image/base-image identities.
+4. Resolve Python, Node.js and OS dependencies using their native package
+   managers and deterministic lockfiles.
+5. Validate the application dependency graph and installation order.
+6. Reject missing dependencies, incompatible required applications,
+   unverified required releases or unsupported service requirements.
+7. Produce a deterministic composition lock with source descriptor digests,
+   immutable app commits, exact runtime versions and dependency lock hashes.
+
+An empty compatibility intersection or a required dependency failure blocks
+the candidate. Optional applications are included only when explicitly
+selected and validated; optional does not mean silently install every
+available app.
+
+### 16.4 Deployment Candidate input
+
+DT Master owns the Deployment Candidate. Its immutable build input identifies:
+
+- candidate ID and request/schema version;
+- target product and product composition;
+- selected app_id/release/descriptor digests;
+- requested optional capabilities;
+- supported runtime constraints or explicitly selected runtime profile;
+- approved build parameters and platform targets;
+- composition hash and source/provenance references.
+
+A candidate contains no tenant credentials, database passwords, API secrets,
+customer data or arbitrary shell commands. Node-specific ports, site FQDNs,
+TLS private keys and live tenant configuration are not part of the product
+image build input.
+
+### 16.5 Product Deployment Descriptor
+
+NDF publishes a versioned descriptor bound to the exact OCI image digest.
+It describes the artifact actually built, including:
+
+- product ID/version, image repository, immutable image digest and platforms;
+- base image identities/digests and build provenance;
+- framework and exact Python/Node.js/package-manager versions;
+- full app inventory: app_id, release, descriptor digest, repository and
+  verified commit SHA;
+- composition lock, dependency lock and manifest checksums;
+- Bench service topology, dependencies, internal ports/protocols and
+  supported deployment parameters;
+- service readiness/liveness declarations and supported probe types;
+- required persistent paths, volume semantics and storage requirements;
+- database/Redis service requirements and supported external-service modes;
+- internal endpoint purposes and resource/capacity requirements;
+- initialization, migration, backup/restore and recovery requirements;
+- source commit, workflow run/build ID, composition hash and provenance.
+
+The descriptor contains no secret values. It may declare secret names or
+required secret references, but values are supplied at deployment time by
+DT Master through the approved secret provider.
+
+### 16.6 Compose and runtime ownership boundary
+
+NDF owns the Bench service definitions and the versioned service topology
+required by the product image. It declares supported service roles, internal
+ports, health probes, dependencies, resource requests, persistent paths and
+supported configuration parameters.
+
+DT Master owns deployment to a specific Infrastructure Node and Bench
+Environment: Compose project identity, Node network/port allocation,
+storage backend and volume lifecycle, database/Redis profile allocation,
+external endpoint binding, secret injection, site membership, Node ingress,
+TLS, FQDN routing, deployment sequencing, health aggregation and rollback.
+
+DT Master may override only parameters explicitly marked configurable in the
+NDF descriptor. It must not rewrite NDF service definitions or maintain a
+competing product Compose model. NDF does not own Node-level Nginx ingress or
+customer-specific site routing.
+
+The existing upstream compose.yaml and overrides remain the upstream runtime
+foundation. NDF-specific product/service contracts are layered and versioned
+separately; do not fork or duplicate upstream Compose behavior unnecessarily.
+
+### 16.7 Asynchronous build request/result contract
+
+1. DT Master creates and validates a Deployment Candidate.
+2. DT Master submits a candidate ID plus immutable candidate artifact reference
+   to an authorized NDF GitHub Actions workflow.
+3. NDF validates identity, composition, runtime compatibility, dependencies
+   and source provenance.
+4. NDF resolves the exact build lock, builds the image, validates installed
+   commit identities and product smoke requirements, and publishes the image.
+5. NDF generates and publishes the Product Deployment Descriptor associated
+   with that image digest.
+6. DT Master retrieves and verifies the descriptor, image digest, descriptor
+   digest, lock hash and composition hash before marking the candidate ready.
+
+The result contract returns candidate/request ID, GitHub workflow run ID,
+status, image repository/digest, descriptor artifact reference/digest,
+composition hash, lock hash, build provenance and a safe failure code/summary.
+Build execution is asynchronous; DT Master does not hold an HTTP request open
+while NDF builds.
+
+Initially DT Master may poll GitHub workflow status/artifacts. A later
+authenticated callback can notify completion, but polling and callback must
+share the same idempotent result contract. NDF retains GHCR write credentials;
+DT Master receives no unrestricted publishing credential. A GitHub App
+installation token with narrowly scoped Actions permissions is preferred for
+workflow invocation.
+
+### 16.8 Product inclusion and release synchronization
+
+Marketplace release approval and product inclusion remain separate decisions.
+
+- NDF publishes an immutable Marketplace App Descriptor and notifies DT Master.
+- DT Master verifies app_id, release, descriptor integrity and source provenance,
+  synchronizes the technical metadata snapshot and places the release into
+  Pending Review.
+- DT Master marketplace governance approves or rejects listing/release.
+- A separate Product Inclusion Request identifies product, app_id, release
+  and immutable descriptor/commit.
+- NDF validates the request and proposes a product-manifest change through a
+  pull request. An authorized product maintainer approves/merges it.
+- NDF builds and publishes the new immutable product image.
+- Publishing an app release or approving marketplace listing does not
+  automatically upgrade existing Bench Environments or authorize product
+  inclusion.
+
+### 16.9 Verified NDF implementation gaps requiring M4.2/M4.4 work
+
+The current NDF main-branch audit found:
+
+1. The resolver records immutable app commit SHAs in lock files, but
+   prepare_build.py writes apps.json using target_ref as the Bench branch.
+   build_image.py also passes framework.target_ref as FRAPPE_BRANCH.
+   The Containerfile installs from those refs. Therefore the resolved SHA is
+   not currently guaranteed to be the source actually built.
+2. validate_image.py checks application directories, sites/apps.txt and
+   metadata labels, but does not inspect each installed Git HEAD against the
+   locked SHA. OCI labels can therefore claim a resolved SHA without proving
+   that the image contains that commit.
+3. The build and base stages use frappe/build and frappe/base tags derived
+   from FRAPPE_BRANCH rather than immutable base-image digests.
+4. Manifest fields such as allow_development_branches and
+   fail_on_unverified_compatibility are schema-accepted, but the resolver does
+   not enforce those policies. validation.required_checks are declarative
+   entries; the current validator does not execute them as product acceptance
+   tests. The dhana-base manifest includes telephony target_ref=develop while
+   declaring allow_development_branches=false; compatibility_status values
+   remain pending in multiple product manifests.
+5. application-manifest-v1 does not define the per-app app_id/release
+   descriptor, compatibility ranges or Python/Node/OS dependency contract.
+6. The ai-automation manifest declares a services array, but the resolver
+   composes only applications. The current image build pipeline does not
+   build or publish those independent service images from that declaration.
+7. No Product Deployment Descriptor schema/generator, candidate input
+   workflow, descriptor publication, Product Inclusion Request workflow or
+   authenticated DT Master build-result notification was found in the
+   inspected NDF tree.
+8. The current build workflow selects a fixed list of products. Publishing is
+   manual and product-list based; the release workflow promotes only the
+   DhanaERP Master image.
+9. images/ndf/.build/dalali-v16 contains generated apps.json and
+   build-metadata.json in the repository tree. Generated build output should
+   be ephemeral and ignored; committed deterministic lock files remain the
+   build inputs.
+
+These are source-level findings, not evidence of a production compromise.
+They are blockers to claiming that the current NDF pipeline already provides
+the complete immutable deployment contract. They do not invalidate the
+existing resolver/lock architecture or the published image digest itself;
+they mean the relationship between the lock and actual image contents must
+be fixed and verified before DT Master trusts it.
+
+### 16.10 Milestone placement
+
+| Work | Milestone |
+|---|---|
+| Approve descriptor schemas, candidate/result contract, immutability and ownership boundaries | M4.1 |
+| Implement Marketplace App Descriptor schema/registry, runtime and dependency resolution, SHA-enforced build inputs, base-image pinning, service definitions and Product Deployment Descriptor generation | M4.2 |
+| Implement DT Master Host/Docker adapters and Node/Bench orchestration consuming the versioned NDF runtime contract | M4.3 |
+| Implement candidate submission, asynchronous build tracking, descriptor/digest verification and replacement Bench deployment | M4.4 |
+| Implement marketplace release synchronization, app availability and Product Inclusion Request lifecycle | M4.5 |
+| Integrate Tenant Site/DT Tenant lifecycle and service identities | M4.6 |
+| Perform end-to-end compatibility, migration, permission, security, rollback and production-readiness testing | M4.7 |
+
+**Approval boundary:** The artifact separation, ownership, SHA-enforcement
+requirement, candidate/result exchange, Compose boundary, descriptor content,
+release/product approval separation and milestone placement above are the
+proposed M4.1 NDF integration contract. Explicit review is required before
+marking it resolved. All implementation fixes remain in their assigned
+milestones; no NDF or DT Master code changes are authorized by this record.
