@@ -1,6 +1,5 @@
 **Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture formally closed / accepted on 2026-11-09 following the final 13-point acceptance review and explicit platform-owner approval. Implementation authorization is a separate gate and has **not been granted**. M4.2–M4.7 remain pending.  
 
-**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress; NDF artifact contract, migration/rollback policy, candidate/build lifecycle and owner caller-inventory confirmation accepted. Final architecture review and M4.1 closure remain pending.  
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
 disrupting existing host-native deployments.
