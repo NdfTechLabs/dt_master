@@ -1,6 +1,6 @@
 # M4.1 — Bench Environment Schema and Implementation Specification
 
-**Status:** Architecture and schema approved; implementation not started  
+**Status:** M4.1 architecture formally accepted and closed (2026-11-09); implementation not authorized  
 **Repository:** `NdfTechLabs/dt_master`  
 **Branch baseline:** `develop`  
 **Scope:** DT Master DocTypes, ownership rules, validation, deployment records and implementation/migration sequence  
@@ -1772,7 +1772,7 @@ to M4.2–M4.7; this approval does not authorize code or runtime changes.
 
 ## 17. M4.1 architecture review and exit assessment
 
-**Review status:** Prepared for owner review; M4.1 is not yet closed.
+**Review status:** Owner explicitly approved M4.1 closure on 2026-11-09; architecture milestone closed.
 **Implementation authorization:** Not granted.
 
 ### 17.1 Resolved architecture decisions
@@ -1905,5 +1905,5 @@ M4.1 can be marked complete when the architecture, source-audit, documentation a
 - [x] Every remaining implementation dependency is assigned to M4.2–M4.7; exact implementation details remain explicitly deferred.
 **Separate implementation gate (not an M4.1 closure criterion):** [ ] Explicit authorization is obtained before implementation starts. No implementation authorization is currently granted.
 
-**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization, durable operation and secret transport contracts; Section 16 NDF artifact/build/deployment contract; migration/rollback policy; and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. The remaining work is the consolidated M4.1 acceptance review and explicit M4.1 closure. Implementation authorization remains a separate decision and has not been granted. Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Closure decision (2026-11-09):** The platform owner explicitly approved closing M4.1 after the final acceptance review. All 13 architecture acceptance criteria are satisfied; M4.1 — Integration Contract and Architecture is **Closed / Accepted**. The owner-confirmed absence of known additional DT Master API consumers outside DT Tenant remains subject to independent runtime, deployment and credential-inventory verification during implementation. Runtime-only Frappe checks and NDF immutable-build/descriptor gaps remain assigned to M4.2–M4.7 and do not reopen M4.1. **Implementation authorization remains NOT GRANTED.** The separate implementation gate remains unchecked. M4.2 has not started.
 
