@@ -1136,8 +1136,7 @@ Frappe Roles, service users, secrets, endpoints or implementation changes.
 
 ### 15.2 Actor classes and responsibility boundaries
 
-These are authorization classes, not yet Frappe Role fixtures. Exact role names
-and bootstrap mechanics are added only after this contract is approved.
+These are logical authorization classes, not a requirement to introduce a separate OAuth server or one Frappe Role per scope. Concrete role fixtures and endpoint enforcement are implementation work assigned to the relevant M4 milestones.
 
 | Actor class | Permitted responsibility | Explicitly excluded |
 |---|---|---|
@@ -1162,7 +1161,9 @@ marketplace governance privileges.
 | Bench create/update/deploy/replace/rollback | Platform Operator | DT Master operation worker and selected runtime adapter | One Bench Environment and its Node |
 | Tenant Site create/suspend/resume/destroy | Platform Operator or authorized provisioning operator | DT Master operation worker | One Tenant Site, resolved through its Bench |
 | Marketplace browse/listing read | Tenant Manager and Tenant User | Tenant-to-Master identity with marketplace.read | Only the bound Tenant Site's eligible catalogue view |
-| App install/upgrade/uninstall request | Tenant Manager by default; Tenant User mutation remains a policy decision | Tenant-to-Master identity with app.request; Master validates Bench availability and creates an App Installation Request | One Tenant Site; app must be available in its parent Bench Environment |
+| App install/upgrade/uninstall request | Tenant Manager; Tenant User read-only | Tenant-to-Master identity with the applicable application-operation scope; Master independently validates authority and Bench availability | One Tenant Site; app must be available in its parent Bench Environment |
+| App downgrade/reinstall | Tenant Manager with explicit confirmation; Platform Operator | Tenant-to-Master identity with app.downgrade or app.reinstall; Master validates request and records confirmation/audit | One Tenant Site; operation cannot change Bench inventory or product image |
+| Bench application inventory add/remove | Platform Operator only | Platform service/operation identity | One Bench Environment; removal requires dependency and tenant-usage checks and does not silently uninstall from sites |
 | App installation execution | No direct human execution | Authorized DT Master worker after request validation | One accepted App Installation Request and target Site |
 | Extension/listing/release approval | Platform Marketplace Operator | Authenticated NDF release-notification identity for technical metadata only | One registered app/release |
 | Product inclusion approval | Authorized product maintainer / Platform Marketplace Operator | Authenticated DT Master-to-NDF request identity | One product composition and immutable app release |
@@ -1176,11 +1177,7 @@ marketplace governance privileges.
 | Mail Server operations | Explicitly authorized platform mail operator | Mail operation worker | One Mail Server and its Node; remains separate from Bench Environment |
 | Secret retrieval | No ordinary human or tenant actor | Authorized execution boundary only | One secret reference and one authorized operation |
 
-**Default policy:** Tenant User may browse the Add-ons page and view permitted
-application status. Mutating marketplace actions default to Tenant Manager
-until the product policy explicitly grants Tenant User request authority.
-Subscription and billing functions are Tenant Manager-only. These rules must
-be enforced by APIs as well as page/workspace visibility.
+**Accepted application policy:** Tenant User may view available and installed applications but cannot request or execute install, upgrade, downgrade, reinstall or uninstall operations. Tenant Manager may install, upgrade and uninstall applications on their own site; downgrade and reinstall require explicit confirmation and audit logging. Tenant Managers cannot change Bench Environment inventory, product images or runtime dependencies. Platform Operators exclusively control those Bench-level operations. Subscription and billing functions remain Tenant Manager-only pending any separate billing-policy decision. Enforce these rules at API boundaries as well as in page/workspace visibility.
 
 ### 15.4 Directional service identities
 
@@ -1193,15 +1190,15 @@ The two integration directions use separate principals and credentials.
 - The principal maps server-side to exactly one Tenant Site.
 - Its permissions are limited to the scopes granted in §15.5.
 - It is not a shared System Manager user and has no Node/Bench permissions.
-- DT Tenant stores its API key and secret as protected references, not ordinary
-  Tenant Settings Data fields.
+- DT Tenant retains the existing Frappe API key/secret mechanism for this direction. Credentials must be tenant-specific, least-privilege, protected in Frappe password fields or an approved secrets manager, rotatable and revocable; they must not be exposed through ordinary Tenant Settings Data fields or API responses.
+- OAuth2 client credentials are not introduced for the initial integration; revisit only if a demonstrated requirement exceeds the existing mechanism.
 - The Master URL is a trusted destination setting; changing it requires an
   authorized bootstrap/platform operation, not ordinary Tenant Manager access.
 
 **B. DT Master → DT Tenant**
 
 - Each Tenant Site has a separate Tenant Callback Identity on that tenant site.
-- Its credential is stored on Master as a protected secret reference.
+- Its credential is stored on Master as a protected secret reference. Retain the existing Frappe API key/secret mechanism initially, with tenant-specific permissions, rotation and revocation; do not reuse the tenant-to-Master credential.
 - It can invoke only the callback contract required for operation status and
   other explicitly approved Master-to-Tenant notifications.
 - It cannot act as a tenant administrator or use a broad System Manager account.
@@ -1220,12 +1217,17 @@ The two integration directions use separate principals and credentials.
 
 ### 15.5 API scopes and tenant binding
 
-Initial scope vocabulary:
+Initial logical scope vocabulary (enforced through Frappe roles, endpoint checks and tenant-specific service identities; these names do not require a separate OAuth authorization server):
 
 | Scope | Purpose |
 |---|---|
 | marketplace.read | Read eligible marketplace listings and approved release metadata |
-| app.request | Submit an install/upgrade/uninstall request for the bound Tenant Site |
+| app.install | Install an app on the bound Tenant Site, if available in its Bench Environment |
+| app.upgrade | Upgrade an app on the bound Tenant Site |
+| app.uninstall | Uninstall an app from the bound Tenant Site without removing Bench availability |
+| app.downgrade | Downgrade an app on the bound Tenant Site, subject to Tenant Manager confirmation |
+| app.reinstall | Reinstall an app on the bound Tenant Site, subject to Tenant Manager confirmation |
+| app.request | Submit an application lifecycle request for the bound Tenant Site |
 | subscription.read | Read the bound tenant's subscription and plan information |
 | subscription.change | Request a plan change for the bound tenant, subject to Master-side eligibility and approval policy |
 | billing.read | Read billing history and invoices belonging to the bound tenant |
@@ -1262,9 +1264,7 @@ Every mutating cross-repository request must carry or resolve to:
 - schema/contract version and request timestamp;
 - safe result/error code and operation state.
 
-Master creates the durable operation/request record before queueing work.
-Duplicate idempotency keys return the existing operation result or a defined
-conflict; they must not schedule duplicate mutations.
+Master creates the durable operation/request record before queueing work. Each mutating operation has a unique operation ID and records tenant ID, Bench Environment ID, application, operation, requesting user, initiating service identity, status (Pending/Running/Completed/Failed), start/completion timestamps and sanitized error information. Duplicate idempotency keys return the existing operation result or a defined conflict; they must not schedule duplicate mutations. Retry and reconciliation must be controlled and must not repeat a destructive action blindly.
 
 The initiating human actor is captured at request acceptance and explicitly
 propagated to the worker. Scheduled jobs use a distinct service/system actor.
@@ -1326,22 +1326,21 @@ are excluded.
 - Failed authorization, invalid parent/child relationships, stale callbacks
   and replayed requests fail closed and create safe audit records.
 
-### 15.10 Decisions requiring explicit policy approval
+### 15.10 Accepted decisions and remaining policy boundary
 
-1. Confirm whether Tenant User may submit app install/upgrade/uninstall
-   requests, or whether those mutations remain Tenant Manager-only. The
-   conservative default above is Tenant Manager-only.
-2. Confirm whether payment-method management and invoice payment remain
-   Tenant Manager-only or require a separate billing permission.
-3. Approve the actor classes and scope model before creating concrete Frappe
-   Role fixtures or service users.
+The following cross-repository authorization decisions are accepted for M4.1:
 
-**Approval boundary:** This section is a proposed M4.1 cross-repository
-security/authorization contract. The actor separation, tenant-binding rules,
-directional identity separation, default-deny principle, parent-first child
-authorization, secret boundaries and realtime operation-correlation rules
-must be reviewed before being marked resolved. It does not authorize code,
-DocType, permission, credential, migration or runtime changes.
+1. Platform, tenant and service identities are distinct. Every tenant service identity is bound to one registered Tenant Site and its current Bench Environment; FQDN alone is never proof of identity.
+2. Retain Frappe API key/secret authentication for both communication directions using separate, tenant-specific service credentials. Strengthen least-privilege permissions, protected storage, rotation and revocation. OAuth2 client credentials are not required at this stage.
+3. DT Tenant validates the local human actor and tenant role. DT Master independently validates the authenticated service identity, tenant binding/status, subscription eligibility, application availability and requested operation. Caller-supplied actor claims or FQDN do not establish authority.
+4. Tenant Users are read-only for application inventory. Tenant Managers may install, upgrade and uninstall applications on their own sites. Downgrade and reinstall require explicit confirmation and audit logging. Platform Operators exclusively control Bench Environment application inventory, product images and runtime dependencies.
+5. Site-level uninstall and Bench-level removal are distinct. Bench-level removal is platform-only and requires dependency/tenant-usage checks; it must not silently uninstall the application from existing sites.
+6. Every mutation has a durable operation ID, audit record, idempotency behavior and controlled failure recovery. Realtime events are tenant-scoped notifications, not authorization grants.
+7. Tenant activation requires successful site binding, service authentication, settings/capability setup and administrator-access verification.
+
+These decisions resolve the policy questions previously listed for actor separation, Tenant User application permissions and service authentication. Billing/payment-method policy remains subject to the existing billing authorization rules and is not expanded by this approval. Concrete Frappe roles, endpoint checks, credential migration, runtime tests and secret-provider implementation remain implementation work in their assigned M4 milestones.
+
+**Approval boundary:** The Section 15 architecture and authorization policy is accepted. This does not authorize application code, DocType, permission, credential, migration or runtime changes; those remain subject to the existing M4.2–M4.7 implementation gates and explicit implementation authorization.
 
 
 ## 16. NDF integration contract — verified source state and target acceptance
