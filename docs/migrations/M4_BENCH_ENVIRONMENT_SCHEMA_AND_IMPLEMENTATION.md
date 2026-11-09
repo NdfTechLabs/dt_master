@@ -1145,7 +1145,7 @@ These are logical authorization classes, not a requirement to introduce a separa
 | Tenant Service Identity — tenant to Master | Authenticated API calls for one bound Tenant Site and explicitly granted scopes | Desk use, arbitrary tenant selection, System Manager and platform operations |
 | Tenant Callback Identity — Master to tenant | Receive validated Master callbacks for one tenant site and one outstanding operation | General tenant administration, user management and arbitrary realtime publication |
 | Tenant Manager | Tenant users, tenant role profiles, capability-constrained role/module selection, subscription and billing workflows, and authorized marketplace requests | Infrastructure Node/Bench management, secret retrieval and platform administration |
-| Tenant User | Tenant-authorized application and marketplace use within granted tenant capabilities | Tenant settings/secrets, user/role administration, billing and infrastructure operations |
+| Tenant User | Read-only access to permitted marketplace listings and available/installed application information | Application lifecycle mutations, tenant settings/secrets, user/role administration, billing and infrastructure operations |
 | Read-only/Support | Explicitly scoped operational or tenant information required for support | Write/execute, unrestricted export, secret retrieval or cross-tenant access |
 | System Manager | Platform administration and audited break-glass recovery | Routine tenant service authentication or a shared tenant integration identity |
 
