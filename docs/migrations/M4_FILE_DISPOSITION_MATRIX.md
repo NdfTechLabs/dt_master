@@ -115,7 +115,7 @@ A component may have a combined disposition where part of its responsibility rem
 | dt_tenant/dt_tenant/workspace/tenant/tenant.json | **RETAIN/REFACTOR** | M4.6 | Keep tenant-facing shortcuts and avoid exposing privileged configuration |
 | dt_tenant/workspace_sidebar/tenant.json | **RETAIN/REFACTOR** | M4.6 | Align navigation with Tenant Manager/Tenant User roles |
 | dt_tenant/dt_tenant/page/add_ons/* | **RETAIN/EXTEND** | M4.5 | Marketplace access for permitted tenant roles; server authorization remains authoritative |
-| dt_tenant/dt_tenant/page/tenant_subscription/* | **RETAIN** | M4.6 | Keep Tenant Manager access and enforce same scope in proxy/Master APIs |
+| dt_tenant/dt_tenant/page/tenant_subscription/* | **REFACTOR/RESTRICT** | M4.6 | Currently exposed through a workspace available to both tenant roles; restrict route and enforce Tenant Manager/billing scope in proxy/Master APIs |
 | dt_tenant/dt_tenant/doctype/tenant_settings/* | **REFACTOR** | M4.6 | Protect Master URL/API credentials; restrict settings mutation |
 | dt_tenant/dt_tenant/doctype/tenant_roles/* | **RETAIN/EXTEND** | M4.6 | Preserve tenant role overlay; reject platform-privileged roles |
 | dt_tenant/dt_tenant/doctype/tenant_role_profile/* | **RETAIN/EXTEND** | M4.6 | Preserve capability-constrained user role profiles |
