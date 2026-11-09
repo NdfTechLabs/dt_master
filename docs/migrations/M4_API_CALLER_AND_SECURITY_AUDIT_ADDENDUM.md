@@ -163,6 +163,47 @@ Remaining M4.1 work:
 4. Verify external/private callers outside the two accessible develop trees.
 5. Complete the NDF descriptor/deployment contracts and final M4.1 review.
 
+
+### 7.1 Additional repository-scope verification
+
+A further discovery pass checked the accessible NdfTechLabs repository inventory
+and inspected the tracked tree of selected adjacent repositories, including the
+Dhana Technologies bench repository and the DT product/application repositories.
+The tracked `dhana_techs` bench's `sites/apps.txt` lists only `frappe`,
+`erpnext` and `dhana_technologies`; it does not show `dt_master` or
+`dt_tenant` installed in that particular bench.
+
+This is a limited negative finding, not proof that no other caller exists.
+Repository discovery and tracked-source inspection cannot establish whether
+there are callers in unlisted external repositories, customer-owned private
+repositories, deployment scripts/configuration outside Git, running services,
+scheduled jobs, custom Frappe Server Scripts, or integrations configured
+directly against a deployed DT Master endpoint. A code-search result with no
+matches is also not sufficient evidence of absence where repository indexing
+or access may be incomplete.
+
+**Verification status:** The DT Tenant → DT Master integration remains the
+only fully evidenced cross-repository caller graph in the reviewed source
+baseline. No additional caller has yet been positively identified, but
+external/private/deployed caller verification remains open.
+
+To close this limitation, the platform owner must provide or confirm the
+inventory of:
+1. Additional repositories or services that call DT Master APIs, including
+   customer/tenant-owned integrations.
+2. Deployed DT Master instances and their known integrations, scheduled jobs,
+   webhooks and automation clients.
+3. Any reverse-proxy/API gateway access logs or equivalent request telemetry
+   available for the review period, so observed caller identities and endpoint
+   usage can be compared with the source inventory.
+4. Any API credentials/service accounts issued to integrations other than
+   DT Tenant, including their intended owner and purpose. Do not provide
+   credential values; identifiers and ownership metadata are sufficient.
+
+Until this evidence is reviewed, do not remove or break legacy API routes solely
+because they have no in-repository caller. Use a compatibility/deprecation
+period with endpoint telemetry and an explicit retirement decision.
+
 Live runtime verification is deferred to the relevant implementation/testing
 stage. No application code, DocTypes, migrations, scripts or runtime
 configuration were changed.
