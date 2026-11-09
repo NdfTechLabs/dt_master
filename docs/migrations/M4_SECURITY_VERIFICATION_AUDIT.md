@@ -5,7 +5,7 @@
 **Related repository:** NdfTechLabs/dt_tenant (version-1)  
 **Audit mode:** Read-only source review; no application code or runtime configuration changed  
 **Milestone:** M4.1 — Integration Contract and Architecture  
-**Status:** Source review completed for the inspected paths; live child-DocType permission verification remains pending.
+**Status:** Source-level security review completed for the inspected paths. Architecture contracts remain to be consolidated in M4.1; live Frappe behavior verification is deferred to the relevant implementation/testing stage.
 
 ## 1. Scope and evidence
 
@@ -164,18 +164,18 @@ The app executor's `_load_action_context()` loads the Tenant Site, checks its wr
 
 Other paths mutate child rows using `ignore_permissions=True`; those paths still need an explicit caller/tenant authorization check before the bypass. The presence of no child permissions is not itself a vulnerability if the parent boundary is consistently enforced; it becomes one when APIs bypass the parent boundary or accept an untrusted parent/row pair.
 
-**Finding CHILD-01 — Source review confirmed; live behavior pending:** Child DocTypes have no independent permissions. Parent document authorization is the intended security boundary, but live Frappe behavior has not yet been exercised against the deployed site/version.
+**Finding CHILD-01 — Source review confirmed; runtime behavior not yet verified:** Child DocTypes have no independent permissions. Parent document authorization is the intended security boundary, but live Frappe behavior has not yet been exercised against the deployed site/version.
 
 **Proposed disposition: RETAIN WITH EXPLICIT PARENT AUTHORIZATION.**
 - Keep child DocTypes as child tables; do not create independent roles for these rows.
 - Every API must load the parent, validate parent read/write permission and tenant ownership, then resolve the child row by name from that parent.
 - Never trust a child-row name supplied by the caller without verifying that it belongs to the authorized parent.
 - Any use of `ignore_permissions=True` must occur only after an explicit authorization decision and be covered by a negative test.
-- Verify direct REST/resource access and export behavior on the actual deployed Frappe site before finalizing the enforcement contract.
+- The architecture-level enforcement contract is parent-first authorization as specified above. Verify direct REST/resource access and export behavior against the supported Frappe release before relying on those runtime details in production.
 
-### 4.2 Required live verification
+### 4.2 Deferred implementation/runtime verification
 
-Run on a non-production test site using representative accounts:
+When the relevant implementation/testing stage is authorized, verify on a non-production Frappe site using representative accounts:
 1. System Manager.
 2. Ordinary authenticated user without System Manager.
 3. Tenant Manager on the DT Tenant site.
@@ -196,18 +196,24 @@ Record the deployed Frappe version, effective user, endpoint, HTTP/result status
 
 | Component | Proposed disposition | Target |
 |---|---|---|
-| `run_remote_script` realtime identity/context | REFACTOR | M4.1 contract; implement in M4.3/M4.5 |
-| Master app/site log subscribers | REFACTOR | M4.1 contract; implement with operation service |
-| Master → Tenant install callback | REPLACE/RESTRICT | M4.1 service identity contract |
-| Tenant Site credential fields | REPLACE | M4.1 secret contract; implementation with migration |
-| Tenant Settings API credentials | REFACTOR | M4.1 secret/bootstrap contract |
+| `run_remote_script` realtime identity/context | REFACTOR | M4.1 authorization/operation contract; implement in M4.3/M4.5 |
+| Master app/site log subscribers | REFACTOR | M4.1 event authorization contract; implement with operation service in M4.3/M4.5 |
+| Master → Tenant install callback | REPLACE/RESTRICT | M4.1 service identity contract; implementation in M4.5/M4.6 |
+| Tenant Site credential fields | REPLACE | M4.1 secret ownership/provider contract; migration in M4.3/M4.6 |
+| Tenant Settings API credentials | REFACTOR | M4.1 secret/bootstrap contract; implementation in M4.6 |
 | Remote command secret delivery | REPLACE | M4.3 Node execution adapter |
 | Automation/error logs | REFACTOR/RETAIN | M4.3/M4.7 operational controls |
 | Backup artifacts and access | RETAIN/EXTEND | M4.3/M4.7 storage and recovery controls |
 | Tenant Installed App / Node Action Log | RETAIN as child DocTypes | M4.1 parent authorization contract |
-| Child-row API access and negative tests | VERIFY | M4.1 runtime verification |
+| Child-row API access and negative tests | VERIFY | Defer live verification to the relevant implementation/testing stage; M4.1 defines parent-first authorization |
 
-## 6. Remaining verification gates
+## 6. Deferred runtime verification and remaining M4.1 contracts
+
+The source-level review of the inspected paths is recorded. The items below
+are runtime verification gates, not unresolved architecture decisions. They
+do not require a new GitHub Actions workflow or dedicated test platform as
+part of M4.1. Use an existing isolated non-production Frappe site when a
+runtime question becomes necessary to validate an implementation.
 
 The following are not claimed as complete:
 
@@ -217,4 +223,4 @@ The following are not claimed as complete:
 4. **Sensitive-field surface test:** verify actual export, report, print, REST serialization and backups on the deployed site; inspect any custom reports not represented in the reviewed source paths.
 5. **Secret lifecycle:** confirm encryption, key custody, rotation, backup encryption and access audit in the chosen secret provider.
 
-M4.1 remains in progress. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
+M4.1 remains in progress because the repository-wide audit, cross-repository security/authorization contracts, NDF integration contracts and final architecture review are not yet complete. Runtime-only checks above are deferred to the relevant implementation/testing stage. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
