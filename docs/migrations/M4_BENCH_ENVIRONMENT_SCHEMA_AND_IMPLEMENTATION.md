@@ -1629,14 +1629,14 @@ The following architecture decisions are recorded as resolved in Sections
 - Marketplace app identity/release, product composition and product deployment
   are separate artifacts and approval processes.
 
-### 17.2 Contracts drafted and awaiting explicit approval
+### 17.2 Contract approval and remaining review
 
-| Contract | Current record | Closure requirement |
+| Contract | Current record | Status / remaining closure requirement |
 |---|---|---|
-| Cross-repository security/authorization | Section 15 | Approve actor classes, scopes, directional service identities, tenant binding, callback/realtime, secret and diagnostic boundaries. Confirm Tenant User app mutation policy. |
-| NDF integration/artifact contract | Section 16 | Approve Marketplace App Descriptor, Product Composition Manifest, Deployment Candidate, Product Deployment Descriptor, build/result and Compose/runtime ownership. |
-| Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md | Review grouped dispositions and acknowledge external/private callers cannot be ruled out from the two repository trees alone. |
-| Migration and rollback | Sections 14.12–14.13 and this specification | Approve ordered migration, preflight, backup, resumability, compatibility window and retirement safeguards. |
+| Cross-repository security/authorization | Section 15 | **Policy accepted.** Reconcile documentation across both repositories. Concrete Frappe roles, endpoint enforcement, credential migration, operation implementation and runtime verification remain assigned implementation work. |
+| NDF integration/artifact contract | Section 16 | **Review/approval pending.** Approve Marketplace App Descriptor, Product Composition Manifest, Deployment Candidate, Product Deployment Descriptor, build/result and Compose/runtime ownership. |
+| Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md | **Source dispositions reviewed and consolidated.** External/private/deployed callers cannot be ruled out from the two accessible repository trees; retain this verification limitation. |
+| Migration and rollback | Sections 14.12–14.13 and this specification | **Final approval pending.** Review ordered migration, preflight, backup, resumability, compatibility window and retirement safeguards. |
 
 ### 17.3 Remaining implementation dependencies by milestone
 
@@ -1691,7 +1691,7 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Host/Docker runtime ownership and adapter contracts are approved.
 - [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
       lifecycle contracts are approved.
-- [ ] The Section 15 security/authorization contract is approved.
+- [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
 - [ ] The Section 16 NDF artifact/build/deployment contract is approved.
 - [ ] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
       M4.2 blocker, not treated as an already-satisfied immutable build.
@@ -1702,8 +1702,5 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
 - [ ] Explicit authorization is obtained before implementation starts.
 
-**Current assessment:** The architecture and source audits are substantially
-complete; the security and NDF integration contracts are drafted. The
-cross-repository policy decision and final owner review remain outstanding.
-Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Current assessment:** The architecture and source audits are substantially complete. The Section 15 cross-repository authorization policy decisions have been accepted and are being reconciled across repository documentation. Section 16 NDF integration/artifact approval, final migration/rollback review, remaining external caller verification and final owner architecture acceptance remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
