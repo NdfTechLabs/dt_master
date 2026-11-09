@@ -329,62 +329,107 @@ Retain existing fields for app identity, Extension/Extension Version, status, en
 
 ### 7.1 Deployment Candidate
 
-Represents the complete desired runtime composition, not only the changed app.
+Represents the complete desired runtime composition, not only the changed app. The mutable working record is distinct from the immutable build-input snapshot submitted to NDF.
 
-| Fieldname | Type | Required |
-|---|---|---:|
-| `candidate_code` | Data | Yes |
-| `bench_environment` | Link → Bench Environment | Yes |
-| `candidate_type` | Select | Yes |
-| `product` | Data | Yes |
-| `product_release` | Data | Yes |
-| `framework_version` | Link → Framework Version | Yes |
-| `base_deployment` | Link → Bench Deployment | No |
-| `composition_hash` | Data | Calculated |
-| `status` | Select | Yes |
-| `requested_by` | Link → User | Yes |
-| `requested_on` | Datetime | Yes |
+| Fieldname | Type | Required | Rules |
+|---|---|---:|---|
+| `candidate_code` | Data | Yes | Unique stable identifier |
+| `bench_environment` | Link → Bench Environment | Yes | Target environment |
+| `candidate_type` | Select | Yes | Initial, Add App, Remove App, Upgrade App, Runtime Upgrade, Product Upgrade, Configuration Change |
+| `product` | Data | Yes | Registered product identity |
+| `product_release` | Data | Yes | Selected product release |
+| `framework_version` | Link → Framework Version | Yes | Compatibility catalogue reference |
+| `base_deployment` | Link → Bench Deployment | No | Existing successful baseline |
+| `composition_hash` | Data | Calculated | Hash of normalized complete composition |
+| `candidate_artifact_ref` | Data | No | Immutable candidate-input artifact reference |
+| `candidate_artifact_digest` | Data | No | Digest of exact submitted candidate input |
+| `optional_capabilities` | Code | No | Explicitly selected capability identifiers |
+| `runtime_profile` | Data | Yes | Selected supported runtime profile |
+| `runtime_constraints` | Code | No | Validated runtime constraints |
+| `target_platforms` | Code | Yes | Explicit platform target list |
+| `approved_build_parameters` | Code | No | Allowlisted, descriptor-supported build parameters only |
+| `provenance_refs` | Code | No | Immutable source/composition provenance references |
+| `status` | Select | Yes | Candidate business lifecycle state |
+| `requested_by` | Link → User | Yes | Requesting actor |
+| `requested_on` | Datetime | Yes | Request timestamp |
 
 Candidate types: Initial, Add App, Remove App, Upgrade App, Runtime Upgrade, Product Upgrade, Configuration Change.
 
-Candidate statuses: Draft, Validating, Ready for Build, Building, Built, Rejected, Deploying, Completed, Failed, Cancelled.
-
 Child `Deployment Candidate Application`:
 
-| Fieldname | Type | Required |
-|---|---|---:|
-| `app_name` | Data | Yes |
-| `app_source_type` | Select | Yes |
-| `app_source` | Data | Yes |
-| `requested_version` | Data | No |
-| `requested_commit` | Data | No |
-| `is_required` | Check | Yes |
-| `change_action` | Select | Yes |
+| Fieldname | Type | Required | Rules |
+|---|---|---:|---|
+| `app_id` | Data | Yes | Stable registered marketplace/application identity |
+| `app_name` | Data | Yes | Technical app name |
+| `release_version` | Data | Yes | Immutable registered release |
+| `descriptor_ref` | Data | Yes | Immutable Marketplace App Descriptor reference |
+| `descriptor_digest` | Data | Yes | Verified descriptor digest |
+| `app_source_type` | Select | Yes | Registered source category |
+| `app_source` | Data | Yes | Repository/source identity |
+| `requested_version` | Data | No | User-facing requested version, if distinct |
+| `immutable_commit` | Data | Yes | Exact source commit SHA |
+| `is_required` | Check | Yes | Required by composition |
+| `change_action` | Select | Yes | Keep, Add, Upgrade, Remove |
 
-Actions: Keep, Add, Upgrade, Remove. The resolved candidate must contain the full desired app inventory. A removal is rejected while any affected site still has the app installed.
+The resolved candidate contains the full desired app inventory, not only deltas. Every included app must resolve to a registered `app_id`, immutable release descriptor/digest and commit. A removal is rejected while any affected site still has the app installed.
+
+The candidate-input snapshot is immutable once submitted. It contains candidate/schema identity, product/composition, app identities/releases/descriptors, optional capabilities, runtime constraints/profile, approved build parameters, platform targets, composition hash and provenance. It must not contain tenant credentials, database passwords, API secrets, customer data, site FQDNs, Node-specific ports, TLS private keys, live tenant configuration or arbitrary shell commands. Corrections require a new candidate-input snapshot and digest; an already-submitted snapshot is never edited in place.
+
+Candidate status is business lifecycle state and is not a substitute for the execution state of any individual build or deployment.
 
 ### 7.2 Deployment Build
 
-Tracks asynchronous NDF/GitHub Actions execution.
+Tracks one immutable asynchronous NDF/GitHub Actions build attempt. A retry creates a new Deployment Build linked to the same candidate or to a superseding candidate as appropriate; a terminal Build record is never reset or reused.
 
-| Fieldname | Type | Required |
-|---|---|---:|
-| `deployment_candidate` | Link → Deployment Candidate | Yes |
-| `provider` | Select | Yes |
-| `workflow_name` | Data | Yes |
-| `workflow_run_id` | Data | No |
-| `workflow_url` | Data | No |
-| `source_commit` | Data | Yes |
-| `build_status` | Select | Yes |
-| `image_repository` | Data | No |
-| `image_digest` | Data | No |
-| `descriptor_ref` | Data | No |
-| `descriptor_hash` | Data | No |
-| `started_on` | Datetime | No |
-| `completed_on` | Datetime | No |
-| `error_details` | Long Text | No |
+| Fieldname | Type | Required | Rules |
+|---|---|---:|---|
+| `deployment_candidate` | Link → Deployment Candidate | Yes | Parent candidate |
+| `provider` | Select | Yes | Authorized build provider |
+| `workflow_name` | Data | Yes | Workflow identity |
+| `workflow_run_id` | Data | No | Provider execution identity |
+| `workflow_url` | Data | No | Provider navigation reference |
+| `source_commit` | Data | Yes | Immutable NDF workflow/source commit |
+| `candidate_artifact_ref` | Data | Yes | Exact immutable candidate input reference |
+| `candidate_artifact_digest` | Data | Yes | Digest submitted to build provider |
+| `composition_hash` | Data | Yes | Candidate composition identity |
+| `resolved_lock_hash` | Data | No | NDF-resolved composition/dependency lock hash |
+| `build_status` | Select | Yes | Build execution state |
+| `image_repository` | Data | No | Published OCI repository |
+| `image_digest` | Data | No | Immutable OCI digest |
+| `descriptor_ref` | Data | No | Immutable Product Deployment Descriptor reference |
+| `descriptor_hash` | Data | No | Verified descriptor digest |
+| `build_provenance_ref` | Data | No | Immutable provenance/attestation reference |
+| `failure_code` | Data | No | Safe machine-readable failure code |
+| `failure_summary` | Small Text | No | Sanitized diagnostic summary; no raw traceback or secret |
+| `started_on` | Datetime | No | Start |
+| `completed_on` | Datetime | No | Completion |
 
-Statuses: Pending, Submitted, Running, Succeeded, Failed, Cancelled. A successful workflow without a verifiable descriptor reference/hash and immutable image digest is not deployable.
+A successful workflow without a verifiable descriptor reference/digest, composition hash, lock identity, build provenance and immutable image digest is not deployable. Raw provider logs may remain at the provider; DT Master stores only safe references and sanitized failure information.
+
+#### 7.2.1 Candidate and Build lifecycle transitions
+
+Candidate transitions are explicit and validated server-side:
+
+- `Draft → Validating`.
+- `Validating → Ready for Build` only after candidate schema, app identities/descriptors, compatibility, policy and composition validation pass.
+- `Validating → Rejected` on a terminal validation/policy failure; a corrected request requires a new candidate or a formally versioned replacement snapshot.
+- `Ready for Build → Building` when a new Deployment Build is submitted.
+- `Building → Built` only when a successful Build has returned and DT Master has verified the immutable image digest, descriptor reference/digest, composition/lock hashes and provenance.
+- `Building → Failed` when the active build attempt fails or is cancelled without a usable artifact. A new attempt creates a new Build record; the candidate may return to `Ready for Build` only through an audited retry transition.
+- `Built → Deploying` when a Bench Deployment is created and execution begins.
+- `Deploying → Completed` only after the Bench Deployment has passed required readiness checks, migration/cutover and activation verification.
+- `Deploying → Failed` when deployment/recovery ends unsuccessfully; a new deployment attempt requires a new Bench Deployment record.
+- `Draft`, `Validating` and `Ready for Build` may transition to `Cancelled` when no irreversible execution boundary has been crossed.
+- `Rejected`, `Completed`, `Failed` and `Cancelled` are terminal candidate states. Any further attempt requires a new candidate or explicitly versioned successor.
+
+Build transitions are:
+
+- `Pending → Submitted → Running → Succeeded`.
+- `Pending` or `Submitted` may transition to `Cancelled` if the provider confirms cancellation.
+- `Submitted` or `Running` may transition to `Failed` on provider failure, timeout adjudication or invalid/missing output.
+- `Succeeded`, `Failed` and `Cancelled` are terminal. A retry creates a new Deployment Build record; do not mutate terminal build status or replace its outputs.
+
+Candidate business state, Build execution state and Bench Deployment execution state remain distinct. A candidate may be accepted/ready while no build is running; a successful build does not mean deployment is complete. Cancellation is rejected or converted to controlled recovery once the migration commit boundary has been crossed. After commit, recovery must account for replacement-side writes; it is not a blind cancellation or automatic switchback.
 
 ### 7.3 Bench Deployment
 
@@ -416,7 +461,7 @@ A deployment must preserve the exact descriptor and deployment inputs, either as
 
 One deployment lock per Bench Environment prevents conflicting operations. Failed deployment attempts never overwrite active deployment pointers. The prior deployment and recovery material remain available for the agreed rollback window.
 
-A separate Deployment Operation Log child DocType is **not approved by this specification**. Reuse or extension of existing Node Action Log / Script Execution should be decided during the detailed logging/API design.
+Deployment lifecycle logging is approved as the dedicated **Bench Deployment Stage** child table, as defined in Section 14.11. Each stage records ordered position, stage identity, state/status, timestamps, result/summary and a relevant Script Execution link where applicable. Script Execution/Execution Log retains command-level detail; Node Action Log remains for general Node/Site operations.
 
 ## 8. NDF Product Deployment Descriptor contract
 
@@ -581,19 +626,19 @@ This is the agreed implementation plan; it is not authorization to begin code ch
 - Rollback restores a verified previous runtime and site state.
 - No production cutover occurs without explicit acceptance.
 
-## 12. Items deliberately not frozen by this document
+## 12. Resolved architecture decisions and implementation-level dependencies
 
-The following require their own M4.1 contracts or implementation audits:
+The following items are not outstanding M4.1 architecture decisions. Their architecture-level contracts are recorded in Sections 14–16; exact implementation mechanics remain assigned to the relevant M4 milestones.
 
-1. Exact secret-provider implementation and rotation strategy.
-2. Exact dedicated/shared database and Redis provisioning profiles.
-3. Exact Compose project replacement/blue-green naming and ingress cutover procedure.
-4. Exact API endpoints and asynchronous callback/polling contract between DT Master and NDF.
-5. Whether deployment stage logs use an extension of Node Action Log, Script Execution or a dedicated child table.
-6. Exact Frappe field options, naming-series configuration and migration patch mechanics for the supported Frappe release.
-7. Formal NDF JSON Schema and descriptor artifact publication layout.
+1. **Secret provider and rotation:** provider abstraction, split DT Master/DT Tenant secret ownership, reference-only cross-component transport, protected short-lived delivery, rotation/revocation and backup-restore reconciliation are accepted in Section 15.8. The concrete provider implementation, encryption/key custody and runtime verification remain M4.3/M4.6/M4.7 work.
+2. **Database and Redis profiles:** Dedicated, Shared and External profiles, isolation boundaries and endpoint references are defined in Sections 4.4 and 14.11. Provider-specific provisioning is implementation work in M4.3/M4.4.
+3. **Compose replacement and ingress cutover:** ownership, coexistence, endpoint registration, port allocation, atomic routing update and rollback are defined in Section 14.11 and the migration policy. Exact naming algorithms and provider mechanics remain M4.3/M4.4.
+4. **DT Master–NDF build interaction:** candidate artifact, asynchronous build request/result, immutable references, polling/callback idempotency and verification are defined in Section 16.7. Concrete endpoint schemas and provider integration remain M4.2/M4.4.
+5. **Deployment-stage logging:** the Bench Deployment Stage child table is approved in Section 14.11 and specified in Sections 7.3/14.11. It is not an open design choice.
+6. **Frappe schema mechanics:** logical fields and relationships are specified. Exact field options, autoname, indexes, patches and supported-version compatibility are implementation verification, not architecture decisions.
+7. **NDF artifact schemas/publication:** the logical Marketplace App Descriptor, candidate input, composition lock and Product Deployment Descriptor contracts are accepted in Section 16. Formal JSON Schemas, artifact layout and publication workflow are M4.2/M4.4 implementation deliverables.
 
-These are intentionally separated from the approved ownership and schema principles so they can be resolved without reopening the hierarchy.
+This classification preserves implementation dependencies without leaving previously accepted architecture decisions marked as unresolved.
 
 ## 13. Source references
 
@@ -1175,10 +1220,7 @@ The following checks remain necessary before implementation, but do not reopen t
 
 ## 15. Cross-repository security and authorization contract
 
-**Status:** M4.1 contract proposal for architecture review. Source-level findings
-are recorded in the API caller, UI/role and security verification audits.
-This section defines the target authorization boundary; it does not create
-Frappe Roles, service users, secrets, endpoints or implementation changes.
+**Status:** Accepted M4.1 cross-repository authorization and security contract. Source-level findings are recorded in the API caller, UI/role and security verification audits. This section defines the approved target boundary; it does not create Frappe Roles, service users, secrets, endpoints or implementation changes.
 
 ### 15.1 Governing rules
 
@@ -1482,11 +1524,9 @@ These decisions resolve the policy questions previously listed for actor separat
 **Approval boundary:** The Section 15 architecture and authorization policy is accepted. This does not authorize application code, DocType, permission, credential, migration or runtime changes; those remain subject to the existing M4.2–M4.7 implementation gates and explicit implementation authorization.
 
 
-## 16. NDF integration contract — verified source state and target acceptance
+## 16. NDF integration contract — accepted architecture and verified source gaps
 
-**Status:** Contract requirements are defined below; current NDF implementation
-gaps are recorded from a read-only audit of NdfTechLabs/frappe_docker:main.
-M4.1 remains in progress. This section does not authorize NDF code changes.
+**Status:** The artifact, candidate/build/result, descriptor, immutable-source and trust contracts below are accepted for M4.1. Current NDF implementation gaps are recorded from a read-only audit of NdfTechLabs/frappe_docker:main. This section does not authorize NDF code changes.
 
 ### 16.1 Artifact ownership and separation
 
@@ -1846,14 +1886,14 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 
 - [ ] The exact M4.0–M4.7 milestone structure is used consistently across the
       tracker and audit records.
-- [ ] Node → Bench Environment → Tenant Site ownership and all child-table
+- [x] Node → Bench Environment → Tenant Site ownership and all child-table
       boundaries are approved.
-- [ ] The schema and field migration matrix is reviewed and accepted.
+- [x] The schema and field migration matrix is reviewed and accepted.
 - [x] Host/Docker runtime ownership and the common runtime adapter contract are approved; method signatures, transport schemas and provider details remain implementation work.
 - [x] The durable operation contract is accepted: DT Master/DT Tenant record ownership, shared cross-repository correlation, resource-level mutation locks, distinct business/execution states, and explicit retry/recovery boundaries are recorded in Section 15.6.
 - [x] The secret transport contract is accepted: split secret ownership, reference-only cross-component transport, protected short-lived runtime delivery, descriptor/Compose reference-only rules, rotation/revocation and backup-restore reconciliation are recorded in Section 15.8.
-- [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
-      lifecycle contracts are approved.
+- [x] Deployment Candidate, Build, Bench Deployment and deployment-stage
+      lifecycle contracts are approved, including immutable candidate/build inputs, verified artifact chain, explicit state transitions, terminal Build records, retry semantics and migration-commit cancellation boundary.
 - [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
 - [x] The Section 16 NDF artifact/build/deployment contract is approved; implementation remains assigned to M4.2–M4.7.
 - [x] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
@@ -1862,8 +1902,8 @@ M4.1 can be marked complete only when all criteria below are satisfied:
       consumers are known to the platform owner, and external/private/deployed
       caller verification limitations are recorded.
 - [x] The ordered data migration, backup, resumability and rollback policy is accepted; isolated replacement copies and the pre-/post-commit rollback boundary are recorded. Implementation and rehearsal remain assigned to M4.2–M4.7.
-- [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
+- [x] Every remaining implementation dependency is assigned to M4.2–M4.7; exact implementation details remain explicitly deferred.
 - [ ] Explicit authorization is obtained before implementation starts.
 
-**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization, durable operation and secret transport contracts; Section 16 NDF artifact/build/deployment contract; migration/rollback policy; and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. The remaining work is the consolidated M4.1 acceptance review, closure of any outstanding acceptance checklist/documentation gaps, and explicit M4.1 closure/implementation authorization. Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization, durable operation and secret transport contracts; Section 16 NDF artifact/build/deployment contract; migration/rollback policy; and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. The remaining work is the consolidated M4.1 acceptance review and explicit M4.1 closure. Implementation authorization remains a separate decision and has not been granted. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
