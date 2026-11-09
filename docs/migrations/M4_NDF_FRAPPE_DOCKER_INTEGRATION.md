@@ -325,8 +325,9 @@ M4.1 may close only after:
    Environment → Site ownership model.
 5. Migration sequencing, acceptance criteria, implementation ownership and
    rollback boundaries are agreed.
-6. The user explicitly authorizes implementation before any application code,
-   DocType, migration, script, workflow or runtime change begins.
+6. Implementation authorization is a separate mandatory gate before any
+   application code, DocType, migration, script, workflow or runtime change;
+   it is not a prerequisite for M4.1 architecture acceptance or closure.
 
 Runtime-only Frappe permission, worker identity, realtime delivery, export,
 report, print and backup checks are deferred to the relevant implementation
