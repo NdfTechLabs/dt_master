@@ -184,10 +184,10 @@ prerequisite for the source-level disposition matrix.
 | Primary operational DocType permissions/action fields | Reviewed from DocType JSON |
 | Tenant Settings credential field types and roles | Confirmed: Data fields; Tenant Manager read/write |
 | Full Git tree inventory and grouped disposition matrix | Completed for both develop trees; external/private callers remain unverified |
-| Realtime worker identity/event subscription authorization | Source-level findings recorded; final service/event authorization contract remains to be consolidated. Runtime behavior verification is deferred to the relevant implementation/testing stage. |
+| Realtime worker identity/event subscription authorization | Source-level findings recorded; accepted service/event authorization contract is in Section 15. Runtime behavior verification is deferred to the relevant implementation/testing stage. |
 | Sensitive-field consumer tracing | Completed for principal inspected consumers; live export/report/print/backup behavior verification is deferred to implementation/testing. |
 | Child-DocType schema and parent-authorization source review | Completed for inspected child DocTypes; live Frappe behavior verification is deferred to implementation/testing. |
-| Final cross-repository role and service identity contract | Outstanding — M4.1 architecture work |
+| Final cross-repository role and service identity contract | Accepted in Section 15; endpoint enforcement and live verification remain M4.5/M4.6/M4.7 implementation work |
 
 No application code, DocTypes, migrations, scripts or runtime configuration were changed.
 
