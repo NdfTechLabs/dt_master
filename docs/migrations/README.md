@@ -8,6 +8,11 @@ integration milestone.
 - [M4 — NDF Frappe Docker integration](M4_NDF_FRAPPE_DOCKER_INTEGRATION.md):
   current architecture, server baseline, milestone status, decisions and
   remaining discovery/implementation gates.
+- [M4.1 — Bench Environment schema and implementation](M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md):
+  approved ownership model, parent and child DocType fields, validation rules,
+  deployment descriptor requirements, migration considerations and phased
+  implementation plan. This is a design specification; it does not indicate
+  that the schema or runtime code has been implemented.
 
 ## Historical work
 
