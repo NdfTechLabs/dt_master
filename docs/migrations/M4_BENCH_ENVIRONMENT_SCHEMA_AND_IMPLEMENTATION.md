@@ -559,7 +559,7 @@ This is the agreed implementation plan; it is not authorization to begin code ch
 5. Keep deployment-time resource assignments in DT Master; do not leak host paths/volume names into NDF product manifests.
 
 ### Phase E — Runtime and deployment orchestration
-1. Define common Host and Docker adapter interfaces.
+1. Implement the approved versioned common Host/Docker runtime adapter contract, including inspection, preflight, provisioning, lifecycle, deployment, storage, recovery, endpoint registration and health reporting.
 2. Implement Node preflight and capacity checks.
 3. Implement storage and external service profile resolution.
 4. Implement Compose deployment using NDF-provided definition and approved overrides.
@@ -912,6 +912,31 @@ Execution context rules:
 - Deployment lifecycle is recorded in Bench Deployment; Script Execution may be linked as execution detail.
 
 Preserve SSH transport, output/realtime streaming, exit-code handling and secret-redaction guarantees during adapter transition.
+
+### Common runtime adapter contract - approved in M4.1
+
+DT Master owns a versioned, runtime-neutral adapter contract. The selected adapter implements runtime-specific mechanics; it is not an independent orchestration or policy authority.
+
+| Responsibility | Required contract |
+|---|---|
+| Runtime inspection | Report runtime type, adapter identity/version, availability, supported capabilities and observed state. |
+| Preflight | Validate runtime prerequisites, target readiness and available capacity before mutation. |
+| Provisioning | Create or prepare the Bench runtime using approved deployment inputs. |
+| Lifecycle | Start, stop and inspect only services/resources owned by the target Bench Environment. |
+| Deployment | Apply a verified deployment artifact and declarative service contract; do not build or alter product composition. |
+| Storage | Prepare and validate approved persistent storage bindings and report resolved state. |
+| Recovery | Execute explicitly authorized backup, restore and recovery operations and return structured outcomes. |
+| Endpoint registration | Return verified runtime endpoints and their purpose, protocol, address/port and availability for DT Master registration. |
+| Health reporting | Return structured readiness and operational health results for the runtime and its declared services. |
+
+Contract rules:
+1. DT Master remains the orchestration authority. The adapter does not authorize tenant operations, choose product compositions, approve marketplace apps, change deployment policy or modify NDF artifacts.
+2. Every mutating adapter call is invoked through the durable operation coordinator and carries operation identity, actor/tenant context where applicable, target Bench identity, idempotency identity and a versioned request contract.
+3. Adapter results are structured, sanitized and correlated to the operation. They report observed state and safe diagnostics; they do not expose secret values or raw sensitive command output.
+4. The Host adapter preserves and operates existing Host-native Bench Environments. The Docker adapter consumes verified OCI deployment artifacts and the NDF-declared service contract.
+5. Adapter implementations enforce resource ownership boundaries. Shared Node services and resources belonging to other Bench Environments must not be modified or removed as a side effect of a Bench operation.
+6. Exact method signatures, transport schemas, timeout/retry values, provider implementations and Node-side execution details are implementation specifications assigned to M4.3 and M4.7. They must conform to this approved contract.
+
 
 ### 14.10 Mail Server
 
@@ -1754,7 +1779,7 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Node → Bench Environment → Tenant Site ownership and all child-table
       boundaries are approved.
 - [ ] The schema and field migration matrix is reviewed and accepted.
-- [ ] Host/Docker runtime ownership and adapter contracts are approved.
+- [x] Host/Docker runtime ownership and the common runtime adapter contract are approved; method signatures, transport schemas and provider details remain implementation work.
 - [ ] Deployment Candidate, Build, Bench Deployment and deployment-stage
       lifecycle contracts are approved.
 - [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
@@ -1768,5 +1793,5 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
 - [ ] Explicit authorization is obtained before implementation starts.
 
-**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization policy, Section 16 NDF artifact/build/deployment contract and migration/rollback policy have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Final consolidated architecture review and explicit M4.1 closure/implementation authorization remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
+**Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization policy, Section 16 NDF artifact/build/deployment contract, migration/rollback policy and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Final consolidated architecture review and explicit M4.1 closure/implementation authorization remain outstanding. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
