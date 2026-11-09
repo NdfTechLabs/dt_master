@@ -1,6 +1,6 @@
 # M4 — NDF Frappe Docker integration
 
-**Status:** Architecture discovery in progress  
+**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress  
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
 disrupting existing host-native deployments.
@@ -20,6 +20,19 @@ Docker to the existing DT Master orchestration platform.
 
 DT Master consumes the NDF Frappe Docker contract. It must not maintain a
 competing Dockerfile, image-build, product-composition or Compose system.
+
+## 1.1 Approved Bench Environment schema
+
+The agreed parent/child DocType model, field-level schema, validation rules,
+Tenant Site relationship migration, Deployment Candidate/Build/Deployment
+records, NDF Deployment Descriptor requirements and phased implementation
+plan are maintained in
+[M4.1 — Bench Environment Schema and Implementation](M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md).
+
+That specification records the approved target architecture. It is not evidence
+that the proposed DocTypes, fields, validators, APIs or runtime adapters have
+already been implemented. Code changes remain gated by completion and review
+of the M4.1 contracts and migration plan.
 
 ## 2. Server baseline — 2026-11-05
 
