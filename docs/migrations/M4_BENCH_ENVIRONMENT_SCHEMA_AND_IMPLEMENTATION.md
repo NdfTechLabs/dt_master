@@ -1,6 +1,6 @@
 # M4.1 — Bench Environment Schema and Implementation Specification
 
-**Status:** M4.1 architecture formally accepted and closed (2026-11-09); implementation not authorized  
+**Status:** M4.1 architecture complete and accepted (2026-11-09); implementation not authorized  
 **Repository:** `NdfTechLabs/dt_master`  
 **Branch baseline:** `develop`  
 **Scope:** DT Master DocTypes, ownership rules, validation, deployment records and implementation/migration sequence  
@@ -1772,7 +1772,7 @@ to M4.2–M4.7; this approval does not authorize code or runtime changes.
 
 ## 17. M4.1 architecture review and exit assessment
 
-**Review status:** Owner explicitly approved M4.1 closure on 2026-11-09; architecture milestone closed.
+**Review status:** M4.1 marked Complete on 2026-11-09 following explicit platform-owner approval.
 **Implementation authorization:** Not granted.
 
 ### 17.1 Resolved architecture decisions
@@ -1882,7 +1882,7 @@ verification and migration-commit evidence in deployment history.
 
 ### 17.5 M4.1 acceptance criteria and implementation authorization gate
 
-M4.1 can be marked complete when the architecture, source-audit, documentation and milestone-allocation criteria below are satisfied. The separate implementation-authorization gate is not a prerequisite for M4.1 closure; it must be explicitly satisfied before any M4.2–M4.7 application code, DocType, migration, script, workflow or runtime change begins.
+M4.1 was marked Complete on 2026-11-09 after the architecture, source-audit, documentation and milestone-allocation criteria below were satisfied. The separate implementation-authorization gate is not a prerequisite for M4.1 closure; it must be explicitly satisfied before any M4.2–M4.7 application code, DocType, migration, script, workflow or runtime change begins.
 
 - [x] The exact M4.0–M4.7 milestone structure is used consistently across the
       tracker and audit records.
@@ -1905,5 +1905,5 @@ M4.1 can be marked complete when the architecture, source-audit, documentation a
 - [x] Every remaining implementation dependency is assigned to M4.2–M4.7; exact implementation details remain explicitly deferred.
 **Separate implementation gate (not an M4.1 closure criterion):** [ ] Explicit authorization is obtained before implementation starts. No implementation authorization is currently granted.
 
-**Closure decision (2026-11-09):** The platform owner explicitly approved closing M4.1 after the final acceptance review. All 13 architecture acceptance criteria are satisfied; M4.1 — Integration Contract and Architecture is **Closed / Accepted**. The owner-confirmed absence of known additional DT Master API consumers outside DT Tenant remains subject to independent runtime, deployment and credential-inventory verification during implementation. Runtime-only Frappe checks and NDF immutable-build/descriptor gaps remain assigned to M4.2–M4.7 and do not reopen M4.1. **Implementation authorization remains NOT GRANTED.** The separate implementation gate remains unchecked. M4.2 has not started.
+**Completion record (2026-11-09):** The platform owner explicitly approved M4.1 after the final acceptance review. All 13 architecture acceptance criteria are satisfied; M4.1 — Integration Contract and Architecture is **Complete**. The owner-confirmed absence of known additional DT Master API consumers outside DT Tenant remains subject to independent runtime, deployment and credential-inventory verification during implementation. Runtime-only Frappe checks and NDF immutable-build/descriptor gaps remain assigned to M4.2–M4.7 and do not reopen M4.1. **Implementation authorization remains NOT GRANTED.** The separate implementation gate remains unchecked. M4.2 has not started.
 
