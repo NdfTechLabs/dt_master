@@ -1,4 +1,4 @@
-**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture formally closed / accepted on 2026-11-09 following the final 13-point acceptance review and explicit platform-owner approval. Implementation authorization is a separate gate and has **not been granted**. M4.2–M4.7 remain pending.  
+**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** as of 2026-11-09 following the final 13-point acceptance review and explicit platform-owner approval. Implementation authorization is a separate gate and has **not been granted**. M4.2–M4.7 remain pending.  
 
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
@@ -257,15 +257,15 @@ acceptance of the NDF Frappe Docker product image or DT Master integration.
 
 ## 8. M4 milestone status
 
-The following is the authoritative M4 milestone structure. M4.0 is completed;
-M4.1 is the active architecture and contract milestone. M4.2–M4.7 have not
-started. Earlier milestone labels or stage breakdowns in historical notes do
+The following is the authoritative M4 milestone structure. M4.0 and M4.1 are completed;
+M4.2–M4.7 have not started. M4.1 completion records architecture acceptance,
+not implementation authorization. Earlier milestone labels or stage breakdowns in historical notes do
 not supersede this table.
 
 | Milestone | Name | Repository | Scope | Status |
 |---|---|---|---|---|
 | **M4.0** | Architecture and Repository Discovery | Both | Audit existing implementations, ownership, boundaries and target architecture. | **Completed** |
-| **M4.1** | Integration Contract and Architecture | Both | Finalize schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts. | **In progress** |
+| **M4.1** | Integration Contract and Architecture | Both | Schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts accepted. | **Complete (2026-11-09)** |
 | **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology and deployment artifacts. | Not started |
 | **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | Not started |
 | **M4.4** | Product Image Deployment | `dt_master` | Immutable NDF images, deployment candidates, build tracking, provisioning and replacement deployments. | Not started |
@@ -275,7 +275,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 — Integration Contract and Architecture was formally closed/accepted on 2026-11-09 following the final 13-point architecture acceptance review and the platform owner's explicit approval. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, source-level API/UI/security audits, cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. **Implementation authorization has not been granted.** M4.2–M4.7 remain pending.
+M4.1 — Integration Contract and Architecture is **Complete** as of 2026-11-09 following the final 13-point architecture acceptance review and the platform owner's explicit approval. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, source-level API/UI/security audits, cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. **Implementation authorization has not been granted.** M4.2–M4.7 remain pending.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
@@ -289,7 +289,7 @@ an image alone does not complete it.
 
 ## 9. M4.1 completion position and later implementation gates
 
-The source-level discovery and repository audit, architecture contracts and documentation reconciliation were accepted as the M4.1 baseline. The platform owner explicitly approved M4.1 closure on 2026-11-09. The following table distinguishes accepted architecture decisions from external verification and later implementation work.
+The source-level discovery and repository audit, architecture contracts and documentation reconciliation were accepted as the M4.1 baseline. The platform owner explicitly approved M4.1 completion on 2026-11-09. The following table distinguishes accepted architecture decisions from external verification and later implementation work.
 
 | Workstream | Current position | Milestone |
 |---|---|---|
@@ -309,7 +309,7 @@ The source-level discovery and repository audit, architecture contracts and docu
 
 ### M4.1 exit criteria and closure record
 
-The following exit criteria were satisfied and M4.1 was formally closed on 2026-11-09 after explicit owner approval:
+The following exit criteria were satisfied; M4.1 was marked **Complete** on 2026-11-09 after explicit owner approval:
 
 1. The repository disposition matrix and principal caller/security audit are
    reviewed. The platform owner confirms no additional DT Master API consumers
@@ -326,9 +326,9 @@ The following exit criteria were satisfied and M4.1 was formally closed on 2026-
    rollback boundaries are agreed.
 6. Implementation authorization remains a separate mandatory gate before any
    application code, DocType, migration, script, workflow or runtime change.
-   It was not granted by M4.1 closure and remains pending.
+   It was not granted by M4.1 completion and remains pending.
 
-**Closure outcome:** M4.1 is Closed / Accepted. Runtime-only Frappe permission,
+**Milestone outcome:** M4.1 is **Complete**. Runtime-only Frappe permission,
 worker identity, realtime delivery, export, report, print and backup checks are
 deferred to the relevant implementation and production-readiness stages.
 They do not reopen M4.1 or authorize implementation.
