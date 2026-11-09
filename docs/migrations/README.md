@@ -9,7 +9,7 @@ from historical migration and deployment experiments.
   **canonical M4.0–M4.7 milestone tracker**, integration architecture, current
   milestone position and remaining work.
 - [M4.1 — Bench Environment schema and implementation](M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md):
-  canonical M4.1 target ownership model, schema, accepted architecture and authorization decisions, migration dispositions, implementation contracts and remaining approval boundary.
+  canonical M4.1 target ownership model, schema, accepted architecture and authorization decisions, migration dispositions, implementation contracts and the separate implementation-authorization gate.
 - [M4 — DT Master file-level audit](M4_DT_MASTER_FILE_LEVEL_AUDIT.md):
   existing implementation, API dependencies, execution, concurrency,
   authorization and proposed dispositions.
