@@ -1012,25 +1012,53 @@ The migration follows ownership dependencies. Do not change Tenant Site's Node r
 
 ### 14.14 Outstanding decisions and schema observations
 
-The matrix records ownership direction; it does not silently resolve these remaining contracts:
+The matrix records ownership direction. The decisions below distinguish contracts now agreed from contracts that still require resolution.
+
+#### Resolved in this architecture review
+
+| Item | Recorded decision |
+|---|---|
+| Application identity | Introduce a stable, globally unique `app_id` shared by DT Master and NDF. It is assigned during application registration, remains immutable across releases and is independent of repository URL, display name and product composition. |
+| Application registration ownership | DT Master owns developer registration, verified publisher identity, display/listing content, marketplace visibility, pricing and marketplace governance. |
+| Technical application/release authority | NDF owns the Marketplace App Descriptor and technical release provenance, including repository, immutable commit, framework compatibility, Python/Node/OS dependencies, application dependencies and release identity. |
+| Application descriptor registry | NDF maintains the canonical registry of published application descriptors/releases. The application repository contains the descriptor source; NDF validates and publishes an immutable descriptor artifact. |
+| Existing NDF manifest schema | Retain `application-manifest-v1` for its current composition-manifest role and backward compatibility. It is not the per-application Marketplace App Descriptor. Do not replace the existing resolver or lock mechanism. Extend the NDF design so composition manifests can reference registered `app_id` and release versions, which the resolver expands into the existing immutable application lock. |
+| Artifact separation | Keep three distinct artifact levels: (1) Marketplace App Descriptor for an application/release, (2) product composition manifest selecting application releases, and (3) Product Deployment Descriptor describing the exact built image/runtime artifact. |
+| DT Master release synchronization | When NDF publishes a validated immutable application release, it notifies DT Master with the `app_id`, release version and immutable descriptor/artifact reference and integrity information. DT Master finds or creates the Extension, creates or updates the corresponding Extension Version, synchronizes technical metadata and places the release in Pending Review. Marketplace approval remains a DT Master decision. |
+| Product inclusion governance | Product inclusion is separate from application registration and marketplace release approval. DT Master creates a Product Inclusion Request identifying target product, `app_id`, release version and requested immutable commit/artifact. DT Master submits an authenticated request to NDF; NDF validates compatibility and proposes the manifest change through a pull request. An authorized product maintainer approves and merges the change. NDF then builds, validates and publishes the immutable product image. DT Master does not directly edit product manifests. |
+| Marketplace/product approval separation | Approval to list or publish an application release in the marketplace does not automatically authorize its inclusion in any product. Product composition requires its own product-owner approval. |
+| Extension source metadata | NDF descriptor is authoritative for technical source and runtime metadata. DT Master may retain synchronized, read-only references for marketplace display and traceability; it must not independently govern repository refs or technical dependency declarations. |
+
+#### Still outstanding
 
 | Item | Current position | Required resolution |
 |---|---|---|
 | Site ingress and ports | Keep `protocol`, `port` and `fqdn` on Tenant Site pending contract. | Finalize Node ingress and Bench routing ownership before changing semantics. |
-| Node and Bench logs | Preserve historical logs. | Decide deployment stage log model. |
-| Database and Redis | Bench Environment owns profiles/references. | Define dedicated/shared/external provisioning and isolation. |
-| Secrets | Replace plaintext with protected references. | Select provider and define migration/rotation. |
-| Dependency classification | Existing records are migration inputs. | Classify each dependency by actual installation/consumption location. |
-| Host Bench grouping | One Bench Environment per actual existing Bench. | Inspect paths/site configuration to establish membership. |
-| `deployment_type` | Preserve Shared/Dedicated semantics. | Confirm whether still needed for tenant allocation. |
-| Extension source metadata | NDF authoritative for build source/runtime composition. | Define synchronization with NDF Marketplace App Descriptor. |
-| Frappe schema mechanics | Logical target model defined. | Verify field options, autoname, indexes and patch behavior against supported Frappe release. |
+| Node and Bench logs | Preserve historical logs. | Decide deployment stage log model and whether Bench Deployment needs dedicated stage records or links to existing execution logs. |
+| Database and Redis | Bench Environment owns profiles/references. | Define dedicated/shared/external provisioning, tenancy isolation, lifecycle and recovery guarantees. |
+| Secrets | Replace plaintext with protected references. | Select provider abstraction and define migration, access control, rotation and recovery. |
+| Dependency classification | Existing records are migration inputs. | Classify each dependency by actual installation and consumption location. |
+| Host Bench grouping | One Bench Environment per actual existing Bench. | Inspect paths/site configuration to establish membership; do not infer one Bench per Node. |
+| `deployment_type` | Preserve Shared/Dedicated semantics. | Confirm whether it remains necessary for tenant allocation and define its relationship, if any, to infrastructure hosting model. |
+| Frappe schema mechanics | Logical target model defined. | Verify field options, autoname, indexes and patch behavior against the supported Frappe release. |
 
-Additional existing-schema observations:
+#### Application descriptor contract — additional constraints
+
+1. `app_id` is allocated/registered through DT Master before the application can participate in the trusted NDF release flow. NDF validates that the descriptor uses the registered identity; it must not silently create a second identity from a repository or package name.
+2. The publisher shown in marketplace listings is verified and governed by DT Master. A descriptor may identify the claimed publisher, but that claim is not proof of publisher ownership.
+3. Developer registration information and technical release information remain separate. Display name and listing content originate from developer registration and are governed by DT Master; technical source, immutable commit, compatibility, dependencies and release provenance originate from the NDF descriptor.
+4. Each release descriptor is immutable once published. A correction produces a new descriptor artifact/revision with explicit provenance; it must not rewrite the meaning of an already-consumed release.
+5. Release notifications are authenticated, replay-safe and idempotent. DT Master verifies descriptor integrity and immutable source provenance before synchronizing records. Notification delivery is not itself marketplace approval.
+6. DT Master retains the immutable descriptor reference/digest and synchronization outcome on the corresponding Extension Version for auditability.
+7. Product Inclusion Requests identify both the requested semantic release and immutable commit/artifact. NDF validates that they correspond; it must not resolve a moving branch at product-build time.
+8. The existing NDF resolver/lock format remains the resolved build input during migration. Descriptor-backed composition support must preserve deterministic locks, immutable commit pinning and reproducible product builds.
+
+#### Additional existing-schema observations
+
 - `Tenant Site.port` is currently a Data field. Preserve values during migration; do not silently coerce.
 - `Extension.supports_upgrade` is currently Data with a default of 1, unlike Check field `supports_uninstall`; review its type during schema work.
 - `Script Execution.triggere_source` is the existing fieldname. Correct only through a controlled migration.
 - `Infrastructure Node.state` currently includes Bench-oriented states such as Project Installed, Initialized, Healthy, Running and Stopped. Separate these from Node readiness.
 - `Tenant Site.region` is free text, while `Infrastructure Node.region` is a Link. Reconcile before making Site region derived.
 
-**Approval boundary:** This matrix and data migration order are approved for documentation. This approval does not authorize implementation. DocType/controller/API/migration/runtime changes remain gated by completion and explicit approval of the remaining M4.1 contracts.
+**Approval boundary:** The application identity, descriptor ownership, release synchronization and product inclusion governance decisions in this section are recorded as architecture decisions. This documentation update does not authorize implementation. The remaining contracts above, the full M4.1 integration contract and explicit implementation approval are still required before DocType/controller/API/migration/runtime changes begin.
