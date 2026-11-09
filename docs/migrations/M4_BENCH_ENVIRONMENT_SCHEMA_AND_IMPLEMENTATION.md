@@ -882,7 +882,7 @@ Preserve this child table and its historical records. It is currently reused by 
 | `result` | Retain | Operation summary. |
 | `state` | Retain | Log execution state. |
 
-**Open decision:** whether Bench Deployment needs dedicated stage logs or can safely reuse this child table remains unresolved. Bench Deployment remains the authoritative deployment lifecycle record regardless of logging implementation. Review old stdout/stderr for secrets before deciding retention/access controls.
+**Resolved deployment logging decision:** Bench Deployment owns a dedicated child table, **Bench Deployment Stage**, for ordered lifecycle stages and their status, timing, outcome, and linked execution reference. Script Execution and Execution Log remain the technical execution records for commands, exit codes, streamed output, and detailed diagnostics. Node Action Log remains for general Node/Site operational actions and is not overloaded with deployment-stage history. Historical stdout/stderr must still be reviewed for leaked secrets and access controls.
 
 ### 14.9 Script Execution and Execution Log
 
@@ -1029,18 +1029,38 @@ The matrix records ownership direction. The decisions below distinguish contract
 | Marketplace/product approval separation | Approval to list or publish an application release in the marketplace does not automatically authorize its inclusion in any product. Product composition requires its own product-owner approval. |
 | Extension source metadata | NDF descriptor is authoritative for technical source and runtime metadata. DT Master may retain synchronized, read-only references for marketplace display and traceability; it must not independently govern repository refs or technical dependency declarations. |
 
-#### Still outstanding
+#### Resolved infrastructure and schema decisions
+
+The following decisions have been discussed and resolved at the architecture level. Their implementation must follow the contracts below; they are not open architecture questions.
+
+| Item | Recorded decision |
+|---|---|
+| Deployment logging | Bench Deployment owns a dedicated **Bench Deployment Stage** child table. Each stage records its ordered lifecycle position, stage identity, state/status, start and finish timestamps, result/summary, and a link to the relevant Script Execution where applicable. Script Execution and Execution Log retain command-level execution details, exit codes, stdout/stderr and realtime output. Node Action Log remains for general Node/Site operational actions. Deployment history must not be collapsed into the generic Node Action Log. |
+| Database profiles | Bench Environment declares a database profile: **Dedicated, Shared or External**. The profile determines provisioning and endpoint resolution. Database naming is explicit through the configured strategy (per Site or profile-defined). Shared database infrastructure is permitted only with an explicit isolation boundary and allocation for each Bench Environment; external services are first-class and need not be part of the Bench Compose project. |
+| Redis profiles | Bench Environment independently declares a Redis profile: **Dedicated, Shared or External**. Cache and queue endpoints remain separate logical references even when backed by the same Redis service. Shared profiles require explicit per-Bench isolation, including key/namespace and access boundaries appropriate to the selected service. Cache persistence is not assumed; queue persistence and recovery follow the selected service profile. |
+| Secret provider and rotation | Introduce a standalone **Runtime Secret** model and provider abstraction. The initial provider may use Frappe's encrypted Password field storage, behind the abstraction so an external secret manager can be introduced later without changing consumers. DocTypes store secret references, never credential values in ordinary Data fields. Secret resolution is restricted to authorized server-side execution paths; values must not enter descriptors, Compose definitions, logs, exports or command-line arguments. Rotation is an explicit lifecycle operation: provision/update the provider value, validate dependent service access, switch the reference/version safely, retain recovery capability for the transition, and record rotation outcome without recording the secret itself. |
+| Dependency classification | Classify dependencies by where they are installed and consumed: **(1) Node infrastructure prerequisites** are owned/validated by DT Master against Infrastructure Node capabilities; **(2) image/runtime dependencies** are declared and resolved by NDF during image construction; **(3) external service dependencies** are represented by Bench Environment service/profile references. Bench Runtime Component records exact deployed/observed runtime components. Existing System Dependency records must be classified individually; package-manager type alone does not determine ownership. |
+| Existing Host Bench grouping | The actual existing Host Bench directory/runtime is the migration boundary. Create one Host Bench Environment for each distinct existing Bench installation, then associate only the sites whose configuration and filesystem evidence show that they belong to that Bench. A Node may host multiple Bench Environments; do not infer one Bench per Node or group all sites on a Node together. Preserve Host runtime during this migration. |
+| Tenant `deployment_type` semantics | Existing `Shared` / `Dedicated` values describe tenant deployment/allocation semantics, not Host versus Docker runtime and not the Node's hosting model. Runtime type is owned by Bench Environment. Preserve legacy values during migration, identify and migrate all consumers, then deprecate and retire the Tenant Site field when it no longer has an authoritative role. Do not silently reinterpret existing values. |
+| Frappe schema mechanics | The logical schema is defined in Sections 4–5 and the migration sequence in Sections 14.12–14.13: standard parent DocTypes, child DocTypes with `istable = 1`, explicit field types, Link relationships, generated document names with separate immutable business codes, and server-side validation for uniqueness and relationship constraints. Naming, uniqueness, indexes and schema patches must be implemented through supported Frappe mechanisms and verified against the repository's pinned/supported Frappe version before coding. This is implementation compatibility verification, not an unresolved architecture decision. |
+
+#### Remaining M4.1 contract
 
 | Item | Current position | Required resolution |
 |---|---|---|
-| Site ingress and ports | Keep `protocol`, `port` and `fqdn` on Tenant Site pending contract. | Finalize Node ingress and Bench routing ownership before changing semantics. |
-| Node and Bench logs | Preserve historical logs. | Decide deployment stage log model and whether Bench Deployment needs dedicated stage records or links to existing execution logs. |
-| Database and Redis | Bench Environment owns profiles/references. | Define dedicated/shared/external provisioning, tenancy isolation, lifecycle and recovery guarantees. |
-| Secrets | Replace plaintext with protected references. | Select provider abstraction and define migration, access control, rotation and recovery. |
-| Dependency classification | Existing records are migration inputs. | Classify each dependency by actual installation and consumption location. |
-| Host Bench grouping | One Bench Environment per actual existing Bench. | Inspect paths/site configuration to establish membership; do not infer one Bench per Node. |
-| `deployment_type` | Preserve Shared/Dedicated semantics. | Confirm whether it remains necessary for tenant allocation and define its relationship, if any, to infrastructure hosting model. |
-| Frappe schema mechanics | Logical target model defined. | Verify field options, autoname, indexes and patch behavior against the supported Frappe release. |
+| Site ingress and ports | Keep `protocol`, `port` and `fqdn` on Tenant Site pending the final routing contract. | Finalize Node ingress ownership, Bench upstream/routing identity, host/path routing, port allocation and safe cutover behavior before changing field semantics. |
+
+#### Implementation verification (not open architecture decisions)
+
+The following checks remain necessary before implementation, but do not reopen the decisions above:
+
+1. Verify supported Frappe field options and child-table behavior against the pinned Frappe release.
+2. Confirm autoname/naming-series behavior and immutable business-code generation.
+3. Implement database uniqueness constraints/indexes using supported Frappe migration mechanisms; validate behavior on the supported database engine.
+4. Define ordered, idempotent patches with preflight checks, backups, resumability and post-migration validation.
+5. Test migration against representative existing Host Nodes, Bench directories and Tenant Sites before enabling relationship cutover.
+6. Verify secret encryption/decryption and permission behavior in the deployed Frappe configuration; do not assume a Password field alone completes the provider/access-control contract.
+
 
 #### Application descriptor contract — additional constraints
 
@@ -1061,4 +1081,4 @@ The matrix records ownership direction. The decisions below distinguish contract
 - `Infrastructure Node.state` currently includes Bench-oriented states such as Project Installed, Initialized, Healthy, Running and Stopped. Separate these from Node readiness.
 - `Tenant Site.region` is free text, while `Infrastructure Node.region` is a Link. Reconcile before making Site region derived.
 
-**Approval boundary:** The application identity, descriptor ownership, release synchronization and product inclusion governance decisions in this section are recorded as architecture decisions. This documentation update does not authorize implementation. The remaining contracts above, the full M4.1 integration contract and explicit implementation approval are still required before DocType/controller/API/migration/runtime changes begin.
+**Approval boundary:** The application identity, descriptor ownership, release synchronization, product inclusion governance, deployment logging, database/Redis profiles, secret-provider model, dependency classification, Host Bench grouping, `deployment_type` semantics and logical Frappe schema mechanics recorded in this section are architecture decisions. The remaining Site ingress/routing contract and the implementation verification checks above must be completed as part of M4.1. This documentation update does not authorize implementation. Explicit implementation approval is still required before DocType/controller/API/migration/runtime changes begin.
