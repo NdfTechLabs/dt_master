@@ -354,7 +354,7 @@ Before M4.3/M4.5/M4.6 implementation, define:
 | M4.6 Tenant Site and DT Tenant Integration (Both + dt_tenant) | Migrate Site → Bench relationship; refactor Site lifecycle/provisioning; migrate tenant credentials and enforce tenant-scoped authorization |
 | M4.7 Integration Testing and Production Readiness | End-to-end concurrency, permissions, secret handling, rollback, migration and recovery validation |
 
-## 11. Updated audit position and remaining M4.1 work
+## 11. Updated audit position and M4.1 completion record
 
 The full Git tree inventories for dt_master:develop and dt_tenant:develop have
 been compared against the consolidated disposition matrix. The matrix now
@@ -371,17 +371,8 @@ Completed at source-review level:
 4. DT Tenant API caller, role, lifecycle, workspace and page source review.
 5. Full tree inventory on both requested develop branches and matrix extension.
 
-Remaining M4.1 work:
-1. Complete the cross-repository platform operator, tenant service identity,
-   Tenant Manager/User and API authorization contract.
-2. Finalize secret-provider, bootstrap, transport and realtime recipient
-   authorization contracts.
-3. Consolidate the NDF Marketplace App Descriptor, Product Composition
-   Manifest, Product Deployment Descriptor, Deployment Candidate/Build and
-   immutable image verification contracts.
-4. Verify any external/private deployment integrations and callers not
-   discoverable in the two accessible repository trees.
-5. Conduct the final M4.1 architecture review and record acceptance criteria.
+M4.1 completion record:
+The cross-repository contracts, caller/security audit and NDF artifact/deployment architecture were reconciled in the canonical specification. The final 13-point acceptance review was completed and the platform owner explicitly approved M4.1 completion on 2026-11-09. No M4.1 acceptance work remains open.
 
 Live Frappe permission behavior, worker identity, realtime delivery, exports,
 reports, print and backup-surface tests are implementation/runtime verification
@@ -389,5 +380,4 @@ requirements. They are deferred to the relevant implementation/testing stage;
 they are not a reason to build a separate CI test platform as part of this
 architecture audit.
 
-M4.1 remains in progress. No application code, DocTypes, migrations, scripts
-or runtime configuration were changed by this audit.
+M4.1 is Complete (2026-11-09). The source audit did not change application code, DocTypes, migrations, scripts or runtime configuration. Implementation authorization remains a separate, ungranted gate.
