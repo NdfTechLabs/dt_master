@@ -1,6 +1,6 @@
 # M4 — NDF Frappe Docker integration
 
-**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress  
+**Status:** M4.0 architecture discovery completed; M4.1 integration contract and schema design in progress; NDF artifact contract, migration/rollback policy and owner caller-inventory confirmation accepted. Final architecture review and M4.1 closure remain pending.  
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
 disrupting existing host-native deployments.
@@ -268,7 +268,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy has been accepted and is being reconciled into the canonical documents. Remaining M4.1 work includes review/approval of the NDF integration artifacts and interfaces, final migration/rollback and runtime-operation contract review, external/private caller verification where applicable, and final architecture acceptance.
+M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy is accepted and reconciled. The NDF artifact/build/deployment contract and migration/rollback policy are accepted and recorded in the canonical specification. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated final architecture review, any outstanding runtime adapter/durable operation/secret transport contract decisions, and explicit M4.1 closure/implementation authorization.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
@@ -289,9 +289,9 @@ The source-level discovery and repository audit are substantially complete. The 
 | DT Master and DT Tenant repository tree inventory | Full develop-branch trees retrieved; grouped dispositions recorded in M4_FILE_DISPOSITION_MATRIX.md | M4.1 — source audit completed |
 | Existing DocType/schema/ownership audit | Node → Bench Environment → Tenant Site hierarchy and migration dispositions documented | M4.1 — architecture resolved |
 | Existing API, UI, execution and security audit | Principal source paths reviewed; findings and proposed dispositions recorded | M4.1 — source audit completed |
-| Cross-repository service identity and authorization | Section 15 of the canonical schema specification; platform/tenant/service identity separation, tenant binding, Frappe API key/secret authentication, least privilege, Tenant User read-only policy and Tenant Manager application operations accepted | M4.1 — policy decisions accepted; documentation reconciliation in progress |
+| Cross-repository service identity and authorization | Section 15 of the canonical schema specification; platform/tenant/service identity separation, tenant binding, Frappe API key/secret authentication, least privilege, Tenant User read-only policy and Tenant Manager application operations accepted | M4.1 — policy accepted and documentation reconciled |
 | NDF manifest, lock, build and workflow audit | NDF main tree reviewed; SHA-to-build mismatch and missing descriptor/candidate/service contracts recorded in Section 12 and Section 16 of the canonical specification | M4.1 — source audit completed |
-| NDF application, composition and deployment descriptor contracts | Target contract recorded in Section 16 of the canonical schema specification | M4.1 — review/approval still pending |
+| NDF application, composition and deployment descriptor contracts | Accepted contract recorded in Section 16 of the canonical schema specification, including immutable artifacts and mandatory signature/attestation verification | M4.1 — contract accepted; implementation assigned to M4.2–M4.7 |
 | Runtime adapter and operation contracts | Ownership and execution boundaries documented; detailed adapter and operation interfaces remain part of the M4.1 contract review | M4.1 |
 | NDF descriptor/runtime/service implementation | Implement immutable build inputs, policy enforcement, runtime/dependency resolution, service definitions and deployment descriptors | M4.2 |
 | DT Master Docker orchestration | Implement Node/Bench runtime adapters and Docker/Compose lifecycle | M4.3 |
@@ -305,10 +305,13 @@ The source-level discovery and repository audit are substantially complete. The 
 M4.1 may close only after:
 
 1. The repository disposition matrix and principal caller/security audit are
-   reviewed, including the explicit limitation that private/external callers
-   outside the accessible repository trees have not been proven absent.
+   reviewed. The platform owner confirms no additional DT Master API consumers
+   are known outside DT Tenant; independent runtime/deployment and credential
+   inventory verification remains an implementation prerequisite.
 2. The accepted Section 15 authorization decisions are reconciled across both repositories, with billing policy boundaries and implementation-only verification clearly distinguished.
-3. The Section 16 NDF artifact, candidate, build/result, descriptor and immutable-source contracts are reviewed and explicitly approved.
+3. The Section 16 NDF artifact, candidate, build/result, descriptor,
+   immutable-source and mandatory artifact-trust contracts are reviewed and
+   explicitly approved.
 4. Runtime adapter, durable operation, secret transport and migration
    contracts are reviewed against the agreed Node → Bench Environment → Site
    ownership model.
