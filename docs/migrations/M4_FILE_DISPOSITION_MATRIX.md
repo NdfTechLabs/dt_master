@@ -301,8 +301,8 @@ The develop tree comparison confirms the known in-repository DT Tenant → DT Ma
 | DT Master source audit | Substantially complete for architecture-relevant paths; remaining caller confirmation is listed above |
 | DT Tenant source audit | Source review completed for principal API, controller, role, lifecycle, workspace, page and DocType paths |
 | External callers outside the two accessible repository trees | Platform owner confirms no additional consumers are known outside DT Tenant (2026-11-09); independent runtime, deployment and credential-inventory verification remains an implementation prerequisite |
-| Cross-repository role/service identity and authorization contract | Policy decisions accepted; Section 15 is being reconciled across repository documentation. Concrete role fixtures, endpoint enforcement, credential migration and runtime verification remain implementation work |
-| NDF descriptor/deployment integration contract consolidation | Section 16 target contract documented; explicit review/approval remains outstanding |
+| Cross-repository role/service identity and authorization contract | Accepted Section 15 policy reconciled in the canonical specification; concrete role fixtures, endpoint enforcement, credential migration and runtime verification remain implementation work |
+| NDF descriptor/deployment integration contract consolidation | Section 16 artifact/build/deployment contract accepted; formal schemas, workflows and implementation remain assigned to M4.2–M4.7 |
 | External/private caller verification | In-repository caller discovery completed to the documented boundary; private, deployed and unindexed callers are not proven absent |
 | Final M4.1 architecture review and acceptance | Outstanding; authorization policy acceptance alone does not close M4.1 |
 
