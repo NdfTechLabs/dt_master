@@ -5,7 +5,7 @@
 **Related repository:** NdfTechLabs/dt_tenant (develop)  
 **Audit mode:** Read-only source review; no application code or runtime configuration changed  
 **Milestone:** M4.1 — Integration Contract and Architecture  
-**Status:** Source-level security review completed for the inspected paths. Architecture contracts remain to be consolidated in M4.1; live Frappe behavior verification is deferred to the relevant implementation/testing stage.
+**Status:** Source-level security review completed for the inspected paths. The proposed cross-repository authorization contract is consolidated in Section 15 of the canonical Bench Environment specification and awaits policy approval; live Frappe behavior verification is deferred to the relevant implementation/testing stage.
 
 ## 1. Scope and evidence
 
