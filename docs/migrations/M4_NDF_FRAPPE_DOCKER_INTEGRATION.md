@@ -168,11 +168,19 @@ command through unrestricted root privileges. Define least-privilege access,
 socket/API access, remote execution, audit logging and authorization as explicit
 implementation requirements.
 
-DT Master should extend its existing shared execution architecture:
+DT Master extends its existing shared execution architecture:
 dt_master/api/script_contract.py and the scripts/bin / scripts/lib contract.
-A host runtime adapter and a system-Docker runtime adapter are candidates for
-the design; their interfaces and ownership boundaries must be established
-during discovery.
+The common versioned runtime adapter contract is approved in M4.1. Both the
+Host adapter and system-Docker adapter implement runtime inspection, preflight,
+provisioning, lifecycle, deployment, storage, recovery, endpoint registration
+and structured health reporting. DT Master remains the orchestration and
+policy authority; adapters execute runtime-specific mechanics only. Every
+mutation is invoked through the durable operation coordinator and returns a
+structured, sanitized result correlated to its operation. The Host adapter
+continues to manage existing Host-native Benches; the Docker adapter consumes
+verified OCI artifacts and NDF service contracts. Exact method signatures,
+transport schemas, timeout/retry behavior and Node-side execution details are
+implementation work for M4.3/M4.7 and must conform to the approved contract.
 
 The system Docker daemon is a shared node-level service. A Bench deployment
 must own only its explicitly labelled containers, networks, volumes and
@@ -268,7 +276,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy is accepted and reconciled. The NDF artifact/build/deployment contract and migration/rollback policy are accepted and recorded in the canonical specification. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated final architecture review, any outstanding runtime adapter/durable operation/secret transport contract decisions, and explicit M4.1 closure/implementation authorization.
+M4.1 is substantially progressed but remains open. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, and source-level API/UI/security audits are documented. The cross-repository authorization policy is accepted and reconciled. The NDF artifact/build/deployment contract and migration/rollback policy are accepted and recorded in the canonical specification. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. Remaining M4.1 work is the consolidated final architecture review of durable operation and secret transport boundaries against the accepted architecture, and explicit M4.1 closure/implementation authorization.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
