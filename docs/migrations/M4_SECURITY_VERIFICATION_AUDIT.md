@@ -5,7 +5,7 @@
 **Related repository:** NdfTechLabs/dt_tenant (develop)  
 **Audit mode:** Read-only source review; no application code or runtime configuration changed  
 **Milestone:** M4.1 — Integration Contract and Architecture  
-**Status:** Source-level security review completed for the inspected paths. The proposed cross-repository authorization contract is consolidated in Section 15 of the canonical Bench Environment specification and awaits policy approval; live Frappe behavior verification is deferred to the relevant implementation/testing stage.
+**Status:** Source-level security review completed for the inspected paths. The accepted cross-repository authorization and secret-transport contracts are consolidated in Sections 15. The live Frappe behavior and provider verification listed below are deferred to the relevant implementation/testing stage.
 
 ## 1. Scope and evidence
 
@@ -207,7 +207,7 @@ Record the deployed Frappe version, effective user, endpoint, HTTP/result status
 | Tenant Installed App / Node Action Log | RETAIN as child DocTypes | M4.1 parent authorization contract |
 | Child-row API access and negative tests | VERIFY | Defer live verification to the relevant implementation/testing stage; M4.1 defines parent-first authorization |
 
-## 6. Deferred runtime verification and remaining M4.1 contracts
+## 6. Deferred runtime verification (not open M4.1 architecture contracts)
 
 The source-level review of the inspected paths is recorded. The items below
 are runtime verification gates, not unresolved architecture decisions. They
@@ -223,4 +223,4 @@ The following are not claimed as complete:
 4. **Sensitive-field surface test:** verify actual export, report, print, REST serialization and backups on the deployed site; inspect any custom reports not represented in the reviewed source paths.
 5. **Secret lifecycle:** confirm encryption, key custody, rotation, backup encryption and access audit in the chosen secret provider.
 
-The Section 15 cross-repository security/authorization policy has been accepted and is being reconciled into the canonical documents. Section 16 NDF integration/artifact approval and the final architecture review remain outstanding. Runtime-only checks above are deferred to the relevant implementation/testing stage; accepted policy does not establish that endpoint enforcement, worker identity, realtime isolation, child-DocType behavior or secret lifecycle has been implemented or verified. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
+The Section 15 cross-repository security/authorization and secret-transport policies and the Section 16 NDF artifact/build/deployment architecture have been accepted and reconciled in the canonical specification. Final M4.1 acceptance review and closure remain outstanding. Runtime-only checks above are deferred to the relevant implementation/testing stage; accepted policy does not establish that endpoint enforcement, worker identity, realtime isolation, child-DocType behavior or secret lifecycle has been implemented or verified. This audit does not authorize application-code changes or start M4.2/M4.3 implementation.
