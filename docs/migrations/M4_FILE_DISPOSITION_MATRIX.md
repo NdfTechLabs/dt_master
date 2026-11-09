@@ -8,7 +8,7 @@
 - docs/migrations/M4_UI_WORKSPACE_ROLE_AUDIT.md
 
 **Status:** Proposed disposition baseline from read-only audit. This is not implementation authorization.  
-**Audit baseline:** DT Master develop snapshot reviewed during M4.1 discovery; DT Tenant version-1 caller/UI snapshot reviewed for cross-repository dependencies.
+**Audit baseline:** DT Master develop and DT Tenant develop tree snapshots reviewed during M4.1 repository-wide inventory and source audit.
 
 ## 1. Disposition vocabulary
 
@@ -174,3 +174,123 @@ Still required before declaring the repository-wide audit complete:
 - Perform a final path-by-path comparison against both repository trees to identify unclassified files.
 
 No code, DocTypes, migrations, scripts or runtime configuration were changed.
+
+## 12. Repository-wide inventory and additional dispositions
+
+### 12.1 Audit snapshot and coverage boundary
+
+| Repository | Branch | Git tree SHA | Files | Result |
+|---|---|---|---:|---|
+| NdfTechLabs/dt_master | develop | d9559e7db450fbf847ba58e0aa1990ae6dcca169 | 341 | Full tree retrieved and compared against this matrix. |
+| NdfTechLabs/dt_tenant | develop | a3f65950440508622c00a76580814acf8e257bbb | 88 | Full tree retrieved and compared against this matrix. |
+
+These are tree snapshot identifiers, not commit IDs. The audit is read-only. Dispositions describe future target changes and do not imply implementation has begun.
+
+The 82 files under dt_master/docs/migrations/same-vm-docker/ are historical Dalali migration/rehearsal records. RETAIN AS ARCHIVE. They are not active M4 runtime source and must not be deleted as part of this audit. The two root script ZIP archives remain separately classified for later authorized cleanup.
+
+### 12.2 Additional DT Master dispositions
+
+| Path / component | Current responsibility or finding | Proposed disposition | Target milestone | Rationale / target |
+|---|---|---|---|---|
+| dt_master/dt_master/doctype/capability_module/**, capability_profile/**, capability_role/** | Capability profile and allowed module/role child mappings; Capability Role links to Frappe Role | RETAIN/CLARIFY | M4.6 | These are entitlement mappings, not Bench app inventory or platform operator roles. Reject platform-privileged roles in tenant assignments. |
+| dt_master/dt_master/doctype/execution_log/**, node_action_log/** | Child execution output and Node/Site action history | RETAIN/EXTEND | M4.3/M4.7 | Preserve parent ownership and history. Sanitize before persistence, scope read/export through parent authorization and retain deployment stages separately. |
+| dt_master/dt_master/doctype/extension_screenshot/**, marketplace_category/** | Marketplace listing media and taxonomy | RETAIN | M4.5 | DT Master remains listing/commercial owner. Apply publisher authorization, media validation and safe rendering; technical release provenance comes from NDF. |
+| dt_master/dt_master/doctype/frameworks/** | Framework catalogue | RETAIN | M4.5 | Keep as catalogue metadata; it is not the live Bench runtime inventory. Exact runtime components belong in Bench Runtime Component/NDF descriptor. |
+| dt_master/dt_master/doctype/infrastructure_profile/**, infrastructure_provider/**, infrastructure_region/** | Infrastructure selection policy, provider catalogue and provider-owned region child rows | RETAIN/EXTEND | M4.3/M4.4 | Preserve infrastructure selection. Map NDF descriptor requirements to Node capabilities; keep provider-region child rows parent-owned. |
+| dt_master/dt_master/doctype/machine_constraint/** | Resource limits plus container_image, container_template and node_selector | REFACTOR | M4.4 | Retain resource/capacity constraints and Node selection policy. Remove independent image/template authority: image digest and service topology come from the NDF Product Deployment Descriptor. |
+| dt_master/dt_master/doctype/mail_server/**, mail_server_log/**, master_mail_users/** | Separate mail workload, operation logs and mailbox child records | RETAIN/EXTEND | M4.3 plus separate Mail workload | Mail Server remains a Node workload, not a Bench child. Preserve its Node relationship. Protect mailbox Password fields, authorize through Mail Server parent, sanitize logs and route operations through authorized execution. |
+| dt_master/dt_master/doctype/script_definition/**, script_execution/** | Script catalogue and execution records, including Dynamic Link target and trigger source | RETAIN/REFACTOR | M4.3 | Bind scripts to allowlisted adapter operations, authorized targets and durable operation IDs. Do not allow user-controlled script paths/arbitrary commands. Correct triggere_source only through controlled migration. |
+| dt_master/dt_master/dashboard_chart/**, dt_master/dt_master/dt_master_dashboard/**, dt_master/dt_master/number_card/** | Tenant count/acquisition charts and Total Tenants card | REFACTOR | M4.3/M4.6 | Tenants chart and Total Tenants Number Card are marked public; chart roles are empty. Restrict aggregates to intended platform-operator roles. |
+| dt_master/hooks.py | Publishes Master app on Apps screen; app permission callback is commented out | REFACTOR/REVIEW | M4.6 | Align app visibility with platform operator access. App-screen visibility is not backend API authorization. |
+| dt_master/modules.txt, dt_master/dt_tenant/__init__.py | Module list includes Dt Tenant inside Master; corresponding package marker exists | VERIFY; RETIRE IF UNUSED | M4.6 | Confirm installed-module and migration dependencies before removing the legacy marker. Do not conflate the separate dt_tenant app with the Master module. |
+| dt_master/scripts/lib/runtime.sh | Creates sudoers rule granting frappe NOPASSWD:ALL | REPLACE PRIVILEGE MODEL | M4.3 | Gives the Bench OS user unrestricted root escalation. Replace with narrowly scoped, auditable privileged operations owned by Node execution adapter. |
+| dt_master/scripts/lib/deps.sh | Dependency script method executes remote content through curl -fsSL ... | bash | REPLACE/RESTRICT | M4.2/M4.3 | Do not execute arbitrary mutable remote scripts from dependency records. Require approved source allowlists and immutable commit/checksum/signature. Image/runtime dependencies belong to NDF. |
+| dt_master/scripts/lib/state.sh | Local flock process lock | RETAIN AS LOCAL GUARD; EXTEND CONTROL PLANE | M4.3 | Useful for same-host mutual exclusion, but not a substitute for durable operation records, idempotency, leases or distributed conflict policy. |
+| dt_master/scripts/lib/bench.sh, python_env.sh, gitlib.sh | Fixed Host Bench path, Host virtualenv invocation and Git working-tree inspection | RETAIN FOR HOST ADAPTER / REFACTOR | M4.3/M4.5 | Keep only as Host adapter during transition. Docker adapter has a separate execution model. Git branch/tag state must not be production release authority. |
+| dt_master/scripts/lib/db.sh, env.sh, json.sh, core.sh, system.sh, log.sh | Shared script bootstrap, context/input helpers, DB, host prerequisite and logging utilities | RETAIN/REFACTOR | M4.3 | Preserve reusable helpers behind adapter contracts. Validate external inputs and centralize secret-safe diagnostics. |
+| dt_master/scripts/lib/mail_stack.sh | Postfix/Dovecot/Rspamd/OpenDKIM and virtual mailbox operations | RETAIN/REFACTOR | Separate Mail workload; M4.3 execution alignment | Keep separate from Bench. Mailbox password is passed to doveadm pw as a process argument; replace with protected stdin/file-descriptor delivery. |
+| dt_master/scripts/lib/bench_lifecycle.sh, node_lifecycle.sh, site_lifecycle.sh, app_lifecycle.sh, backup.sh | Existing lifecycle operations | REFACTOR/MOVE | M4.3/M4.5/M4.6 | Apply existing matrix dispositions. Site lifecycle currently edits shared Supervisor/Nginx config; app lifecycle fetches/builds shared Bench code; cleanup/backup must be scoped to an explicit Bench/Site owner. |
+| dt_master/scripts/bin/{app,mail,node,node_setup,site,helpers}/** | Operation dispatchers for active shell library tree | RETAIN/REFACTOR | M4.3/M4.5/M4.6 | Keep only as Host adapter compatibility dispatch. Validate operation/target and route through durable operation service. Docker adapter must not call Host-only dispatchers. |
+| dt_master/scripts/html_error_defaults/** | Static Nginx error-page defaults | MOVE/RETAIN IF REQUIRED | M4.3 | If needed, manage as Node ingress-owned artifacts, not Site lifecycle-owned Nginx config. |
+| dt_master/config/**, dt_master/templates/**, package __init__.py files and dt_master/dt_master/.frappe | Empty package markers/framework scaffolding | RETAIN | Normal maintenance | No independent runtime ownership identified. Remove only after a later cleanup proves unused. |
+| dt_master/public/images/** | Branding and static assets | RETAIN | Normal maintenance | Verify references when workspaces/app visibility are refactored. |
+| .dockerignore, .editorconfig, .eslintrc, .gitignore, .pre-commit-config.yaml, license.txt | Repository and development configuration | RETAIN/MAINTAIN | Normal maintenance | No M4 ownership change identified. |
+| pyproject.toml, .github/workflows/ci.yml, .github/workflows/linter.yml | Package metadata, Frappe CI and lint/security checks | RETAIN/REFINE | M4.7 | Current CI uses Python 3.10/Node 18 and initializes Bench without pinning tested Frappe release. Align with supported Frappe/runtime combinations and reproducible dependencies. |
+| README.md | App setup and operational documentation | RETAIN/UPDATE | M4.1/M4.3 | Keep installation instructions consistent with Host/Docker adapter boundary and canonical M4 contracts. |
+| tests/**, dt_master/testing/** | Existing SSH/script sandbox, migration and automation contract tests | RETAIN/EXTEND | M4.7 | Preserve as Host compatibility evidence. Add target hierarchy, adapter, authorization, immutable deployment, cutover and rollback cases when M4.7 is authorized. |
+
+### 12.3 Additional DT Master security and runtime findings
+
+| ID | Path / component | Source-level finding | Proposed control | Target |
+|---|---|---|---|---|
+| DM-SEC-01 | scripts/lib/runtime.sh | frappe receives passwordless unrestricted sudo. | Replace with scoped privileged helpers, authorization and audit. | M4.3 |
+| DM-SEC-02 | scripts/lib/deps.sh | Dependency script method executes remote content through curl piped to bash. | Allowlist and pin immutable source; move image/runtime dependencies to NDF. | M4.2/M4.3 |
+| DM-SEC-03 | scripts/lib/mail_stack.sh | Mailbox password is passed to doveadm pw as a command-line argument. | Protected secret handoff; no secrets in process arguments. | Mail workload/M4.3 |
+| DM-SEC-04 | Tenant-count Dashboard Chart and Number Card | Both definitions are public; chart roles are empty. | Restrict to platform operator roles and verify dashboard visibility. | M4.3/M4.6 |
+| DM-SEC-05 | Mail Server Log, Node Action Log, Execution Log | Raw stdout/stderr and errors are durable records; browser filtering is not access control. | Central redaction, parent authorization, least-privilege export and operation-scoped realtime. | M4.3/M4.7 |
+| DM-SEC-06 | Machine Constraint | Container image/template fields can create a second image/runtime authority beside NDF. | Make NDF descriptor authoritative; Machine Constraint expresses resource/capacity requirements only. | M4.4 |
+
+### 12.4 DT Tenant repository dispositions
+
+| Path / component | Current responsibility or finding | Proposed disposition | Target milestone | Rationale / target |
+|---|---|---|---|---|
+| dt_tenant/api/extensions.py | Reads marketplace listing from Master using Tenant Settings credentials and caller-derived FQDN | REFACTOR | M4.5/M4.6 | Keep marketplace read API; use tenant-bound service identity, validate responses and enforce tenant role scope. |
+| dt_tenant/api/marketplace.py | Tenant install/upgrade/uninstall proxies and Master-to-Tenant install callback | REFACTOR/RESTRICT | M4.5/M4.6 | Mutation requests require Tenant Manager authorization. Callback must accept authenticated Master service calls, validate pending operation, be replay-safe and publish scoped sanitized event. |
+| dt_tenant/api/settings.py | configure(**kwargs) writes arbitrary matching Tenant Settings attributes with ignore_permissions=True | REPLACE/RESTRICT | M4.6 | Explicit field allowlist and bootstrap/platform-service authorization; prevent ordinary callers changing Master URL or credentials. |
+| dt_tenant/api/system.py | Bootstrap helpers deny Guest but otherwise allow authenticated callers; one enumerates enabled users/roles | RESTRICT | M4.6 | Dedicated bootstrap service identity, narrow response and audit controls. |
+| dt_tenant/api/tenant_subscription.py | Proxies plan, invoice, gateway, payment and encryption-key calls; methods lack consistent tenant-role gates | REFACTOR | M4.6 | Apply Tenant Manager/billing role policy at tenant entry and retain independent Master-side service identity and invoice/customer ownership checks. |
+| dt_tenant/controllers/audit.py | Creates Capability Sync Log with ignore_permissions=True | RETAIN/EXTEND | M4.6 | Preserve audit records, sanitize errors and bind records to protected sync operation/actor. |
+| dt_tenant/controllers/capabilities.py | Fetches capability snapshot from Master using stored API credentials and FQDN | REFACTOR | M4.6 | Protected credential references, tenant-bound service authentication, response validation and safe persistence. |
+| dt_tenant/controllers/capability_scheduler.py | Active six-hour sync with opt-in and 60-minute failure cooldown | RETAIN/EXTEND | M4.6 | Preserve cadence/cooldown; add single-flight locking, durable operation identity, idempotency and safe diagnostics. |
+| dt_tenant/controllers/capability_sync.py | Whitelisted sync mutates enabled System Users, role/module overlays and child rows using permission bypasses | RESTRICT/REFACTOR | M4.6 | Service/operator-only authorization, serialized execution, capability allowlist validation, recoverable changes and audit. |
+| dt_tenant/controllers/lifecycle.py | Subscription lifecycle deletes role/permission rows and disables users; restoration re-enables all disabled non-Administrator users, not only users disabled by this lifecycle. Role backups are cache-backed. | REFACTOR | M4.6 | Durable lifecycle-owned state; restore only changes made by subscription enforcement; make transitions idempotent and recoverable. |
+| dt_tenant/controllers/user_roles.py | User hooks intersect role/module assignments with capability snapshot; contains alternate sync helpers | RETAIN/REFACTOR | M4.6 | Preserve tenant permission overlay, reject platform roles and validate linked role/profile/module. Confirm unused helper callers before retirement. |
+| dt_tenant/security/subscription_guard.py | Contains Desk subscription gate, but before_request hook in hooks.py is commented out | REVIEW/ACTIVATE ONLY BY POLICY | M4.6 | Current global request gate is inactive. Finalize policy; do not claim this module currently blocks requests. |
+| dt_tenant/dt_tenant/doctype/tenant_settings/** | Singleton stores Master URL, API key and API secret as ordinary Data fields; Tenant Manager has read/write permission | REPLACE/RESTRICT | M4.6 | Protected secret references, split ordinary preferences from service bootstrap, mask values and restrict rotation. |
+| dt_tenant/dt_tenant/doctype/capability_sync_log/** | Tenant Manager and Tenant User can read/export/report/print rows containing error_message | RETAIN/RESTRICT | M4.6 | Keep sync history, sanitize error content and limit detailed diagnostics/export. |
+| dt_tenant/dt_tenant/doctype/tenant_roles/**, tenant_modules/**, tenant_role_profile/** | Tenant Manager can maintain role/module catalogues and profiles | RETAIN/EXTEND | M4.6 | Preserve tenant administration overlay; enforce capability allowlists and reject System Manager/platform roles. |
+| dt_tenant/dt_tenant/doctype/tenant_user_role/**, tenant_user_role_profile/**, tenant_allowed_module/** | Child tables on User and Tenant Role Profile with no independent permission rows | RETAIN WITH PARENT AUTHORIZATION | M4.6 | Resolve child rows through authorized parent and validate role/module membership. |
+| dt_tenant/fixtures/custom_field.json | Adds tenant role/profile/module fields to User | RETAIN/EXTEND | M4.6 | Preserve fixture; validate migration idempotency and ensure fields do not grant privilege outside capability overlay. |
+| dt_tenant/dt_tenant/page/add_ons/** | Marketplace UI and realtime status listener | REFACTOR | M4.5 | Escape/sanitize Master/publisher HTML fields, authorize mutations server-side and correlate realtime updates to site and operation. |
+| dt_tenant/dt_tenant/page/tenant_subscription/** | Subscription, invoice and payment UI | REFACTOR/RESTRICT | M4.6 | Escape API-supplied values, enforce Tenant Manager/billing role at page/API boundaries, protect invoice/payment data. Review externally loaded CryptoJS/asmCrypto assets for integrity/CSP policy. |
+| dt_tenant/dt_tenant/workspace/tenant/tenant.json, dt_tenant/workspace_sidebar/tenant.json | Workspace available to Tenant Manager and Tenant User; both expose Subscription navigation | REFACTOR | M4.6 | Current workspace roles include both and page definition/JS has no Tenant Manager-only gate. Restrict Subscription route and enforce same policy in APIs. |
+| dt_tenant/dt_tenant/workspace/workspace_filter.py | Filters Subscription shortcut only for Unpaid status; does not establish general role authorization | RETAIN/REFACTOR | M4.6 | Presentation filtering only; server-side role and subscription policy remains authoritative. |
+| dt_tenant/hooks.py | Registers User permission hooks and active six-hour scheduler; subscription before_request hook commented | RETAIN/REFACTOR | M4.6 | Preserve active hooks, secure service/scheduler execution and make lifecycle policy explicit. |
+| dt_tenant/patches.txt | Empty pre/post model-sync patch sections | RETAIN/EXTEND WHEN AUTHORIZED | M4.6 | Add only ordered, idempotent, preflighted migrations when schema/secret changes are approved. |
+| dt_tenant/README.md | Installation/configuration and lifecycle documentation | RETAIN/UPDATE | M4.1/M4.6 | Correct role/page access and describe protected service identity and lifecycle recovery. |
+| dt_tenant/pyproject.toml, .github/workflows/ci.yml, .github/workflows/linter.yml | Package metadata and CI; CI uses Python 3.10/Node 18 and unpinned Bench/Frappe initialization | RETAIN/REFINE | M4.7 | Pin supported Frappe/runtime matrix and reproducible dependencies. Existing DocType tests are mostly generated empty scaffolds; add meaningful API, role, lifecycle and secret tests in M4.7. |
+| dt_tenant/public/images/**, dt_tenant/templates/**, dt_tenant/**/__init__.py, dt_tenant/config/** | Branding, empty template/package scaffolding | RETAIN | Normal maintenance | No separate M4 ownership change identified. |
+| .editorconfig, .eslintrc, .gitignore, .pre-commit-config.yaml, license.txt | Repository/development configuration | RETAIN/MAINTAIN | Normal maintenance | No M4 ownership change identified. |
+
+### 12.5 Additional DT Tenant security and behavior findings
+
+| ID | Path / component | Source-level finding | Proposed control | Target |
+|---|---|---|---|---|
+| DT-SEC-01 | Add-ons and Subscription page JavaScript | Marketplace metadata, plan descriptions, invoice fields, payment gateway labels and other API values are interpolated into HTML templates without consistent escaping. | Escape text/attributes, sanitize approved rich text and avoid direct HTML insertion of untrusted publisher/API data. | M4.5/M4.6 |
+| DT-SEC-02 | Tenant Workspace and Subscription page | Workspace assigned to Tenant Manager and Tenant User; Subscription shortcut present for both; page JSON/JS has no Tenant Manager-only gate. | Restrict route/navigation and enforce Tenant Manager/billing role in every corresponding API. | M4.6 |
+| DT-SEC-03 | Capability Sync Log | Tenant User and Tenant Manager can read/export/report/print rows containing error messages. | Sanitize errors and restrict detailed logs. | M4.6 |
+| DT-SEC-04 | controllers/lifecycle.py | Re-enables every disabled non-Administrator user when subscription returns active/grace, including users disabled for unrelated reasons; role restoration is cache-backed. | Persist lifecycle-owned changes and restore only those changes. | M4.6 |
+| DT-SEC-05 | subscription_guard.py / hooks.py | Subscription request gate is implemented but not registered; only capability sync invokes lifecycle transitions. | Finalize intended policy and wire only through authorized, tested design. | M4.6 |
+| DT-SEC-06 | api/settings.py, api/system.py, controllers/capability_sync.py | Whitelisted privileged endpoints lack adequate role/service checks; some use ignore_permissions=True and perform broad state changes. | Service-only/role-gated entry points, tenant binding, allowlists, audit and idempotency. | M4.6 |
+| DT-SEC-07 | api/tenant_subscription.py | Billing/payment methods lack consistent Tenant Manager/billing role gates and log remote response bodies on errors. | Tenant role gates, safe errors and independent Master resource ownership checks. | M4.6 |
+| DT-SEC-08 | api/marketplace.py callback | Callback publishes site-wide realtime data from caller-supplied fields without validating Master service identity or pending operation. | Authenticated, replay-safe callback bound to outstanding operation and scoped recipient. | M4.5/M4.6 |
+
+### 12.6 Cross-repository caller discovery
+
+The develop tree comparison confirms the known in-repository DT Tenant → DT Master call paths. Organization-scoped GitHub code searches for dt_master.api., /api/method/dt_master., publish_install_update and dt_tenant.api. returned no additional indexed matches. This is not proof that no external/private/unindexed caller exists. Before API contracts are frozen, verify deployment integrations, installed apps and private repositories/scripts outside these two accessible trees.
+
+### 12.7 Updated audit status
+
+| Area | Status |
+|---|---|
+| DT Master full Git tree inventory on develop | Completed |
+| DT Tenant full Git tree inventory on develop | Completed |
+| Existing disposition matrix comparison | Extended with additional DocType, API, controller, shell, UI, configuration, test and asset groups |
+| DT Master source audit | Substantially complete for architecture-relevant paths; remaining caller confirmation is listed above |
+| DT Tenant source audit | Source review completed for principal API, controller, role, lifecycle, workspace, page and DocType paths |
+| External callers outside the two accessible repository trees | Not established; deployment/private integration verification remains outstanding |
+| Cross-repository role/service identity and authorization contract | Outstanding M4.1 architecture work |
+| NDF descriptor/deployment integration contract consolidation | Outstanding M4.1 architecture work |
+| Final M4.1 architecture review and acceptance | Outstanding |
+
+No application code, DocTypes, migrations, scripts, workflows or runtime configuration were changed by this audit. This matrix update records proposed dispositions only.
