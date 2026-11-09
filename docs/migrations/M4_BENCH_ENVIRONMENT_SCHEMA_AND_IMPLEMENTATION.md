@@ -1029,6 +1029,52 @@ The matrix records ownership direction. The decisions below distinguish contract
 | Marketplace/product approval separation | Approval to list or publish an application release in the marketplace does not automatically authorize its inclusion in any product. Product composition requires its own product-owner approval. |
 | Extension source metadata | NDF descriptor is authoritative for technical source and runtime metadata. DT Master may retain synchronized, read-only references for marketplace display and traceability; it must not independently govern repository refs or technical dependency declarations. |
 
+#### Replacement Bench migration and formal rollback boundary
+
+Replacement Bench migration must use isolated data copies as the mandatory
+default. The active source Bench and its production databases/files must not
+be modified while the replacement is being prepared.
+
+1. Take consistent backups of each affected Tenant Site database, site files
+   and relevant configuration/recovery material.
+2. Prepare isolated database and site-file copies for the replacement Bench.
+   Required Frappe and application migrations run against these copies only.
+3. Validate the replacement runtime, application compatibility, database
+   connectivity, site configuration and health checks before cutover.
+4. At cutover, freeze writes to the source sites and perform the required final
+   synchronization into the replacement copies. The exact synchronization
+   mechanism is implementation-specific and must be validated for each
+   supported database/storage profile.
+5. Keep writes frozen while routing is switched and every affected Tenant Site
+   is verified through the replacement runtime and actual Node ingress.
+6. If verification fails before migration commit, restore routing to the
+   original Bench. The original Bench and its source data remain authoritative;
+   the failed replacement is isolated for investigation or safely discarded.
+7. Migration commit occurs only after cutover verification succeeds and the
+   platform authorizes production writes on the replacement Bench. Record the
+   commit point, write-freeze state, synchronization result, routing activation
+   and per-site verification in the deployment history.
+8. After migration commit, returning to the old Bench is not an automatic
+   rollback. It requires a separately validated recovery/reconciliation
+   procedure that accounts for writes accepted by the replacement. Routing
+   alone must never be switched back if doing so could lose or diverge
+   production transactions.
+9. If a consistent return to the old Bench cannot be proven, block automatic
+   rollback and require an authorized recovery decision. Preserve the
+   replacement's current data and recovery evidence.
+
+A code/image rollback is not, by itself, a database rollback. Frappe schema
+migrations may make an older application runtime incompatible with the
+replacement database. The recovery plan must explicitly account for database
+schema and data compatibility, site files, configuration and writes accepted
+after cutover.
+
+The rollback window must be explicitly configured and recorded for each
+deployment. The previous Bench, source data and required recovery material
+must remain available for that window. Capacity, backup retention, synchronization
+duration and supported database/storage profile constraints are implementation
+requirements assigned to the relevant M4 milestones.
+
 #### Resolved infrastructure and schema decisions
 
 The following decisions have been discussed and resolved at the architecture level. Their implementation must follow the contracts below; they are not open architecture questions.
@@ -1636,7 +1682,7 @@ The following architecture decisions are recorded as resolved in Sections
 | Cross-repository security/authorization | Section 15 | **Policy accepted.** Reconcile documentation across both repositories. Concrete Frappe roles, endpoint enforcement, credential migration, operation implementation and runtime verification remain assigned implementation work. |
 | NDF integration/artifact contract | Section 16 | **Review/approval pending.** Approve Marketplace App Descriptor, Product Composition Manifest, Deployment Candidate, Product Deployment Descriptor, build/result and Compose/runtime ownership. |
 | Repository dispositions | M4_FILE_DISPOSITION_MATRIX.md | **Source dispositions reviewed and consolidated.** External/private/deployed callers cannot be ruled out from the two accessible repository trees; retain this verification limitation. |
-| Migration and rollback | Sections 14.12–14.13 and this specification | **Final approval pending.** Review ordered migration, preflight, backup, resumability, compatibility window and retirement safeguards. |
+| Migration and rollback | Sections 14.12–14.13 and the replacement migration contract in Section 14.14 | **Policy accepted.** Isolated database/file copies are mandatory for replacement preparation; write-freeze and final synchronization precede cutover; pre-commit rollback preserves the original Bench; post-commit return requires separately validated recovery/reconciliation. Implementation details remain assigned to M4.2–M4.7. |
 
 ### 17.3 Remaining implementation dependencies by milestone
 
@@ -1674,10 +1720,25 @@ The approved logical sequence remains:
 14. Retire legacy direct Node ownership and Bench actions only after all
     consumers are migrated and compatibility observation passes.
 
+For replacement Bench deployment, prepare isolated database and site-file
+copies and run migrations against the copies, not the active source. Freeze
+source writes and perform validated final synchronization before cutover.
+Verify every affected site through the replacement runtime and ingress while
+writes remain frozen. If pre-commit verification fails, route back to the
+original Bench, which remains authoritative.
+
+The migration commit point is the authorization to enable production writes
+on the replacement after successful cutover verification. Before that point,
+the original Bench remains the rollback target. After that point, returning to
+the old Bench requires a separately validated recovery/reconciliation procedure
+that accounts for replacement-side writes; routing reversal alone is unsafe.
+Block automatic rollback whenever data consistency cannot be demonstrated.
+
 No site regrouping, Host-to-Docker conversion, data deletion, credential
 plaintext duplication, broad Docker pruning or production cutover is implied.
-Keep old Bench resources until site migration, health verification and rollback
-window are accepted.
+Retain the original Bench, source data and recovery material for the configured
+rollback window. Record backup, synchronization, write-freeze, cutover,
+verification and migration-commit evidence in deployment history.
 
 ### 17.5 M4.1 acceptance criteria
 
@@ -1697,8 +1758,7 @@ M4.1 can be marked complete only when all criteria below are satisfied:
       M4.2 blocker, not treated as an already-satisfied immutable build.
 - [ ] The cross-repository caller/disposition audit is reviewed, with external
       caller limitations recorded.
-- [ ] The ordered data migration, backup, resumability and rollback plan is
-      accepted.
+- [x] The ordered data migration, backup, resumability and rollback policy is accepted; isolated replacement copies and the pre-/post-commit rollback boundary are recorded. Implementation and rehearsal remain assigned to M4.2–M4.7.
 - [ ] Every remaining implementation dependency is assigned to M4.2–M4.7.
 - [ ] Explicit authorization is obtained before implementation starts.
 
