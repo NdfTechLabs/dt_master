@@ -182,10 +182,17 @@ directly against a deployed DT Master endpoint. A code-search result with no
 matches is also not sufficient evidence of absence where repository indexing
 or access may be incomplete.
 
-**Verification status:** The DT Tenant → DT Master integration remains the
-only fully evidenced cross-repository caller graph in the reviewed source
-baseline. No additional caller has yet been positively identified, but
-external/private/deployed caller verification remains open.
+**Platform-owner confirmation (2026-11-09):** The platform owner reports
+that no additional applications, services or deployed environments outside
+DT Tenant are currently known to call DT Master APIs.
+
+**Verification status:** DT Tenant → DT Master remains the only identified
+and source-evidenced cross-repository caller integration for this review.
+No additional consumers are known to the platform owner. This is an owner
+confirmation, not independent proof that no external, private, unindexed or
+deployed caller exists. Runtime and credential-inventory verification remain
+implementation prerequisites. Do not remove or break legacy API routes solely
+on the basis of this confirmation.
 
 To close this limitation, the platform owner must provide or confirm the
 inventory of:
