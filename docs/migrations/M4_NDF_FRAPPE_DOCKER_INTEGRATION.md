@@ -250,20 +250,41 @@ acceptance of the NDF Frappe Docker product image or DT Master integration.
 
 ## 8. M4 milestone status
 
-| Stage | Scope | Status |
-|---|---|---|
-| M4.0 | Architecture and repository discovery | In progress |
-| M4.1 | Audit and retire competing Docker implementation in DT Master | Pending code audit |
-| M4.2 | Bench deployment model and hybrid host/Docker runtime boundary | Target model agreed; schema/design discovery pending |
-| M4.3 | Consume NDF manifests, Compose definitions and GHCR digests | Pending |
-| M4.4 | Provision master and tenant benches/sites through DT Master | Pending |
-| M4.5 | Controlled app/image release, upgrade, approval and rollback lifecycle | Pending |
-| M4.6 | Isolated live-server pilot alongside existing host-native deployments | Pending |
-| M4.7 | Migration readiness, backup/restore, cutover and operational acceptance | Pending |
+The following is the authoritative M4 milestone structure. M4.0 is completed;
+M4.1 is the active architecture and contract milestone. M4.2–M4.7 have not
+started. Earlier milestone labels or stage breakdowns in historical notes do
+not supersede this table.
 
-M1–M3 of NDF Frappe Docker are recorded as completed in the project milestone
-history. M4 is the integration milestone; publishing an image alone does not
-complete it.
+| Milestone | Name | Repository | Scope | Status |
+|---|---|---|---|---|
+| **M4.0** | Architecture and Repository Discovery | Both | Audit existing implementations, ownership, boundaries and target architecture. | **Completed** |
+| **M4.1** | Integration Contract and Architecture | Both | Finalize schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts. | **In progress** |
+| **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology and deployment artifacts. | Not started |
+| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | Not started |
+| **M4.4** | Product Image Deployment | `dt_master` | Immutable NDF images, deployment candidates, build tracking, provisioning and replacement deployments. | Not started |
+| **M4.5** | Runtime Application Management | Both | Bench-level app availability, marketplace compatibility, site app installation governance and composition changes. | Not started |
+| **M4.6** | Tenant Site and DT Tenant Integration | Both + `dt_tenant` | Site lifecycle with Bench Environments, tenant requests, site-level app installation and lifecycle reporting. | Not started |
+| **M4.7** | Integration Testing and Production Readiness | Both | End-to-end tests, migration validation, security, monitoring, recovery, rollback and production readiness. | Not started |
+
+### M4.1 current position
+
+M4.1 is substantially progressed but remains open. The target Bench Environment
+ownership/schema, formal migration dispositions, runtime/ingress/health
+architecture, NDF artifact ownership principles, and source-level API/UI/
+security audits are documented. Remaining work is limited to completing the
+repository-wide path comparison, consolidating cross-repository security and
+authorization contracts, confirming the NDF integration artifacts and
+interfaces, and conducting the final architecture review.
+
+Live Frappe behavior checks that do not change the architecture are recorded
+as implementation verification requirements for the relevant implementation
+or production-readiness stage. They are not independent M4.1 workstreams and
+do not justify building a separate CI test platform during this architecture
+review.
+
+M1–M3 of NDF Frappe Docker are completed project milestones preceding M4.
+They are not sub-milestones of M4. M4 is the integration milestone; publishing
+an image alone does not complete it.
 
 ## 9. Discovery checklist and implementation gates
 
