@@ -128,7 +128,7 @@ These fields are not protected by field permlevel in the inspected DocType JSON.
 
 - Tenant Workspace is assigned to Tenant Manager and Tenant User.
 - Add-ons Page is assigned to Tenant User and Tenant Manager.
-- Tenant Subscription Page is assigned only to Tenant Manager.
+- Correction from the full develop tree review: the Tenant Workspace is assigned to Tenant Manager and Tenant User, and its shortcuts/sidebar expose Subscription to both. The page definition and page JavaScript contain no Tenant Manager-only gate. The earlier statement that the Subscription Page is Manager-only was incorrect; current access must be treated as available to both until explicitly restricted.
 - Tenant Settings DocType grants read/write to Tenant Manager and System Manager.
 - Tenant Settings fields api_key and api_secret are Data, not Password fields. Tenant Manager has DocType read/write access to the singleton containing these service credentials. This is a high-priority exposure/control issue.
 - Tenant Roles links to an existing Frappe Role. Tenant Role Profile combines role/module assignments.
@@ -142,9 +142,9 @@ These fields are not protected by field permlevel in the inspected DocType JSON.
 | File/component | Proposed disposition | Milestone |
 |---|---|---|
 | Tenant Workspace | **RETAIN/REFACTOR**: keep tenant-facing shortcuts; separate sensitive service configuration from ordinary settings | M4.6 |
-| Tenant Workspace Sidebar | **RETAIN/REFACTOR**: align links with Tenant Manager/Tenant User scopes | M4.6 |
+| Tenant Workspace Sidebar | **RETAIN/REFACTOR**: currently exposes Subscription to both workspace roles; align links with Tenant Manager/Tenant User scopes | M4.6 |
 | Add-ons Page definition/UI | **RETAIN/EXTEND**: retain permitted tenant access; enforce role and site ownership server-side | M4.5 |
-| Tenant Subscription Page | **RETAIN**: Tenant Manager scope; enforce the same policy in proxy APIs and Master | M4.6 |
+| Tenant Subscription Page | **REFACTOR/RESTRICT**: currently exposed through a workspace available to both tenant roles and has no page-level role gate; restrict to Tenant Manager and enforce the same policy in proxy APIs and Master | M4.6 |
 | Tenant Settings DocType | **REFACTOR**: protect Master URL/API credentials, split service configuration from ordinary tenant settings, restrict mutation | M4.6 |
 | Tenant Settings JS | **REFACTOR**: retain privileged sync affordance but rely on authorized server operation | M4.6 |
 | Tenant Roles/Tenant Role Profile | **RETAIN/EXTEND**: preserve capability-constrained tenant role mapping; reject privileged platform roles | M4.6 |
@@ -166,9 +166,10 @@ Do not introduce role names until the authorization matrix and bootstrap/migrati
 
 ## 7. Updated audit status
 
-The disposition matrix for components inspected to date is complete and is
-recorded in `M4_FILE_DISPOSITION_MATRIX.md`. This must not be confused with a
-complete path-by-path audit of both repositories, which remains outstanding.
+The consolidated disposition matrix has been extended against the full develop
+tree snapshots of both repositories. It records grouped path dispositions and
+additional source-level findings. External callers outside the accessible
+repository trees remain unverified.
 Runtime-only verification is tracked separately and is not treated as a
 prerequisite for the source-level disposition matrix.
 
@@ -180,8 +181,13 @@ prerequisite for the source-level disposition matrix.
 | Tenant Settings credential field types and roles | Confirmed: Data fields; Tenant Manager read/write |
 | Consolidated file disposition matrix for inspected components | Completed — recorded in `M4_FILE_DISPOSITION_MATRIX.md`; full repository path-by-path coverage remains outstanding |
 | Realtime worker identity/event subscription authorization | Source-level findings recorded; final service/event authorization contract remains to be consolidated. Runtime behavior verification is deferred to the relevant implementation/testing stage. |
-| Sensitive-field consumer tracing for inspected paths | Completed for inspected consumers; repository-wide export/report/print/backup surface review remains part of the final path audit. Live surface verification is deferred to implementation/testing. |
-| Child-DocType schema and parent-authorization source review | Completed for inspected paths; live Frappe behavior verification is deferred to the relevant implementation/testing stage. |
+| Sensitive-field consumer tracing | Completed for principal inspected consumers; live export/report/print/backup behavior verification is deferred to implementation/testing. |
+| Child-DocType schema and parent-authorization source review | Completed for inspected child DocTypes; live Frappe behavior verification is deferred to implementation/testing. |
 | Final cross-repository role and service identity contract | Outstanding — M4.1 architecture work |
 
 No application code, DocTypes, migrations, scripts or runtime configuration were changed.
+
+
+### 8. Correction recorded during full develop audit
+
+The previous audit statement that the Tenant Subscription Page was assigned only to Tenant Manager was incorrect. The serialized Tenant Workspace is assigned to Tenant Manager and Tenant User, and the Subscription shortcut is present in both the workspace and sidebar. The page definition and page JavaScript do not implement a Tenant Manager-only access check. Until the route and API are restricted, treat Subscription as exposed to both tenant roles. The corrected disposition is recorded above and in M4_FILE_DISPOSITION_MATRIX.md.
