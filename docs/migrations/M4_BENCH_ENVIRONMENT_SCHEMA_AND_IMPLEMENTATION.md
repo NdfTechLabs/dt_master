@@ -570,7 +570,7 @@ A Bench Environment cannot be retired while it has active Tenant Sites. Bench re
 
 ## 11. Implementation and migration sequence
 
-This is the agreed implementation plan; it is not authorization to begin code changes before the M4.1 contract review is complete.
+This is the agreed implementation plan, not authorization to begin code changes. M4.1 is complete; a separate explicit implementation authorization is still required before any implementation begins.
 
 ### Phase A — Schema foundation
 1. Add Bench Environment parent DocType and four child DocTypes.
