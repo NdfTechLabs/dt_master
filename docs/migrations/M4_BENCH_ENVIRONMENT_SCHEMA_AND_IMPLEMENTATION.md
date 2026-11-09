@@ -604,3 +604,433 @@ These are intentionally separated from the approved ownership and schema princip
 - [Upstream Frappe Docker disposable demo Compose](https://github.com/frappe/frappe_docker/blob/main/pwd.yml)
 
 **Change control:** changes to the hierarchy, ownership, immutable deployment model or five approved architecture principles require explicit review. Implementation must not silently reinterpret this specification.
+
+
+## 14. Formal schema migration matrix
+
+**Status:** Reviewed and approved for recording on 2026-11-09.  
+**Scope:** Field-level disposition of the existing DT Master schema against the approved Bench Environment ownership model.  
+**Implementation status:** Documentation only. No DocTypes, controllers, APIs, migration patches, scripts or runtime configuration are changed by recording this matrix.
+
+### 14.1 Disposition definitions
+
+| Disposition | Meaning |
+|---|---|
+| **Retain** | Keep the field on its existing DocType as an authoritative field. |
+| **Move** | Transfer ownership to the target DocType or contract, preserving the value and relevant history. |
+| **Replace** | Introduce a new authoritative field or relationship and migrate the old value before retiring the old field. |
+| **Derive** | Resolve the value from another authoritative record; do not maintain an independently editable duplicate. |
+| **Remove** | Retire the field or operation after data migration, compatibility checks and the agreed observation period. |
+
+A field marked **Retain / review** remains in place during migration; its final semantics must be resolved before implementation. A field marked **Move / retire** must retain historical evidence where required, but must not remain a competing source of truth.
+
+### 14.2 Infrastructure Node
+
+**Target ownership:** Infrastructure Node represents the machine or infrastructure resource, not an individual Frappe Bench.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `node_name` | Retain | Stable Node identity. |
+| `provider` | Retain | Infrastructure provider relationship. |
+| `region` | Retain | Authoritative Node region. |
+| `node_type` | Retain | Preserve Shared/Dedicated Node classification; it is not Host/Docker runtime type. |
+| `hosting_model` | Retain | Preserve Compute/Managed infrastructure classification. |
+| `status` | Retain | Node lifecycle: Provisioning, Active, Maintenance, Retired. |
+| `state` | Replace | Separate infrastructure readiness from Bench lifecycle. Node readiness covers SSH, OS, Docker Engine and capacity; Bench states move to Bench Environment. |
+| `frappe_version` | Move | Move to `Bench Environment.framework_version`; one Node may host multiple Benches with different versions. |
+| `cpu_cores` | Retain | Physical/provisioned Node capacity. |
+| `ram_gb` | Retain | Node capacity. |
+| `storage_gb` | Retain | Node capacity. |
+| `max_sites` | Retain | Node-wide capacity guard; Bench-specific limits may be added separately. |
+| `ip_address` | Retain | Node access endpoint. |
+| `ssh_user` | Retain | Node access identity. |
+| `ssh_port` | Retain | Node access configuration. |
+| `access_verified` | Retain | Human safety latch for Node access. |
+| `access_notes` | Retain | Node-level operational notes. |
+| `os_type` | Retain | Node OS compatibility. |
+| `os_version` | Retain | Node OS version. |
+| `scripts_base_dir` | Retain | Node automation script location; not a Bench runtime directory. |
+| `project_base_dir` | Replace | Replace ambiguous project root with a defined Node workload/data root. Migrate existing Host Bench paths to their Bench Environment records. |
+| `project_logs_dir` | Replace | Separate Node-level logs from Bench runtime logs. Bench logs become Bench Environment storage/runtime references. |
+| `project_service_name` | Move | Move service identity to Bench Environment/service inventory; a Node may host multiple Bench projects. |
+| `wsgi_port` | Move | Move to Bench Environment/service networking allocation. |
+| `install_dependencies` | Replace | Node action provisions infrastructure prerequisites only. Image/runtime dependencies belong to NDF; Bench provisioning belongs to Bench Environment. |
+| `install_bench` | Move | Bench Environment provisioning action. |
+| `initialize_project` | Move | Bench Environment initialization action. |
+| `prepare_project` | Move | Bench Environment readiness/preparation action. |
+| `start_project` | Move | Bench Environment start operation. |
+| `stop_project` | Move | Bench Environment stop operation. |
+| `check_system_status` | Retain | Node infrastructure health check, distinct from Bench health. |
+| `node_action_logs` | Retain | Preserve history. Bench-specific deployment logging ownership remains subject to the logging contract. |
+| `monthly_cost` | Retain | Node cost accounting. |
+| `currency` | Retain | Node cost accounting. |
+| `billing_owner` | Retain | Node cost allocation. |
+| `auto_provisioned` | Retain | Node provisioning metadata. |
+| `provisioned_on` | Retain | Node provisioning timestamp. |
+
+Path ownership must be explicit: Node root and automation paths belong to Node; Host Bench root belongs to Bench Environment; container paths come from descriptor/storage mappings; Bench logs and persistent data are Bench Environment-owned. Do not copy one Node path into every Bench Environment.
+
+### 14.3 Tenant Site
+
+**Target ownership:** Tenant Site represents one Frappe site, its site-specific data and installation state. Bench Environment is its only authoritative runtime parent.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `site_name` | Retain | Stable site identity. |
+| `domain_type` | Retain | Site domain classification. |
+| `protocol` | Retain / review | Preserve endpoint behavior pending ingress contract; later decide whether it is site-owned or derived. |
+| `port` | Retain / review | Preserve existing values pending Node ingress and port-allocation contract. Existing field is Data; do not silently coerce. |
+| `fqdn` | Retain | Site hostname and routing identity. |
+| `status` | Retain | Site lifecycle status. |
+| `automation_state` | Retain / refine | Site lifecycle only; Bench deployment state belongs to Bench Deployment. |
+| `customer` | Retain | Site ownership relationship. |
+| `subscription` | Retain | Site subscription relationship. |
+| `infrastructure_profile` | Retain | Preserve requested/assigned profile unless subscription design explicitly relocates it. |
+| `node` | Replace | Add mandatory `bench_environment`; migrate existing relationship and then retire direct editable Node ownership. |
+| `deployment_type` | Retain with semantic restriction | Preserve Shared/Dedicated tenant hosting allocation meaning if still needed. Never reinterpret as Host/Docker. |
+| `region` | Derive | Resolve through Bench Environment → Infrastructure Node → region after reconciling existing free-text values. |
+| `erpnext_version` | Derive / replace | Resolve from Bench Environment application inventory; do not maintain as an independent runtime version. |
+| `database_name` | Retain | Site-specific database identity, validated against Bench database profile and naming strategy. |
+| `installed_apps` | Retain | Keep Tenant Installed App as site-specific child table. |
+| `created_on` | Retain | Site creation history. |
+| `auto_provisioned` | Retain | Site provisioning metadata. |
+| `last_health_check` | Retain | Site-level health observation, distinct from Bench and Node health. |
+| `provisioning_stage` | Retain / refine | Site creation stages only; Bench provisioning/deployment stages belong to Bench Deployment. |
+| `automation_logs` | Retain | Preserve existing child log history and parentage. |
+| `tenant_api_user` | Retain | Non-secret user identity metadata, subject to authentication design. |
+| `tenant_api_key` | Move | Migrate to protected secret reference; retire plaintext only after verification. |
+| `tenant_api_secret` | Move | Migrate to protected secret reference; never duplicate into ordinary Data fields. |
+| `admin_password` | Move / retire | Use protected, purpose-scoped secret only where operationally required; avoid indefinite storage of initial password. |
+| `mysql_root_user_name` | Move | Database administration identity belongs to Bench database profile, except a separately justified site-scoped account. |
+| `mysql_root_user_password` | Move | Migrate to protected database secret reference; retire plaintext after verification. |
+| `create_site` | Retain as site action | Execute against the selected Bench Environment. |
+| `install_apps` | Retain as site action | Validate app availability in parent Bench Environment first. |
+| `verify_site` | Retain | Site-level verification. |
+| `configure_proxy` | Retain as request/action | Actual routing coordinated with Node ingress and Bench topology. |
+| `suspend_site` | Retain | Site lifecycle operation. |
+| `resume_site` | Retain | Site lifecycle operation. |
+| `destroy_site` | Retain | Explicit destructive site operation with existing safety safeguards. |
+
+#### Tenant Site relationship migration rule
+
+For each existing Tenant Site:
+
+1. Read its current `node` value.
+2. Resolve or create the corresponding Bench Environment on that Node.
+3. Assign `bench_environment`.
+4. Validate that the Bench Environment belongs to the same Node as the legacy relationship.
+5. Verify site membership, database identity and storage ownership.
+6. Retire the direct `node` field only after validation and compatibility checks.
+
+If a Node has one actual Host Bench, the migration may create one Host Bench Environment and associate its sites with it. If a Node has multiple actual Benches, use filesystem/runtime evidence to distinguish them. **Do not automatically group all sites on a Node into one Bench Environment.**
+
+### 14.4 Tenant Installed App
+
+**Target ownership:** Tenant Installed App remains a Tenant Site child. It records installation on that site, not whether app code exists in the shared Bench runtime.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `app_name` | Retain | Technical app identifier; validate against Bench Environment Application. |
+| `app_type` | Derive / retain as snapshot | Classification comes from Bench inventory; preserve historical snapshot if useful, but not as a competing source. |
+| `extension` | Retain | Marketplace Extension relationship. |
+| `extension_version` | Retain | Requested or installed marketplace release reference. |
+| `status` | Retain | Site installation state. |
+| `enabled` | Retain | Site-level enabled state. |
+| `installed_version` | Retain | Snapshot of version installed on this site; reconcile with Bench availability. |
+| `target_version` | Derive / replace | Resolve from requested Extension Version or App Installation Request; not proof of runtime availability. |
+| `installed_at` | Retain | Site installation audit. |
+| `last_updated` | Retain | Site installation audit. |
+| `last_error` | Retain | Last site installation error. |
+| `last_action` | Retain | Last site-level app operation. |
+| `last_action_status` | Retain | Last operation status. |
+| `last_job_id` | Retain | Background job correlation. |
+| `sync_state` | Retain | Site-level synchronization status; define comparison against Bench availability and requested version. |
+| `git_branch` | Move / retire | Source branch belongs to Bench app build provenance; preserve historical evidence if required. |
+| `git_commit` | Move | Actual runtime commit belongs in Bench Environment Application and descriptor; retain historical site snapshot only if needed for audit. |
+| `git_dirty` | Remove after audit migration | Immutable runtime image must not contain an uncommitted working tree; preserve historical evidence if operationally used. |
+| `git_head_state` | Remove after audit migration | Runtime source state belongs to build provenance, not site installation state. |
+| Install/upgrade/downgrade/reinstall/uninstall/check/remove buttons | Retain as site actions with orchestration changes | Route through App Installation Request/site operation service. They must not mutate shared Bench code directly. |
+
+Before a site app operation, resolve Site → Bench Environment and verify that the app is Available. If unavailable or the requested version changes the shared composition, create an App Installation Request and Deployment Candidate, build/deploy a replacement Bench, then perform the site installation.
+
+### 14.5 Framework Version
+
+**Target ownership:** Framework Version is the compatibility catalogue, not the exact runtime record for every Bench Environment.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `framework` | Retain | Framework identity. |
+| `version` | Retain | Framework release/version. |
+| `python_version` | Retain / redefine | Compatibility baseline or supported version metadata; exact deployed Python belongs in Bench Runtime Component. |
+| `node_version` | Retain / redefine | Compatibility baseline or supported version metadata; exact deployed Node belongs in Bench Runtime Component. |
+| `bench_package` | Retain / extend | Preserve Bench package compatibility metadata; exact deployed version recorded in runtime inventory/provenance. |
+| `description` | Retain | Compatibility notes. |
+
+Extend with supported compatibility ranges and relevant package-manager/framework constraints. Keep supported versions distinct from exact installed versions.
+
+### 14.6 Framework Version Dependency and System Dependency
+
+Classify each existing dependency record individually. The existing `dependency_group` does not by itself determine ownership.
+
+#### Framework Version Dependency
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `framework_version` | Retain as migration reference | Identifies the compatibility policy from which the dependency was declared. |
+| `dependency` | Split / move | Classify as Node prerequisite, NDF image/runtime dependency or external service requirement. |
+| `enabled` | Retain as migration metadata | Preserve whether the dependency was active; resolved composition becomes authoritative. |
+| `install_order` | Remove from runtime authority | Native ecosystem resolvers and NDF lock determine install order; preserve legacy value as audit metadata if useful. |
+
+#### System Dependency
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `dependency_name` | Retain | Stable dependency identity. |
+| `install_method` | Replace / classify | Map apt/pip/npm/script/nvm to correct owner and resolver. |
+| `dependency_group` | Replace / classify | Introduce explicit ownership/scope classification; current system/python/node values are insufficient. |
+| `repository` | Conditional retain / move | Node package repositories remain infrastructure configuration; image package sources belong in NDF build definitions. |
+| `version` | Split / move | Image dependency versions belong in NDF lock; Node prerequisite versions belong in Node capability validation. |
+| `description` | Retain | Dependency documentation and migration context. |
+
+Dependency ownership:
+
+| Dependency class | Owner | Responsibility |
+|---|---|---|
+| Node infrastructure prerequisite | DT Master / Infrastructure Node | Docker Engine, Compose plugin, OS-level host requirements and SSH tooling. |
+| Image/runtime dependency | NDF Frappe Docker | Python packages, Node packages and OS libraries required by apps/framework. |
+| External service dependency | Bench Environment / service profile | External database, Redis, object storage and managed service endpoints. |
+| Exact deployed component | Bench Runtime Component | Observed Python, Node, package, library and framework versions. |
+
+Do not classify every apt dependency as Node-level. Some OS libraries must be baked into the product image. Likewise, classify Python/Node packages by where they are installed and consumed. Existing dependency rows are migration inputs; NDF descriptor and lock become authoritative for image/runtime dependencies.
+
+### 14.7 Extension and Extension Version
+
+Separate DT Master marketplace catalogue responsibilities from NDF build/runtime provenance.
+
+#### Extension
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `extension_name` | Retain | Marketplace identity. |
+| `app_name` | Retain | Technical app binding; must match NDF descriptor and Bench inventory. |
+| `publisher` | Retain | Marketplace ownership metadata. |
+| `visibility` | Retain | Listing visibility. |
+| `pricing_model` | Retain | Marketplace pricing classification. |
+| `status` | Retain | Marketplace approval state. |
+| `title` | Retain | Listing title. |
+| `short_description` | Retain | Listing summary. |
+| `description` | Retain | Marketplace description. |
+| `category` | Retain | Marketplace classification. |
+| `tags` | Retain | Search metadata. |
+| `icon` | Retain | Marketplace asset. |
+| `screenshots` | Retain | Marketplace assets. |
+| `install_type` | Retain / clarify | Preserve System App/Tenant App as catalogue metadata; it cannot bypass Bench availability rules. |
+| `requires_restart` | Derive / replace | Runtime restart requirements come from NDF descriptor/service contract. |
+| `post_install_hook` | Review / replace | Hooks must be approved lifecycle operations; arbitrary marketplace hooks cannot execute outside deployment contract. |
+| `pre_install_checks` | Retain / formalize | Convert machine-checkable requirements into descriptor compatibility/dependency declarations. |
+| `supports_uninstall` | Retain | Marketplace capability metadata; does not authorize removal of shared code while sites depend on it. |
+| `supports_upgrade` | Retain | Marketplace capability metadata; upgrade still requires compatible Bench composition. |
+| `repository_url` | Move / synchronize | Canonical source belongs in NDF Marketplace App Descriptor; DT Master may retain read-only/synchronized reference. |
+| `default_branch` | Move / synchronize | Source default belongs in NDF app metadata; branch is not immutable deployment identity. |
+| `install_mode` | Replace | fixed/rolling must not independently control runtime mutation; use explicit approved deployment strategy. |
+| `price_type` | Retain | Marketplace commercial metadata. |
+| `price_amount` | Retain | Marketplace commercial metadata. |
+| `billing_interval` | Retain | Marketplace commercial metadata. |
+| `trial_days` | Retain | Marketplace commercial metadata. |
+| `requires_subscription` | Retain | Marketplace entitlement metadata. |
+| `license` | Retain | Marketplace trust/compliance metadata. |
+| `data_access_level` | Retain | Marketplace trust metadata. |
+| `external_services` | Retain / formalize | Convert required services into structured NDF descriptor dependencies. |
+| `security_reviewed` | Retain | Marketplace approval evidence. |
+| `documentation_url` | Retain | Marketplace documentation. |
+| `support_contact` | Retain | Marketplace support metadata. |
+
+#### Extension Version
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `version` | Retain | Marketplace release identity. |
+| `frappe_min` | Retain / extend | Compatibility constraint aligned with NDF framework compatibility declaration. |
+| `frappe_max` | Retain / extend | Compatibility constraint aligned with NDF framework compatibility declaration. |
+| `release_notes` | Retain | Release history. |
+| `deprecated` | Retain | Release lifecycle metadata. |
+| `extension` | Retain | Parent Extension relationship. |
+| `checksum_or_signature` | Retain / formalize | Tie verification metadata to immutable source/artifact or descriptor digest. |
+| `source_ref` | Retain / strengthen | Preserve source reference; resolve actual builds to immutable commit. |
+| `ref_type` | Retain as source metadata | Preserve branch/tag/commit classification; deployed build uses immutable commit. |
+| `install_strategy` | Replace | Direct Git installation is no longer production runtime deployment; release becomes input to Deployment Candidate/NDF build. |
+| `status` | Retain | Draft/Approved/Revoked release status. |
+
+Extension Version approval does not prove that an app can be installed into an existing Bench. Bench availability is a separate validation.
+
+### 14.8 Node Action Log
+
+Preserve this child table and its historical records. It is currently reused by Infrastructure Node and Tenant Site.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `action_name` | Retain | Operation name. |
+| `action_type` | Retain | Operation classification. |
+| `triggered_by` | Retain | Actor/audit identity. |
+| `started_at` | Retain | Start timestamp. |
+| `finished_at` | Retain | Completion timestamp. |
+| `exit_code` | Retain | Execution result. |
+| `stdout` | Retain | Preserve historical output; review for leaked secrets. |
+| `stderr` | Retain | Preserve historical errors; review for leaked secrets. |
+| `state_before` | Retain / generalize | Preserve prior state; existing Node-specific label is too narrow for reuse. |
+| `state_after` | Retain / generalize | Preserve resulting state. |
+| `result` | Retain | Operation summary. |
+| `state` | Retain | Log execution state. |
+
+**Open decision:** whether Bench Deployment needs dedicated stage logs or can safely reuse this child table remains unresolved. Bench Deployment remains the authoritative deployment lifecycle record regardless of logging implementation. Review old stdout/stderr for secrets before deciding retention/access controls.
+
+### 14.9 Script Execution and Execution Log
+
+Script Execution remains the generic execution record, not a substitute for Bench Deployment.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `script` | Retain | Script Definition relationship. |
+| `script_file` | Retain | Executed script reference. |
+| `node` | Retain as execution snapshot / derive where possible | Preserve actual execution Node. For Bench/Site targets, resolve through target Bench Environment; do not use as Site ownership. |
+| `target_doctype` | Retain | Generic execution target type. |
+| `target_document` | Retain | Generic target; allow Bench Environment/Bench Deployment where appropriate. |
+| `status` | Retain | Queued/Running/Completed/Failed state. |
+| `exit_code` | Retain | Execution result. |
+| `queued_at` | Retain | Queue audit. |
+| `started_at` | Retain | Execution audit. |
+| `finished_at` | Retain | Execution audit. |
+| `duration` | Retain | Execution metric. |
+| `triggered_by` | Retain | User audit. |
+| `triggere_source` | Retain; correct naming in a controlled migration | Preserve Manual/API/Scheduler semantics; do not silently rename the field. |
+| `execution_logs` | Retain | Preserve output/event history; review for secret leakage. |
+
+Execution context rules:
+- Node-targeted scripts execute against Infrastructure Node.
+- Bench-targeted scripts resolve Bench Environment and then its Node.
+- Site-targeted scripts resolve Tenant Site → Bench Environment → Infrastructure Node.
+- Deployment lifecycle is recorded in Bench Deployment; Script Execution may be linked as execution detail.
+
+Preserve SSH transport, output/realtime streaming, exit-code handling and secret-redaction guarantees during adapter transition.
+
+### 14.10 Mail Server
+
+Mail Server remains a separate infrastructure workload hosted on an Infrastructure Node. It is not a Bench Environment.
+
+| Existing field | Disposition | Target treatment |
+|---|---|---|
+| `node` | Retain | Direct Infrastructure Node relationship. |
+| `tenant_site` | Retain / validate | Preserve optional tenant/domain association; it does not make Mail Server part of the site's Bench. |
+| `domain` | Retain | Mail domain identity. |
+| `hostname` | Retain | Mail server hostname. |
+| `mail_users` | Retain | Mailbox inventory. |
+| `automation_state` | Retain | Mail workload lifecycle. |
+| `status` | Retain | Mail workload status. |
+| `automation_logs` | Retain | Preserve Mail Server Log history. |
+| `smtp_port` | Retain | Mail service port. |
+| `imap_port` | Retain | Mail service port. |
+| `dkim_selector` | Retain | Mail authentication configuration. |
+| `install_mail_stack` | Retain | Mail workload operation. |
+| `configure_postfix` | Retain | Mail workload operation. |
+| `configure_dovecot` | Retain | Mail workload operation. |
+| `configure_rspamd` | Retain | Mail workload operation. |
+| `configure_opendkim` | Retain | Mail workload operation. |
+| `configure_dns` | Retain | Mail workload operation. |
+| `verify_mail_server` | Retain | Mail workload verification. |
+
+Mail execution context must use Mail Server-specific workload paths and logging, not Frappe Bench project paths.
+
+### 14.11 New authoritative fields and relationships
+
+| DocType | New authoritative field/relationship | Purpose |
+|---|---|---|
+| Bench Environment | `infrastructure_node` | One parent Node for each Bench. |
+| Bench Environment | `runtime_type` | Host or Docker, distinct from Node and tenant classifications. |
+| Bench Environment | `framework_version` | Bench framework compatibility baseline. |
+| Bench Environment | Product/release identity | NDF product composition identity. |
+| Bench Environment | Descriptor reference/hash and image digest | Immutable deployed runtime identity. |
+| Bench Environment | Compose project identity and runtime adapter | Identifies how the Bench is operated. |
+| Bench Environment | DB/Redis profiles and protected secret references | Owns runtime service relationships. |
+| Bench Environment | Application/runtime/storage/service child tables | Complete runtime inventory and allocated resources. |
+| Tenant Site | `bench_environment` | Mandatory authoritative parent. |
+| Bench Environment Application | Complete app inventory | Defines code available to all sites in the Bench. |
+| Bench Runtime Component | Exact observed versions | Separates runtime facts from compatibility catalogue. |
+| Bench Storage Reference | Storage identity and lifecycle | Makes persistence and ownership explicit. |
+| Bench Service Definition | Descriptor-derived service inventory | Exposes topology without making DT Master owner of Compose definitions. |
+| Deployment Candidate | Desired complete composition | Records intended Bench composition. |
+| Deployment Candidate Application | Desired app inventory | Records retained, added, upgraded and removed apps. |
+| Deployment Build | NDF workflow/build result | Tracks asynchronous build and immutable outputs. |
+| Bench Deployment | Deployment/migration/rollback history | Records actual deployment lifecycle. |
+| App Installation Request | Site app request/orchestration state | Separates tenant requests from shared Bench changes. |
+
+**Inventory distinction:** Bench Environment Application means app code is available in the shared runtime. Tenant Installed App means the app is installed on a particular site. Availability does not imply installation on every site.
+
+### 14.12 Approved data migration order
+
+The migration follows ownership dependencies. Do not change Tenant Site's Node relationship before Bench Environments exist and have been mapped.
+
+| Order | Migration activity | Preconditions / validation |
+|---:|---|---|
+| 1 | Inventory existing Nodes, Tenant Sites and actual Host Bench directories. | Establish real site-to-Bench grouping. |
+| 2 | Classify existing Node paths and service identities. | Separate Node-level paths from Bench-specific paths. |
+| 3 | Create Bench Environment records for existing Host Benches. | Preserve Host runtime and existing operational identity. |
+| 4 | Populate Bench runtime/configuration fields. | Framework, Bench paths, service identity, DB/Redis profile and storage references. |
+| 5 | Migrate Tenant Site relationships. | Set `bench_environment`; verify parent Node equals legacy Node. |
+| 6 | Reconcile site version and database metadata. | Check ERPNext version, database names and app records against actual runtime/site state. |
+| 7 | Migrate app inventory. | Populate Bench Environment Application from actual Bench apps and product composition. |
+| 8 | Reconcile Tenant Installed App rows. | Preserve site installation state and verify app availability in parent Bench. |
+| 9 | Classify dependency records. | Separate Node prerequisites, NDF image dependencies and external service dependencies. |
+| 10 | Extend Framework Version and Extension metadata. | Add compatibility/provenance without losing catalogue history. |
+| 11 | Migrate secrets. | Move credentials to protected references; verify resolution and rotate where required. |
+| 12 | Preserve and reconcile logs/execution history. | Maintain historical parentage and auditability. |
+| 13 | Switch application reads to the new ownership model. | Only after relationship/runtime validation passes. |
+| 14 | Retire old fields and actions. | Only after compatibility checks and successful observation period. |
+
+#### Migration safeguards
+
+1. Do not assume Node-to-Bench one-to-one. A Node can host multiple Bench Environments.
+2. Do not automatically regroup sites. Actual filesystem/runtime evidence determines Bench membership.
+3. Do not delete data during relationship migration. Preserve old Node values and credential recovery capability until validation succeeds.
+4. Do not duplicate plaintext secrets. Use a protected provider and verify access before retiring old fields.
+5. Do not perform destructive Bench cleanup. Retirement must not delete site databases, files or recovery material.
+6. Preserve Host compatibility throughout migration.
+7. A migrated Host Bench does not become Docker-backed merely because the target architecture supports Docker.
+8. Do not overwrite deployment history. Each successful or failed deployment retains its immutable descriptor and digest.
+
+### 14.13 Implementation sequence following matrix approval
+
+1. **Schema foundation:** Create Bench Environment and four child tables. Extend Node and Tenant Site without retiring legacy fields.
+2. **Host migration:** Create Host Bench Environment records, map existing sites and populate runtime/storage/application information.
+3. **Relationship cutover:** Switch Tenant Site ownership to Bench Environment and validate existing site operations.
+4. **Application governance:** Introduce Bench app availability validation and App Installation Request orchestration.
+5. **Deployment records:** Implement Deployment Candidate, Deployment Build and Bench Deployment.
+6. **Dependency and secret migration:** Introduce dependency ownership and protected secret references.
+7. **Runtime adapter transition:** Move Bench operations behind Host and Docker adapters.
+8. **Legacy retirement:** Remove obsolete Node Bench fields and direct Tenant Site Node ownership only after Host migration and compatibility checks.
+
+**Ordering constraint:** Prove the new ownership model against existing Host deployments before Docker orchestration. This separates data-model migration from runtime migration and makes failures easier to isolate.
+
+### 14.14 Outstanding decisions and schema observations
+
+The matrix records ownership direction; it does not silently resolve these remaining contracts:
+
+| Item | Current position | Required resolution |
+|---|---|---|
+| Site ingress and ports | Keep `protocol`, `port` and `fqdn` on Tenant Site pending contract. | Finalize Node ingress and Bench routing ownership before changing semantics. |
+| Node and Bench logs | Preserve historical logs. | Decide deployment stage log model. |
+| Database and Redis | Bench Environment owns profiles/references. | Define dedicated/shared/external provisioning and isolation. |
+| Secrets | Replace plaintext with protected references. | Select provider and define migration/rotation. |
+| Dependency classification | Existing records are migration inputs. | Classify each dependency by actual installation/consumption location. |
+| Host Bench grouping | One Bench Environment per actual existing Bench. | Inspect paths/site configuration to establish membership. |
+| `deployment_type` | Preserve Shared/Dedicated semantics. | Confirm whether still needed for tenant allocation. |
+| Extension source metadata | NDF authoritative for build source/runtime composition. | Define synchronization with NDF Marketplace App Descriptor. |
+| Frappe schema mechanics | Logical target model defined. | Verify field options, autoname, indexes and patch behavior against supported Frappe release. |
+
+Additional existing-schema observations:
+- `Tenant Site.port` is currently a Data field. Preserve values during migration; do not silently coerce.
+- `Extension.supports_upgrade` is currently Data with a default of 1, unlike Check field `supports_uninstall`; review its type during schema work.
+- `Script Execution.triggere_source` is the existing fieldname. Correct only through a controlled migration.
+- `Infrastructure Node.state` currently includes Bench-oriented states such as Project Installed, Initialized, Healthy, Running and Stopped. Separate these from Node readiness.
+- `Tenant Site.region` is free text, while `Infrastructure Node.region` is a Link. Reconcile before making Site region derived.
+
+**Approval boundary:** This matrix and data migration order are approved for documentation. This approval does not authorize implementation. DocType/controller/API/migration/runtime changes remain gated by completion and explicit approval of the remaining M4.1 contracts.
