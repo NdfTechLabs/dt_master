@@ -288,7 +288,7 @@ Mail user passwords are retrieved through Frappe's Password field API (get_passw
 
 ## 8. Cross-repository DT Tenant caller and authorization findings
 
-DT Tenant (NdfTechLabs/dt_tenant, branch version-1) is a service client of DT Master.
+DT Tenant (NdfTechLabs/dt_tenant, branch develop) is a service client of DT Master.
 
 ### 8.1 Caller graph
 
@@ -354,13 +354,40 @@ Before M4.3/M4.5/M4.6 implementation, define:
 | M4.6 Tenant Site and DT Tenant Integration (Both + dt_tenant) | Migrate Site → Bench relationship; refactor Site lifecycle/provisioning; migrate tenant credentials and enforce tenant-scoped authorization |
 | M4.7 Integration Testing and Production Readiness | End-to-end concurrency, permissions, secret handling, rollback, migration and recovery validation |
 
-## 11. Remaining audit work
+## 11. Updated audit position and remaining M4.1 work
 
-1. Complete UI/workspace and role-definition impact review in both repositories.
-2. Complete DocType field-level permission and sensitive-field consumer inventory.
-3. Verify realtime worker session identity and event subscription authorization.
-4. Confirm Tenant Settings credential field types and all service-credential consumers.
-5. Finish final all-files disposition matrix.
-6. Confirm whether operation/secret contracts need additional standalone DocTypes beyond already-agreed models.
+The full Git tree inventories for dt_master:develop and dt_tenant:develop have
+been compared against the consolidated disposition matrix. The matrix now
+records grouped dispositions for additional DocTypes, API/controller paths,
+shell libraries/dispatchers, UI/workspaces, configuration, tests and assets.
+The detailed new findings and path groups are recorded in
+docs/migrations/M4_FILE_DISPOSITION_MATRIX.md.
 
-No application code, DocTypes, migrations, scripts or runtime configuration were changed.
+Completed at source-review level:
+1. DT Master UI/workspace/role impact review, including the corrected Tenant
+   Subscription visibility finding.
+2. Principal DocType permission and sensitive-field consumer review.
+3. Principal realtime worker/event source review.
+4. DT Tenant API caller, role, lifecycle, workspace and page source review.
+5. Full tree inventory on both requested develop branches and matrix extension.
+
+Remaining M4.1 work:
+1. Complete the cross-repository platform operator, tenant service identity,
+   Tenant Manager/User and API authorization contract.
+2. Finalize secret-provider, bootstrap, transport and realtime recipient
+   authorization contracts.
+3. Consolidate the NDF Marketplace App Descriptor, Product Composition
+   Manifest, Product Deployment Descriptor, Deployment Candidate/Build and
+   immutable image verification contracts.
+4. Verify any external/private deployment integrations and callers not
+   discoverable in the two accessible repository trees.
+5. Conduct the final M4.1 architecture review and record acceptance criteria.
+
+Live Frappe permission behavior, worker identity, realtime delivery, exports,
+reports, print and backup-surface tests are implementation/runtime verification
+requirements. They are deferred to the relevant implementation/testing stage;
+they are not a reason to build a separate CI test platform as part of this
+architecture audit.
+
+M4.1 remains in progress. No application code, DocTypes, migrations, scripts
+or runtime configuration were changed by this audit.
