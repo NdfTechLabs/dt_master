@@ -75,3 +75,78 @@ Configured checks include Ruff, ESLint, Prettier, and file-validation hooks. Git
 ## License
 
 AGPL-3.0. See [`license.txt`](license.txt).
+
+
+---
+
+# M4 — NDF Frappe Docker integration
+
+## M4.0 — Architecture and repository discovery
+
+**Status: Completed (2026-11-09).**
+
+The architecture baseline for integrating NDF Frappe Docker with DT Master and DT Tenant has been agreed. M4.0 completion records architectural agreement; it does not mean the integration has been implemented.
+
+### Agreed ownership boundaries
+
+- **Infrastructure Node** owns infrastructure identity and health, SSH access, Docker Engine availability, capacity and node-level operations. It does not own a single Frappe Bench.
+- **Bench Environment** is the runtime and deployment boundary. It owns runtime type (Host or Docker), product/release identity, image reference and digest where applicable, runtime configuration, Bench-level application availability, storage/service configuration, site membership and deployment state.
+- **Tenant Site** belongs to one Bench Environment and remains the owner of site-specific configuration, data and lifecycle.
+- **Tenant Installed App** remains the site-level record of applications installed on an individual Tenant Site.
+- **Bench Environment Application** is the Bench-level inventory of application code available to sites hosted by that Bench. Availability in a Bench does not install an app on every site.
+- **App Installation Request** is owned by DT Master. DT Tenant submits customer requests; DT Master validates and orchestrates them.
+- **Framework Version** remains the runtime compatibility foundation and will be extended with approved runtime component information. A separate Runtime Profile DocType is not part of the initial agreed design.
+- **NDF Frappe Docker** owns product composition, application/runtime dependency resolution, image construction, validation, immutable publishing and deployment descriptors.
+- **DT Master** owns when and where a runtime is deployed, Docker/Compose orchestration, site lifecycle, replacement Bench deployment, migration, verification and rollback.
+- **DT Tenant** owns tenant-facing self-service, subscription interaction and authenticated communication with DT Master. It does not orchestrate Docker.
+
+### Deployment principles
+
+1. Host-native and Docker-backed Bench Environments must coexist during migration.
+2. A Bench Environment can host multiple Tenant Sites.
+3. A site can install an application only when that application's code is available in its parent Bench Environment.
+4. Changes to a Bench's application composition or runtime are delivered through a validated replacement Bench, not by mutating a live runtime in place.
+5. All sites belonging to a shared Bench move together when that Bench is replaced; site-level installed-app state remains independent.
+6. Deployments retain immutable image digests and versioned deployment contracts. Publishing a new image does not automatically upgrade running Bench Environments.
+7. NDF produces deployment artifacts; DT Master consumes and orchestrates them.
+
+## M4.1 — Integration contract and architecture
+
+**Status: In progress.**  
+**Implementation status: Not started under M4.1 approval.**
+
+M4.1 will define and approve the contracts and repository-level changes before implementation begins.
+
+| Workstream | Required outcome |
+|---|---|
+| DocType ownership and relationships | Finalize Infrastructure Node → Bench Environment → Tenant Site, plus Bench and site application inventories |
+| NDF deployment artifact contract | Versioned descriptor tied to the exact OCI image digest |
+| Deployment Candidate contract | Complete desired Bench composition and runtime requirements |
+| Build request/result contract | Authenticated asynchronous request, workflow identity, result, digest and descriptor reference |
+| Runtime compatibility | Exact Bench runtime versions derived from framework and application compatibility constraints |
+| Dependency resolution | NDF-owned Python, Node.js and OS dependency resolution and deterministic locks |
+| Runtime adapters | Defined Host and Docker execution interfaces in DT Master |
+| Deployment lifecycle | Provision, readiness checks, site migration, verification, rollback and retirement |
+| Repository migration matrix | File-level ADD / EXTEND / RELOCATE / RETAIN / REMOVE decisions |
+
+### Initial DT Master DocType plan
+
+The following are proposed M4 architecture additions, subject to the file-level audit and final schema design:
+
+- **Bench Environment** — runtime/deployment owner.
+- **Bench Environment Application** — Bench-level application availability (child table).
+- **Bench Runtime Component** — exact deployed runtime component inventory (child table).
+- **Deployment Candidate** — proposed complete Bench composition/runtime change.
+- **Deployment Candidate Application** — desired application inventory for a candidate (child table).
+- **Deployment Build** — NDF/GitHub Actions build request and result tracking.
+- **Bench Deployment** — actual deployment, migration, verification and rollback execution.
+- **App Installation Request** — customer application request and its orchestration status.
+
+Existing DocTypes such as Infrastructure Node, Tenant Site, Tenant Installed App, Framework Version, Extension and Extension Version are to be evaluated for extension rather than duplicated. This list is an architecture baseline, not an approved migration schema.
+
+### Cross-repository architecture records
+
+- [DT Tenant M4 architecture](https://github.com/NdfTechLabs/dt_tenant#dt-master-and-ndf-integration)
+- [NDF Frappe Docker M4 architecture](https://github.com/NdfTechLabs/frappe_docker/blob/main/images/ndf/README.md)
+
+No production deployment should rely on an M4.1 contract until its schema/version, validation rules and compatibility behavior have been agreed and tested.
