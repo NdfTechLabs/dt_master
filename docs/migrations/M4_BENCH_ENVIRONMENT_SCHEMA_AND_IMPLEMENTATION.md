@@ -1880,9 +1880,9 @@ Retain the original Bench, source data and recovery material for the configured
 rollback window. Record backup, synchronization, write-freeze, cutover,
 verification and migration-commit evidence in deployment history.
 
-### 17.5 M4.1 acceptance criteria
+### 17.5 M4.1 acceptance criteria and implementation authorization gate
 
-M4.1 can be marked complete only when all criteria below are satisfied:
+M4.1 can be marked complete when the architecture, source-audit, documentation and milestone-allocation criteria below are satisfied. The separate implementation-authorization gate is not a prerequisite for M4.1 closure; it must be explicitly satisfied before any M4.2–M4.7 application code, DocType, migration, script, workflow or runtime change begins.
 
 - [x] The exact M4.0–M4.7 milestone structure is used consistently across the
       tracker and audit records.
@@ -1894,7 +1894,7 @@ M4.1 can be marked complete only when all criteria below are satisfied:
 - [x] The secret transport contract is accepted: split secret ownership, reference-only cross-component transport, protected short-lived runtime delivery, descriptor/Compose reference-only rules, rotation/revocation and backup-restore reconciliation are recorded in Section 15.8.
 - [x] Deployment Candidate, Build, Bench Deployment and deployment-stage
       lifecycle contracts are approved, including immutable candidate/build inputs, verified artifact chain, explicit state transitions, terminal Build records, retry semantics and migration-commit cancellation boundary.
-- [x] The Section 15 security/authorization policy decisions are approved; documentation reconciliation is required, while implementation and runtime verification remain assigned to later milestones.
+- [x] The Section 15 security/authorization policy decisions are approved and reconciled across the canonical documentation; implementation and runtime verification remain assigned to later milestones.
 - [x] The Section 16 NDF artifact/build/deployment contract is approved; implementation remains assigned to M4.2–M4.7.
 - [x] The NDF lock-to-actual-build SHA mismatch is explicitly assigned as an
       M4.2 blocker, not treated as an already-satisfied immutable build.
@@ -1903,7 +1903,7 @@ M4.1 can be marked complete only when all criteria below are satisfied:
       caller verification limitations are recorded.
 - [x] The ordered data migration, backup, resumability and rollback policy is accepted; isolated replacement copies and the pre-/post-commit rollback boundary are recorded. Implementation and rehearsal remain assigned to M4.2–M4.7.
 - [x] Every remaining implementation dependency is assigned to M4.2–M4.7; exact implementation details remain explicitly deferred.
-- [ ] Explicit authorization is obtained before implementation starts.
+**Separate implementation gate (not an M4.1 closure criterion):** [ ] Explicit authorization is obtained before implementation starts. No implementation authorization is currently granted.
 
 **Current assessment:** The architecture and source audits are substantially complete. Section 15 authorization, durable operation and secret transport contracts; Section 16 NDF artifact/build/deployment contract; migration/rollback policy; and the common runtime adapter contract have been accepted. The platform owner has confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. The remaining work is the consolidated M4.1 acceptance review and explicit M4.1 closure. Implementation authorization remains a separate decision and has not been granted. Therefore M4.1 remains **In progress**. M4.2 has not started.
 
