@@ -62,7 +62,7 @@ The current `develop` branch was inspected before writing this target specificat
 | Tenant Installed App | Site child table with app name/type, Extension and Extension Version, status, enabled flag, installed/target versions, Git metadata, action state and buttons. | Retain as site-level installation state. Enforce that the app is available in the parent Bench Environment before installation. |
 | Framework Version | Framework, version, Python version, Node version and Bench package. | Retain as compatibility baseline and extend only with compatibility metadata that is not duplicated by runtime observations. |
 | Framework Version Dependency | Framework Version → System Dependency, enabled flag and install order. | Split infrastructure prerequisites from image/runtime dependencies. NDF resolves image dependencies; DT Master validates Node capabilities. |
-| Node Action Log | Child table containing action, actor, timestamps, exit code, stdout/stderr, state before/after and result. Reused by Node and Tenant Site. | Preserve existing records and realtime behavior during transition. Decide whether deployment-specific history needs dedicated stage records; do not force deployment lifecycle into this generic log. |
+| Node Action Log | Child table containing action, actor, timestamps, exit code, stdout/stderr, state before/after and result. Reused by Node and Tenant Site. | Preserve existing records and realtime behavior during transition. Bench Deployment uses its dedicated Bench Deployment Stage child table; do not force deployment lifecycle into this generic log. |
 | Script Execution | Generic script, Node, Dynamic Link target, status, timing and Execution Log child table. | Retain for generic script execution. Bench Deployment remains authoritative for deployment candidate, descriptor, digest, affected sites, migration and rollback history. |
 
 ### Existing security migration
@@ -661,7 +661,7 @@ A field marked **Retain / review** remains in place during migration; its final 
 | `start_project` | Move | Bench Environment start operation. |
 | `stop_project` | Move | Bench Environment stop operation. |
 | `check_system_status` | Retain | Node infrastructure health check, distinct from Bench health. |
-| `node_action_logs` | Retain | Preserve history. Bench-specific deployment logging ownership remains subject to the logging contract. |
+| `node_action_logs` | Retain | Preserve general Node operational history. Bench Deployment Stage owns deployment-stage history; Script Execution/Execution Log retain command-level detail. |
 | `monthly_cost` | Retain | Node cost accounting. |
 | `currency` | Retain | Node cost accounting. |
 | `billing_owner` | Retain | Node cost allocation. |
@@ -687,7 +687,7 @@ Path ownership must be explicit: Node root and automation paths belong to Node; 
 | `subscription` | Retain | Site subscription relationship. |
 | `infrastructure_profile` | Retain | Preserve requested/assigned profile unless subscription design explicitly relocates it. |
 | `node` | Replace | Add mandatory `bench_environment`; migrate existing relationship and then retire direct editable Node ownership. |
-| `deployment_type` | Retain with semantic restriction | Preserve Shared/Dedicated tenant hosting allocation meaning if still needed. Never reinterpret as Host/Docker. |
+| `deployment_type` | Deprecate / retire after migration | Existing Shared/Dedicated values describe tenant allocation semantics, not Host/Docker. Preserve during migration, migrate all consumers to the appropriate allocation model, then retire when no longer authoritative. |
 | `region` | Derive | Resolve through Bench Environment → Infrastructure Node → region after reconciling existing free-text values. |
 | `erpnext_version` | Derive / replace | Resolve from Bench Environment application inventory; do not maintain as an independent runtime version. |
 | `database_name` | Retain | Site-specific database identity, validated against Bench database profile and naming strategy. |
