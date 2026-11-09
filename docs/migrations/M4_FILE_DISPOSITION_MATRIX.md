@@ -1,4 +1,4 @@
-# M4 — Consolidated DT Master File Disposition Matrix
+# M4 — Consolidated Repository File Disposition Matrix
 
 **Repository:** NdfTechLabs/dt_master  
 **Branch:** develop  
@@ -8,7 +8,7 @@
 - docs/migrations/M4_UI_WORKSPACE_ROLE_AUDIT.md
 
 **Status:** Proposed disposition baseline from read-only audit. This is not implementation authorization.  
-**Audit baseline:** DT Master develop and DT Tenant develop tree snapshots reviewed during M4.1 repository-wide inventory and source audit.
+**Audit baseline:** DT Master develop and DT Tenant develop tree snapshots, plus NDF Frappe Docker main source snapshot, reviewed during M4.1 repository-wide inventory and integration audit.
 
 ## 1. Disposition vocabulary
 
@@ -306,3 +306,45 @@ The develop tree comparison confirms the known in-repository DT Tenant → DT Ma
 | Final M4.1 architecture review and acceptance | Outstanding |
 
 No application code, DocTypes, migrations, scripts, workflows or runtime configuration were changed by this audit. This matrix update records proposed dispositions only.
+
+
+## 13. NDF Frappe Docker integration source dispositions
+
+**Repository:** NdfTechLabs/frappe_docker  \
+**Branch:** main  \
+**Tree SHA:** 7c16ac4cf56226e417b941144da272267937dd84  \
+**Files:** 198
+
+| Path / component | Current responsibility or finding | Proposed disposition | Target milestone | Rationale / target |
+|---|---|---|---|---|
+| images/ndf/schemas/application-manifest-v1.schema.json | Existing recursive composition manifest schema | RETAIN/EXTEND | M4.2 | Preserve backward-compatible composition and resolver inputs. Add separate Marketplace App Descriptor and Deployment Candidate/Deployment Descriptor schemas; do not overload this schema as a per-app release descriptor. |
+| images/ndf/schemas/image-definitions-v1.schema.json and images/ndf/image-definitions/images-v1.json | Product image IDs, manifests and GHCR repositories | RETAIN/EXTEND | M4.2 | Keep product/image registry mapping. Add versioned build/deployment metadata references without making this file the runtime service descriptor. |
+| images/ndf/manifests/** | Core, capability, master and tenant product compositions | REFACTOR/EXTEND | M4.2/M4.5 | Preserve product separation and required/optional semantics. Transition app entries from mutable refs/name-only identity to registered app_id, immutable release descriptor and digest-backed composition. |
+| images/ndf/locks/*.lock.json | Deterministic resolved app inventory and commit SHAs | RETAIN/EXTEND | M4.2 | Preserve lock/checksum model. Include exact runtime and dependency locks, descriptor digests and base image digests. Ensure the actual build consumes these resolved identities. |
+| images/ndf/scripts/resolve_manifest.py | Recursive manifest loader, dependency graph and immutable ref resolver | RETAIN/REFACTOR | M4.2 | Preserve resolver. Enforce development-branch policy, compatibility status/ranges, required checks and service/application separation. |
+| images/ndf/scripts/prepare_build.py | Generates apps.json and build metadata | REFACTOR | M4.2 | Current apps.json uses target_ref rather than locked resolved SHA. Generate Bench inputs from exact immutable commits and include service/runtime descriptor inputs separately. |
+| images/ndf/scripts/build_image.py | Buildx command, OCI labels, digest/build result | RETAIN/EXTEND | M4.2 | Preserve Buildx and digest metadata. Pin/record base image digests and emit build provenance/composition hash/descriptor linkage. |
+| images/ndf/scripts/validate_image.py | Checks app directories, apps.txt and metadata labels | REFACTOR/EXTEND | M4.2 | Inspect actual installed Git HEAD for every app and Frappe against the lock; verify base image identity, dependency inventory and product smoke/readiness checks. |
+| images/layered/Containerfile | Installs Frappe and apps using FRAPPE_BRANCH/apps.json | REFACTOR | M4.2 | Consume immutable commit SHAs for Frappe and all apps; pin base/build images by digest or an equivalently verified immutable base reference. |
+| images/ndf/manifests/capabilities/ai-automation-v16.json services entries | Declares separate services such as frappe-ai-agent and frappe-mcp-server | EXTEND/IMPLEMENT SERVICE CONTRACT | M4.2 | Current resolver ignores services and only composes applications. Define service schema, build/publish behavior, service topology and runtime health declarations; do not pass service entries to bench apps.json. |
+| images/ndf/.build/** | Generated apps.json and build-metadata.json are tracked | REMOVE GENERATED OUTPUT FROM VERSION CONTROL; IGNORE | M4.2 | Generate ephemeral outputs from immutable lock files. Keep committed deterministic locks, not build workspace artifacts. |
+| .github/workflows/ndf-build-product.yml | Fixed product matrix for build/validation on main/PR/manual dispatch | RETAIN/EXTEND | M4.2 | Preserve product CI. Add candidate-driven validation/build path while retaining static product builds for regression coverage. |
+| .github/workflows/ndf-publish-product.yml | Manual product selection, GHCR publish and digest validation | RETAIN/EXTEND | M4.2/M4.4 | Preserve least-privilege GHCR publishing. Support authorized candidate builds and publish only after SHA/descriptor/image validation. |
+| .github/workflows/ndf-release-product.yml | Manual semantic/stable promotion for DhanaERP Master only | RETAIN/GENERALIZE | M4.2/M4.4 | Preserve exact digest promotion and no-overwrite policy; support approved product release channels consistently across products. |
+| .github/workflows/ndf-validate.yml | Manifest, lock, script and test validation | RETAIN/EXTEND | M4.2 | Add policy enforcement and descriptor/service schema validation. Ensure required product acceptance checks are actually executed rather than merely listed in manifest metadata. |
+| compose.yaml and overrides/compose.*.yaml | Upstream Frappe Docker runtime and deployment variants | RETAIN AS UPSTREAM FOUNDATION | M4.2 | Do not replace upstream Compose. Add versioned NDF product/service descriptors and only the supported NDF-specific Compose generation/overrides needed by DT Master. |
+| images/ndf/tests/** | Resolver, lock, build preparation, image definition and validation tests | RETAIN/EXTEND | M4.2 | Add tests proving SHA-to-build enforcement, policy gates, service descriptor handling, descriptor/digest binding and candidate result contract. |
+| images/ndf/README.md and docs/11-how-to/09-build-app-images-with-github-actions.md | NDF product image factory and build guidance | RETAIN/UPDATE | M4.1/M4.2 | Distinguish implemented M1–M3 capabilities from proposed M4 contracts; document exact descriptor/build contract after approval. |
+
+### 13.1 NDF critical findings
+
+| ID | Finding | Required resolution | Target |
+|---|---|---|---|
+| NDF-01 | Lock contains resolved app SHAs, but prepare_build.py and Containerfile build from target_ref; validator does not inspect installed commits. | Build Frappe and every app from locked SHA; verify actual Git HEADs in the resulting image. | M4.2 blocker |
+| NDF-02 | Base/build images use branch tags rather than recorded immutable base-image digests. | Pin or verify base image digests and record them in provenance/descriptor. | M4.2 |
+| NDF-03 | allow_development_branches and fail_on_unverified_compatibility are not enforced; required_checks are declarative. | Implement fail-closed policy and execute declared acceptance checks. | M4.2 |
+| NDF-04 | Marketplace App Descriptor/app_id/release registry absent. | Add versioned immutable app descriptor and registered identity contract. | M4.2 |
+| NDF-05 | AI capability service declarations are ignored by resolver/build. | Add separate service composition/build/runtime contract. | M4.2 |
+| NDF-06 | Product Deployment Descriptor and candidate-driven build/result flow absent. | Add descriptor generation, candidate workflow and digest-bound result. | M4.2/M4.4 |
+| NDF-07 | Generated .build artifacts are tracked. | Remove generated build workspace outputs from version control and ignore them. | M4.2 |
+
