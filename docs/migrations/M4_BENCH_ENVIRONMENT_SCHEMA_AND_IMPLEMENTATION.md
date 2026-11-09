@@ -1884,7 +1884,7 @@ verification and migration-commit evidence in deployment history.
 
 M4.1 can be marked complete only when all criteria below are satisfied:
 
-- [ ] The exact M4.0–M4.7 milestone structure is used consistently across the
+- [x] The exact M4.0–M4.7 milestone structure is used consistently across the
       tracker and audit records.
 - [x] Node → Bench Environment → Tenant Site ownership and all child-table
       boundaries are approved.
