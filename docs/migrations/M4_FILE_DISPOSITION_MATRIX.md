@@ -304,7 +304,7 @@ The develop tree comparison confirms the known in-repository DT Tenant → DT Ma
 | Cross-repository role/service identity and authorization contract | Accepted Section 15 policy reconciled in the canonical specification; concrete role fixtures, endpoint enforcement, credential migration and runtime verification remain implementation work |
 | NDF descriptor/deployment integration contract consolidation | Section 16 artifact/build/deployment contract accepted; formal schemas, workflows and implementation remain assigned to M4.2–M4.7 |
 | External/private caller verification | In-repository caller discovery completed to the documented boundary; private, deployed and unindexed callers are not proven absent |
-| Final M4.1 architecture review and acceptance | Closed / Accepted on 2026-11-09 following the 13-point final acceptance review and explicit platform-owner approval; implementation authorization remains separate and NOT GRANTED |
+| Final M4.1 architecture review and acceptance | Complete on 2026-11-09 following the 13-point final acceptance review and explicit platform-owner approval; implementation authorization remains separate and NOT GRANTED |
 
 No application code, DocTypes, migrations, scripts, workflows or runtime configuration were changed by this audit or by the M4.1 closure update. The matrix records proposed implementation dispositions only; M4.1 closure does not authorize their execution.
 
