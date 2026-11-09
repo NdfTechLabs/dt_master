@@ -1167,7 +1167,7 @@ marketplace governance privileges.
 | Extension/listing/release approval | Platform Marketplace Operator | Authenticated NDF release-notification identity for technical metadata only | One registered app/release |
 | Product inclusion approval | Authorized product maintainer / Platform Marketplace Operator | Authenticated DT Master-to-NDF request identity | One product composition and immutable app release |
 | Subscription and billing read | Tenant Manager | Tenant-to-Master identity with subscription.read / billing.read | Customer/subscription derived from bound Tenant Site |
-| Plan change, payment and payment-method mutation | Tenant Manager | Tenant-to-Master identity with explicit billing.write / billing.pay scope | Invoice/customer/subscription ownership independently verified by Master |
+| Plan change, payment and payment-method mutation | Tenant Manager | Tenant-to-Master identity with subscription.change, billing.pay or billing.payment_method.manage scope | Invoice/customer/subscription ownership independently verified by Master |
 | Capability fetch | No direct tenant-user execution | Tenant-to-Master identity with capability.read | One bound Tenant Site |
 | Capability synchronization and role/module reconciliation | Authorized platform/bootstrap operator or dedicated local scheduler/service identity | Serialized DT Tenant capability-sync operation | One tenant site; only Master-approved roles/modules |
 | Tenant user/role administration | Tenant Manager | Tenant app server-side controller | Users and role/module assignments within the tenant capability allowlist |
@@ -1227,8 +1227,10 @@ Initial scope vocabulary:
 | marketplace.read | Read eligible marketplace listings and approved release metadata |
 | app.request | Submit an install/upgrade/uninstall request for the bound Tenant Site |
 | subscription.read | Read the bound tenant's subscription and plan information |
+| subscription.change | Request a plan change for the bound tenant, subject to Master-side eligibility and approval policy |
 | billing.read | Read billing history and invoices belonging to the bound tenant |
-| billing.pay | Initiate an authorized payment or payment-method action for the bound tenant |
+| billing.pay | Initiate an authorized payment for an owned invoice |
+| billing.payment_method.manage | Create/list/manage payment methods for the bound tenant, subject to gateway policy |
 | capability.read | Retrieve the capability snapshot for the bound Tenant Site |
 | tenant.callback | Publish a validated callback for one outstanding Master operation on the bound tenant |
 | tenant.bootstrap | Complete restricted initial registration and credential rotation |
