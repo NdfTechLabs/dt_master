@@ -120,6 +120,11 @@ Severity reflects potential impact from the code path, not evidence of an incide
 
 ## 6. Required cross-repository API contract
 
+The consolidated target contract is now drafted in Section 15 of
+M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md. The findings and call graph
+in this addendum are evidence; Section 15 is the single proposed authorization
+and service-identity contract for review. Do not create a second role matrix.
+
 Before M4.3/M4.5/M4.6 implementation, define:
 
 - **Service identity:** each Tenant Site has a dedicated service identity at Master, mapped to exactly one Tenant Site and current Bench Environment.
@@ -134,6 +139,13 @@ Before M4.3/M4.5/M4.6 implementation, define:
 - **Error contract:** machine-readable safe error code/summary; no raw traceback or credential disclosure.
 
 ## 7. Updated audit position and remaining M4.1 work
+
+The detailed actor classes, operation authorization matrix, directional
+service identities, tenant binding, API scopes, request envelope, callback,
+realtime, secret and diagnostic boundaries are consolidated as a proposed
+contract in Section 15 of the canonical Bench Environment specification.
+Policy approval remains outstanding; this addendum does not independently
+mark those contracts resolved.
 
 The cross-repository source review has been extended against dt_master:develop
 and dt_tenant:develop. The full repository tree inventory and grouped proposed
