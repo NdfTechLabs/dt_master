@@ -112,23 +112,24 @@ The architecture baseline for integrating NDF Frappe Docker with DT Master and D
 
 ## M4.1 — Integration contract and architecture
 
-**Status: In progress.**  
-**Authorization policy: Accepted and reconciled. NDF artifact/build/deployment contract: Accepted. Migration/rollback policy: Accepted.**  
+**Status: Complete (2026-11-09).**  
+**Acceptance:** All 13 architecture acceptance criteria satisfied; explicit platform-owner approval recorded.  
+**Implementation authorization: Not granted.** This is a separate gate and is not implied by M4.1 completion.  
 **Implementation status: Not started.**
 
-M4.1 defines and approves the cross-repository contracts before implementation begins. Section 15 authorization, Section 16 NDF artifact/build/deployment and migration/rollback policies are accepted and recorded. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; runtime/deployment and credential-inventory verification remain implementation prerequisites. Final architecture review and explicit M4.1 closure/implementation authorization remain outstanding.
+M4.1 completed the cross-repository architecture, ownership/schema design, security and authorization contracts, NDF artifact/build/deployment contract, runtime adapter, durable operation and secret-transport contracts, repository disposition audit, and migration/rollback policy. The platform owner confirmed that no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. These deferred verifications do not reopen M4.1.
 
-| Workstream | Required outcome |
+| Workstream | Accepted outcome |
 |---|---|
-| DocType ownership and relationships | Finalize Infrastructure Node → Bench Environment → Tenant Site, plus Bench and site application inventories |
-| NDF deployment artifact contract | Versioned descriptor tied to the exact OCI image digest |
-| Deployment Candidate contract | Complete desired Bench composition and runtime requirements |
-| Build request/result contract | Authenticated asynchronous request, workflow identity, result, digest and descriptor reference |
-| Runtime compatibility | Exact Bench runtime versions derived from framework and application compatibility constraints |
-| Dependency resolution | NDF-owned Python, Node.js and OS dependency resolution and deterministic locks |
-| Runtime adapters | Defined Host and Docker execution interfaces in DT Master |
-| Deployment lifecycle | Provision, readiness checks, site migration, verification, rollback and retirement |
-| Repository migration matrix | File-level ADD / EXTEND / RELOCATE / RETAIN / REMOVE decisions |
+| DocType ownership and relationships | Infrastructure Node → Bench Environment → Tenant Site ownership and Bench/site application inventories approved |
+| NDF deployment artifact contract | Versioned descriptor bound to the exact immutable OCI image digest approved |
+| Deployment Candidate contract | Complete desired Bench composition and runtime requirements approved |
+| Build request/result contract | Authenticated asynchronous request, workflow identity, result, digest and descriptor reference contract approved |
+| Runtime compatibility | Exact Bench runtime compatibility model approved |
+| Dependency resolution | NDF-owned Python, Node.js and OS dependency resolution and deterministic lock contract approved |
+| Runtime adapters | Common Host and Docker execution contract approved |
+| Deployment lifecycle | Provisioning, readiness, site migration, verification, rollback and retirement boundaries approved |
+| Repository migration matrix | File-level dispositions reviewed and recorded |
 
 ### DT Master schema and implementation specification
 
