@@ -1,6 +1,6 @@
 # M4.1 — UI, Workspace and Role-Definition Audit
 
-**Repositories:** NdfTechLabs/dt_master (develop), NdfTechLabs/dt_tenant (version-1)  
+**Repositories:** NdfTechLabs/dt_master (develop), NdfTechLabs/dt_tenant (develop)  
 **Audit date:** 2026-11-09  
 **Scope:** Desk forms, workspace/sidebar definitions, page access, DocType permissions, role models and proposed dispositions.  
 **Status:** Read-only audit. No implementation changes authorized or performed.
@@ -9,7 +9,7 @@
 
 1. DT Master currently presents Bench lifecycle as Infrastructure Node actions. This confirms that the current Desk information architecture reflects the old Node-centric ownership model.
 2. DT Master Workspace and sidebar definitions are broadly visible and not role-scoped in their serialized definitions. Underlying DocType permissions still apply, but navigation visibility is not an authorization control.
-3. DT Tenant has an explicit tenant-facing role model: Tenant Manager and Tenant User. The Add-ons page is available to both; Subscription page is Tenant Manager-only.
+3. DT Tenant has an explicit tenant-facing role model: Tenant Manager and Tenant User. The Add-ons page is available to both. Correction: Subscription is currently exposed through a workspace available to both; no page-level Tenant Manager-only gate was found.
 4. Tenant Settings grants both Tenant Manager and System Manager read/write access while storing Master API key and API secret as ordinary Data fields. This is a material credential exposure risk.
 5. Tenant role profiles and role assignments are capability-constrained mappings to existing Frappe Roles. They must remain separate from platform operator and tenant-service identities.
 6. Several UI controls are hidden or shown based on state/role, but backend APIs remain the security boundary. The Tenant Installed App buttons directly call executor methods, bypassing the marketplace queue wrapper.
@@ -179,7 +179,7 @@ prerequisite for the source-level disposition matrix.
 | DT Tenant workspace/pages and role mapping | Reviewed |
 | Primary operational DocType permissions/action fields | Reviewed from DocType JSON |
 | Tenant Settings credential field types and roles | Confirmed: Data fields; Tenant Manager read/write |
-| Consolidated file disposition matrix for inspected components | Completed — recorded in `M4_FILE_DISPOSITION_MATRIX.md`; full repository path-by-path coverage remains outstanding |
+| Full Git tree inventory and grouped disposition matrix | Completed for both develop trees; external/private callers remain unverified |
 | Realtime worker identity/event subscription authorization | Source-level findings recorded; final service/event authorization contract remains to be consolidated. Runtime behavior verification is deferred to the relevant implementation/testing stage. |
 | Sensitive-field consumer tracing | Completed for principal inspected consumers; live export/report/print/backup behavior verification is deferred to implementation/testing. |
 | Child-DocType schema and parent-authorization source review | Completed for inspected child DocTypes; live Frappe behavior verification is deferred to implementation/testing. |
