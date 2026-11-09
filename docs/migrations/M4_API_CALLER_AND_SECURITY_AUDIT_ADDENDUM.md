@@ -138,7 +138,7 @@ Before M4.3/M4.5/M4.6 implementation, define:
 - **Secrets:** protected references, rotation lifecycle, no secret values in payloads/logs.
 - **Error contract:** machine-readable safe error code/summary; no raw traceback or credential disclosure.
 
-## 7. Updated audit position and remaining M4.1 work
+## 7. Updated audit position and M4.1 completion record
 
 The detailed actor classes, operation authorization matrix, directional service identities, tenant binding, API scopes, request envelope, callback, realtime, secret and diagnostic boundaries are consolidated in Section 15 of the canonical Bench Environment specification. The M4.1 policy decisions are now accepted: Frappe API key/secret credentials remain the initial inter-app authentication mechanism with tenant-specific permissions, rotation and revocation; Tenant Users are read-only for application inventory; Tenant Managers may install, upgrade and uninstall on their own sites, with downgrade/reinstall requiring confirmation and audit; Bench-level inventory/image/runtime changes remain platform-only. This addendum records source findings and does not claim these controls have been implemented or runtime-verified.
 
@@ -154,8 +154,8 @@ Completed at source-review level:
 3. Workspace/page role exposure and User permission synchronization hooks.
 4. Principal child DocType, sensitive-field and realtime findings.
 
-Remaining M4.1 acceptance work:
-1. Complete the consolidated acceptance review and obtain explicit M4.1 closure.
+M4.1 acceptance status:
+The consolidated 13-point architecture acceptance review was completed and the platform owner explicitly approved M4.1 completion on 2026-11-09. No M4.1 acceptance work remains open.
 
 The service identity, authentication, tenant binding, authorization scopes,
 operation/idempotency/replay/realtime contracts, secret ownership/transport,
