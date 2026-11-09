@@ -116,8 +116,12 @@ These fields are not protected by field permlevel in the inspected DocType JSON.
 
 - dt_tenant/dt_tenant/workspace/tenant/tenant.json
 - dt_tenant/workspace_sidebar/tenant.json
-- dt_tenant/dt_tenant/page/add_ons/add_ons.json
-- dt_tenant/dt_tenant/page/tenant_subscription/tenant_subscription.json
+- dt_tenant/dt_tenant/page/add_ons/add_ons.json and add_ons.js
+- dt_tenant/dt_tenant/page/tenant_subscription/tenant_subscription.json and tenant_subscription.js
+- dt_tenant/dt_tenant/workspace/workspace_filter.py
+- dt_tenant/hooks.py
+- dt_tenant/api/marketplace.py and api/tenant_subscription.py
+- dt_tenant/controllers/capability_sync.py and controllers/user_roles.py
 - dt_tenant/dt_tenant/doctype/tenant_settings/tenant_settings.json
 - dt_tenant/dt_tenant/doctype/tenant_settings/tenant_settings.js
 - dt_tenant/dt_tenant/doctype/tenant_roles/tenant_roles.json
