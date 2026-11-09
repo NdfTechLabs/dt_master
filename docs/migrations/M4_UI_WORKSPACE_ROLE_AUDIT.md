@@ -166,16 +166,22 @@ Do not introduce role names until the authorization matrix and bootstrap/migrati
 
 ## 7. Updated audit status
 
+The disposition matrix for components inspected to date is complete and is
+recorded in `M4_FILE_DISPOSITION_MATRIX.md`. This must not be confused with a
+complete path-by-path audit of both repositories, which remains outstanding.
+Runtime-only verification is tracked separately and is not treated as a
+prerequisite for the source-level disposition matrix.
+
 | Area | Status |
 |---|---|
 | DT Master workspace/sidebar and form actions | Reviewed |
 | DT Tenant workspace/pages and role mapping | Reviewed |
 | Primary operational DocType permissions/action fields | Reviewed from DocType JSON |
 | Tenant Settings credential field types and roles | Confirmed: Data fields; Tenant Manager read/write |
-| Full all-file disposition matrix | Outstanding |
-| Realtime worker identity/event subscription authorization | Outstanding |
-| Complete sensitive-field consumer/export/report tracing | Outstanding |
-| Runtime verification of child DocType permissions | Outstanding |
-| Final cross-repository role and service identity contract | Outstanding |
+| Consolidated file disposition matrix for inspected components | Completed — recorded in `M4_FILE_DISPOSITION_MATRIX.md`; full repository path-by-path coverage remains outstanding |
+| Realtime worker identity/event subscription authorization | Source-level findings recorded; final service/event authorization contract remains to be consolidated. Runtime behavior verification is deferred to the relevant implementation/testing stage. |
+| Sensitive-field consumer tracing for inspected paths | Completed for inspected consumers; repository-wide export/report/print/backup surface review remains part of the final path audit. Live surface verification is deferred to implementation/testing. |
+| Child-DocType schema and parent-authorization source review | Completed for inspected paths; live Frappe behavior verification is deferred to the relevant implementation/testing stage. |
+| Final cross-repository role and service identity contract | Outstanding — M4.1 architecture work |
 
 No application code, DocTypes, migrations, scripts or runtime configuration were changed.
