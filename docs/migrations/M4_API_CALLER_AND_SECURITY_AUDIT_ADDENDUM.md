@@ -2,7 +2,7 @@
 
 **Related audit:** docs/migrations/M4_DT_MASTER_FILE_LEVEL_AUDIT.md  
 **DT Master baseline:** develop at 4d7cd677155f5ccee9e915b8508a9276f382ef9d  
-**DT Tenant baseline:** version-1  
+**DT Tenant baseline:** develop  
 **Status:** Read-only findings; implementation not authorized.
 
 ## 1. Cross-repository API caller graph
@@ -133,12 +133,29 @@ Before M4.3/M4.5/M4.6 implementation, define:
 - **Secrets:** protected references, rotation lifecycle, no secret values in payloads/logs.
 - **Error contract:** machine-readable safe error code/summary; no raw traceback or credential disclosure.
 
-## 7. Outstanding audit work
+## 7. Updated audit position and remaining M4.1 work
 
-1. Full UI/workspace and role-definition impact review in both repositories.
-2. Complete DocType field-level permission and sensitive-field consumer inventory.
-3. Verify realtime worker session identity and event subscription authorization.
-4. Confirm Tenant Settings credential field types and all service-credential consumers.
-5. Complete final all-files disposition matrix.
+The cross-repository source review has been extended against dt_master:develop
+and dt_tenant:develop. The full repository tree inventory and grouped proposed
+dispositions are recorded in M4_FILE_DISPOSITION_MATRIX.md.
 
-No application code, DocTypes, migrations, scripts or runtime configuration were changed.
+Completed at source-review level:
+1. Principal DT Tenant-to-Master marketplace, billing, provisioning and
+   capability caller paths.
+2. Tenant-side API role gates, service credential consumers and callback
+   behavior.
+3. Workspace/page role exposure and User permission synchronization hooks.
+4. Principal child DocType, sensitive-field and realtime findings.
+
+Remaining M4.1 work:
+1. Finalize the cross-repository service identity, authentication, tenant
+   binding and authorization-scope contract.
+2. Finalize operation/request, idempotency, replay protection and realtime
+   recipient contracts.
+3. Consolidate secret-provider, credential rotation and safe transport.
+4. Verify external/private callers outside the two accessible develop trees.
+5. Complete the NDF descriptor/deployment contracts and final M4.1 review.
+
+Live runtime verification is deferred to the relevant implementation/testing
+stage. No application code, DocTypes, migrations, scripts or runtime
+configuration were changed.
