@@ -426,7 +426,7 @@ Build transitions are:
 
 - `Pending → Submitted → Running → Succeeded`.
 - `Pending` or `Submitted` may transition to `Cancelled` if the provider confirms cancellation.
-- `Submitted` or `Running` may transition to `Failed` on provider failure, timeout adjudication or invalid/missing output.
+- `Pending`, `Submitted` or `Running` may transition to `Failed` on dispatch/provider failure, timeout adjudication or invalid/missing output.
 - `Succeeded`, `Failed` and `Cancelled` are terminal. A retry creates a new Deployment Build record; do not mutate terminal build status or replace its outputs.
 
 Candidate business state, Build execution state and Bench Deployment execution state remain distinct. A candidate may be accepted/ready while no build is running; a successful build does not mean deployment is complete. Cancellation is rejected or converted to controlled recovery once the migration commit boundary has been crossed. After commit, recovery must account for replacement-side writes; it is not a blind cancellation or automatic switchback.
