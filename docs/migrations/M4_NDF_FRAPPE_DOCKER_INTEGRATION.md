@@ -20,6 +20,89 @@ Docker to the existing DT Master orchestration platform.
 DT Master consumes the NDF Frappe Docker contract. It must not maintain a
 competing Dockerfile, image-build, product-composition or Compose system.
 
+## Architecture at a glance
+
+M4 connects three responsibilities: NDF produces a deployable product runtime,
+DT Master deploys and operates that runtime, and DT Tenant manages tenant-local
+workflows through DT Master.
+
+```text
+                    NDF FRAPPE DOCKER
+              Product composition and image build
+                            |
+                            v
+              Product image(s) + deployment contract
+                  + build/verification evidence
+                            |
+                            v
+                           GHCR
+                 Published image distribution
+                            |
+                            v
+                         DT MASTER
+             Infrastructure and deployment control
+                            |
+                            v
+                  INFRASTRUCTURE NODE
+                            |
+                            v
+                   BENCH ENVIRONMENT
+              Shared runtime, services and app set
+                            |
+                 +----------+----------+
+                 |                     |
+                 v                     v
+             TENANT SITE           TENANT SITE
+             Customer A            Customer B
+                 ^                     ^
+                 +----------+----------+
+                            |
+                         DT TENANT
+              Tenant lifecycle, capabilities,
+                 and authenticated requests
+```
+
+### What each part does
+
+| Part | In straightforward terms |
+|---|---|
+| **NDF Frappe Docker** | Defines which Frappe applications and services make up a product, builds the product image(s), validates the result, and supplies the deployment contract and supporting evidence. |
+| **GHCR** | Stores and distributes the published container images. DT Master deploys an immutable image digest, not a moving tag. |
+| **DT Master** | Controls infrastructure and Bench Environments. It consumes NDF's deployment contract, retrieves and verifies the required artifacts, deploys the runtime, and manages Tenant Site lifecycle. |
+| **Infrastructure Node** | The server or infrastructure host on which one or more Bench Environments run. |
+| **Bench Environment** | The shared runtime boundary for a product composition: its services, available applications, runtime configuration and the Tenant Sites hosted within it. |
+| **Tenant Site** | One customer's isolated Frappe site, with its own site data and site-level installed-app state. |
+| **DT Tenant** | Handles tenant-facing lifecycle, capabilities and marketplace/application requests. It communicates with DT Master; it does not independently manage Docker or infrastructure. |
+
+### What NDF actually hands to DT Master
+
+The intended hand-off is more than a Docker image. It consists of:
+
+1. **Product image artifact(s):** the built runtime that contains the selected framework and product applications.
+2. **Product Deployment Descriptor:** the machine-readable deployment contract identifying the product artifacts and the service/runtime topology DT Master is expected to deploy.
+3. **Build and verification evidence:** records that describe the inputs used to build the image and the checks performed against the resulting artifact.
+
+The product manifest and application descriptors describe the intended product composition. The composition lock records the selected composition and source references. These are not substitutes for build evidence: the image must still be checked to establish what was actually built. The deployment descriptor then gives DT Master the contract it needs to deploy that product. Detailed schemas and enforcement rules remain in the linked M4.1 and NDF specifications.
+
+### Dependency installation: reuse upstream
+
+NDF builds on the upstream `frappe_docker` and Bench build process. Bench and the native package managers used by that build install the framework, applications and their Python, Node and operating-system dependencies. NDF's responsibility is to define the product inputs, invoke the supported build path, enforce its product policies, and verify and record the resulting artifact. It should not introduce a second package resolver for dependencies already handled by the upstream build.
+
+### Example: a customer subscribes to Dalali
+
+1. NDF defines the Dalali product composition, including the required Frappe applications and runtime services.
+2. The NDF build process constructs and validates the Dalali product image(s), then publishes the artifacts and their deployment contract.
+3. DT Master selects an appropriate Infrastructure Node and creates or selects a compatible Bench Environment.
+4. DT Master deploys the NDF-defined runtime using the published image digest and service topology.
+5. DT Master creates the customer's Tenant Site inside that Bench Environment.
+6. DT Tenant manages the customer's tenant-level configuration, capabilities and requests. When a request requires a site application operation, DT Tenant sends it to DT Master for authorization and execution.
+
+The distinction is important: **NDF creates the product runtime artifact; DT Master turns that artifact into a running Bench Environment and provisions sites; DT Tenant manages tenant-level workflows.**
+
+### Implementation status
+
+This diagram describes the accepted M4 target architecture, not a claim that every hand-off is already automated. M4.1 architecture and contracts are accepted, while implementation remains subject to its separate authorization gate. NDF already has product build and image workflows, but the complete descriptor, evidence, candidate-publication and DT Master consumption path is still being delivered across M4.2–M4.7. The milestone tracker and detailed specifications below remain authoritative for implementation status.
+
 ## 1.1 Approved Bench Environment schema
 
 The agreed parent/child DocType model, field-level schema, validation rules,
