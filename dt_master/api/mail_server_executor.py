@@ -3,9 +3,6 @@ from frappe.utils import now_datetime
 from dt_master.api.script_contract import mail_environment, run_remote_script
 
 
-BASE_DIR = "/home/frappe/scripts"
-SCRIPTS_BASE_DIR = f"{BASE_DIR}/bin/mail"
-SCRIPT_LIB_DIR = f"{BASE_DIR}/lib"
 
 
 MAIL_AUTOMATION_TRANSITIONS = {

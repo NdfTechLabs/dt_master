@@ -2,11 +2,8 @@ import requests
 
 import frappe
 from frappe.utils import now_datetime
-from dt_master.api.script_contract import app_environment, parse_output, run_remote_script, tag_ref
+from dt_master.api.script_contract import app_environment, parse_output, run_remote_script, secret, tag_ref
 
-BASE_DIR = "/home/frappe/scripts"
-SCRIPTS_BASE_DIR = f"{BASE_DIR}/bin/app/"
-SCRIPT_LIB_DIR = f"{BASE_DIR}/lib/"
 
 # ---------------------------------------------------------------------
 # APP ACTION DEFINITIONS
@@ -429,7 +426,7 @@ def _tenant_api_call(tenant, path, data=None):
     url = tenant_base_url(tenant) + path
 
     headers = {
-        "Authorization": f"token {tenant.tenant_api_key}:{tenant.tenant_api_secret}",
+        "Authorization": f"token {tenant.tenant_api_key}:{secret(tenant, 'tenant_api_secret')}",
         "Content-Type": "application/json",
     }
 

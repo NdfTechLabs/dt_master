@@ -25,6 +25,7 @@
   "customer",
   "subscription",
   "infrastructure_profile",
+  "master_api_user",
   "tenant_api_user",
   "tenant_api_key",
   "tenant_api_secret",
@@ -174,6 +175,14 @@
    "options": "DNS\nRuntime\nDatabase\nSite\nApps\nVerification"
   },
   {
+   "description": "Management-site user this tenant authenticates as. Tenant-facing APIs resolve the Tenant Site from this user, so it must be dedicated to this site.",
+   "fieldname": "master_api_user",
+   "fieldtype": "Link",
+   "label": "Master API User",
+   "options": "User",
+   "unique": 1
+  },
+  {
    "fieldname": "tenant_api_user",
    "fieldtype": "Data",
    "label": "Tenant API User"
@@ -185,7 +194,7 @@
   },
   {
    "fieldname": "tenant_api_secret",
-   "fieldtype": "Data",
+   "fieldtype": "Password",
    "label": "Tenant API Secret"
   },
   {
@@ -208,7 +217,7 @@
   },
   {
    "fieldname": "admin_password",
-   "fieldtype": "Data",
+   "fieldtype": "Password",
    "label": "Admin Password"
   },
   {
@@ -218,7 +227,7 @@
   },
   {
    "fieldname": "mysql_root_user_password",
-   "fieldtype": "Data",
+   "fieldtype": "Password",
    "label": "MSQL Root User Password"
   },
   {
@@ -273,7 +282,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-20 09:08:07.810451",
+ "modified": "2026-11-15 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dt Master",
  "name": "Tenant Site",

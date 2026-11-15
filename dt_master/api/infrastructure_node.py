@@ -3,12 +3,9 @@ import json
 
 import frappe
 from frappe.utils import now_datetime
-from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script
+from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script, secret
 
 
-BASE_DIR="/home/frank/scripts"
-SCRIPT_BASE_DIR = f"{BASE_DIR}/bin/node/"
-SCRIPT_LIB_DIR = f"{BASE_DIR}/lib/"
 
 ALLOWED_TRANSITIONS = {
     "Declared": ["SSH Ready","Error"],
@@ -197,7 +194,7 @@ def _run_bench_action(node_name, action, tenant_name=None, restore_dir=None, sto
         if tenant.node != node.name:
             frappe.throw("Tenant Site belongs to another node")
         env.update({"SITE_NAME": tenant.fqdn, "MYSQL_ROOT_USER": tenant.mysql_root_user_name,
-                    "MYSQL_ROOT_PASSWORD": tenant.mysql_root_user_password})
+                    "MYSQL_ROOT_PASSWORD": secret(tenant, "mysql_root_user_password")})
     if action == "restore":
         if not tenant_name or not restore_dir or not str(restore_dir).startswith("/"):
             frappe.throw("Restore requires a Tenant Site and an absolute backup directory")

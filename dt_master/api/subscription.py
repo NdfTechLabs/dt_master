@@ -1,5 +1,7 @@
 import frappe
 
+from dt_master.api.tenant_auth import resolve_tenant_name
+
 @frappe.whitelist()
 def get_available_plans(limit=12, offset=0):
 
@@ -100,11 +102,11 @@ def get_available_plans(limit=12, offset=0):
     return result
 
 @frappe.whitelist()
-def get_billing_history(fqdn,limit=12, offset=0):
+def get_billing_history(fqdn=None, limit=12, offset=0):
 
     subscription = frappe.get_value(
         "Tenant Site",
-        {"fqdn": fqdn},
+        resolve_tenant_name(fqdn),
         "subscription"
     )
 
@@ -131,16 +133,19 @@ def get_billing_history(fqdn,limit=12, offset=0):
     return invoices
 
 @frappe.whitelist()
-def change_subscription_plan(fqdn, plan_name):
+def change_subscription_plan(fqdn=None, plan_name=None):
 
     subscription = frappe.get_value(
         "Tenant Site",
-        {"fqdn": fqdn},
+        resolve_tenant_name(fqdn),
         "subscription"
     )
 
     if not subscription:
         frappe.throw("Tenant not found")
+
+    if not plan_name or not frappe.db.exists("Subscription Plan", plan_name):
+        frappe.throw("Unknown subscription plan")
 
     sub = frappe.get_doc("Subscription", subscription)
 

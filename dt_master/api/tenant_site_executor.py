@@ -5,14 +5,6 @@ from frappe.utils import now_datetime
 from dt_master.api.script_contract import run_remote_script, tenant_environment
 
 # ---------------------------------------------------------------------
-# CONSTANTS
-# ---------------------------------------------------------------------
-
-BASE_DIR = "/home/frappe/scripts"
-SCRIPTS_BASE_DIR = f"{BASE_DIR}/bin/site/"
-SCRIPT_LIB_DIR = f"{BASE_DIR}/lib/"
-
-# ---------------------------------------------------------------------
 # STATE MACHINES
 # ---------------------------------------------------------------------
 
