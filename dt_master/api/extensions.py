@@ -2,6 +2,8 @@
 import frappe
 from frappe.utils import get_url
 
+from dt_master.api.tenant_auth import resolve_tenant
+
 
 def version_tuple(v):
     return tuple(int(x) for x in v.split("."))
@@ -44,16 +46,7 @@ def get_extensions(tab=None, limit=12, offset=0, fqdn=None, frappe_major=None, f
     # GET CURRENT TENANT SITE
     # -------------------------------------------------
 
-    tenant_site_name = frappe.db.get_value(
-        "Tenant Site",
-        {"fqdn": fqdn},
-        "name"
-    )
-
-    if not tenant_site_name:
-        frappe.throw("Tenant Site not found for fqdn")
-
-    tenant_site = frappe.get_doc("Tenant Site", tenant_site_name)
+    tenant_site = resolve_tenant(fqdn)
 
     # Build lookup map for fast access
     installed_apps_map = {

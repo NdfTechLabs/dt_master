@@ -2,13 +2,38 @@ import frappe
 
 from frappe.utils import now_datetime
 
+from dt_master.api.tenant_auth import resolve_tenant
+
+EXECUTOR_ACTIONS = {"install_app", "upgrade_app", "uninstall_app"}
+
+
+def _run_tenant_executor(tenant_name, row_name, action):
+    """Background entry point for tenant-initiated app actions.
+
+    The whitelisted caller has already been bound to this Tenant Site by
+    ``resolve_tenant``. The executor's own document permission checks are meant
+    for desk operators, so the queued job runs with platform authority rather
+    than as the tenant's least-privilege service user.
+    """
+    if action not in EXECUTOR_ACTIONS:
+        raise ValueError(f"Unsupported tenant executor action: {action}")
+
+    from dt_master.api import tenant_installed_app_executor as executor
+
+    frappe.set_user("Administrator")
+    return getattr(executor, action)(tenant_name=tenant_name, row_name=row_name, source="tenant")
+
+
 def _trigger_tenant_executor(tenant_name, row_name, action):
 
+    if action not in EXECUTOR_ACTIONS:
+        raise ValueError(f"Unsupported tenant executor action: {action}")
+
     job = frappe.enqueue(
-        f"dt_master.api.tenant_installed_app_executor.{action}",
+        "dt_master.api.marketplace._run_tenant_executor",
         tenant_name=tenant_name,
         row_name=row_name,
-        source="tenant",
+        action=action,
         queue="long",
         timeout=1500
     )
@@ -49,18 +74,9 @@ def resolve_latest_minor_version(extension):
 
 
 @frappe.whitelist()
-def install_extension_for_tenant(extension_name, fqdn):
+def install_extension_for_tenant(extension_name, fqdn=None):
 
-    tenant_name = frappe.db.get_value(
-        "Tenant Site",
-        {"fqdn": fqdn},
-        "name"
-    )
-
-    if not tenant_name:
-        frappe.throw("Tenant not found")
-
-    tenant = frappe.get_doc("Tenant Site", tenant_name)
+    tenant = resolve_tenant(fqdn)
 
     # ----------------------------------------------------------------
     # Load Extension
@@ -117,7 +133,7 @@ def install_extension_for_tenant(extension_name, fqdn):
             tenant.save(ignore_permissions=True)
             frappe.db.commit()
 
-            job = _trigger_tenant_executor(tenant.site_name, existing_row.name, "install_app")
+            job = _trigger_tenant_executor(tenant.name, existing_row.name, "install_app")
 
             return {
                 "status": "retrying",
@@ -133,7 +149,7 @@ def install_extension_for_tenant(extension_name, fqdn):
             tenant.save(ignore_permissions=True)
             frappe.db.commit()
 
-            job = _trigger_tenant_executor(tenant.site_name, existing_row.name)
+            job = _trigger_tenant_executor(tenant.name, existing_row.name, "install_app")
 
             return {
                 "status": "reinstalling",
@@ -171,7 +187,7 @@ def install_extension_for_tenant(extension_name, fqdn):
     # ----------------------------------------------------------------
     # Trigger tenant executor
     # ----------------------------------------------------------------
-    job = _trigger_tenant_executor(tenant.site_name, row.name)
+    job = _trigger_tenant_executor(tenant.name, row.name, "install_app")
 
     return {
         "status": "queued",
@@ -181,18 +197,9 @@ def install_extension_for_tenant(extension_name, fqdn):
 
 
 @frappe.whitelist()
-def upgrade_extension_for_tenant(extension_name, fqdn):
+def upgrade_extension_for_tenant(extension_name, fqdn=None):
 
-    tenant_name = frappe.db.get_value(
-        "Tenant Site",
-        {"fqdn": fqdn},
-        "name"
-    )
-
-    if not tenant_name:
-        frappe.throw("Tenant not found")
-
-    tenant = frappe.get_doc("Tenant Site", tenant_name)
+    tenant = resolve_tenant(fqdn)
     extension = frappe.get_doc("Extension", extension_name)
 
     existing_row = None
@@ -224,7 +231,7 @@ def upgrade_extension_for_tenant(extension_name, fqdn):
     tenant.save(ignore_permissions=True)
     frappe.db.commit()
 
-    job = _trigger_tenant_executor(tenant.site_name, existing_row.name, "upgrade_app")
+    job = _trigger_tenant_executor(tenant.name, existing_row.name, "upgrade_app")
 
     return {
         "status": "upgrade_queued",
@@ -233,18 +240,9 @@ def upgrade_extension_for_tenant(extension_name, fqdn):
     }
 
 @frappe.whitelist()
-def uninstall_extension_for_tenant(extension_name, fqdn):
+def uninstall_extension_for_tenant(extension_name, fqdn=None):
 
-    tenant_name = frappe.db.get_value(
-        "Tenant Site",
-        {"fqdn": fqdn},
-        "name"
-    )
-
-    if not tenant_name:
-        frappe.throw("Tenant not found")
-
-    tenant = frappe.get_doc("Tenant Site", tenant_name)
+    tenant = resolve_tenant(fqdn)
 
     existing_row = None
 
@@ -266,7 +264,7 @@ def uninstall_extension_for_tenant(extension_name, fqdn):
     tenant.save(ignore_permissions=True)
     frappe.db.commit()
 
-    job = _trigger_tenant_executor(tenant.site_name, existing_row.name, "uninstall_app")
+    job = _trigger_tenant_executor(tenant.name, existing_row.name, "uninstall_app")
 
     return {
         "status": "uninstall_queued",

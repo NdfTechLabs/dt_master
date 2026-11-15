@@ -44,8 +44,8 @@ class DemoDoc(dict):
     def check_permission(self, permission):
         return None
 
-    def get_password(self, field):
-        return self[field]
+    def get_password(self, field, raise_exception=True):
+        return self.get(field)
 
     def set(self, key, value):
         self[key] = value

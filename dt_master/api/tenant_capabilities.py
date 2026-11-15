@@ -1,14 +1,14 @@
 import frappe
 
-@frappe.whitelist()
-def get_tenant_capabilities(fqdn):
+from dt_master.api.tenant_auth import resolve_tenant_name
 
-    fqdn = fqdn.split(":")[0]
+@frappe.whitelist()
+def get_tenant_capabilities(fqdn=None):
 
     tenant = frappe.get_value(
         "Tenant Site",
         {
-            "fqdn": fqdn,
+            "name": resolve_tenant_name(fqdn),
             "status": ["in", ["Requested", "Active"]]
         },
         ["subscription", "status"],

@@ -2,6 +2,8 @@ import requests
 
 import frappe
 
+from dt_master.api.script_contract import secret
+
 def tenant_base_url(tenant):
     protocol = (tenant.protocol or "https").lower().replace("://", "")
     port = tenant.port
@@ -19,57 +21,6 @@ def _ensure_site_reachable(tenant):
             raise Exception(f"Tenant site unreachable: {r.status_code}")
     except Exception as e:
         raise Exception(f"Tenant site not reachable: {str(e)}")
-
-def _tenant_bootstrap_call(tenant, path, data=None, unauthenticated=False):
-    url = f"{tenant_base_url(tenant)}{path}"
-
-    headers = {"Content-Type": "application/json"}
-
-    # Bootstrap phase uses Administrator session or allow_guest
-    r = requests.post(url, json=data or {}, headers=headers, timeout=10)
-    r.raise_for_status()
-    return r.json()
-
-def _ensure_master_api_user_and_keys(tenant):
-    # If already provisioned, skip (idempotent)
-    if tenant.tenant_api_key and tenant.get_password("tenant_api_secret"):
-        return
-
-    # 1. Create API user on tenant
-    email = f"master-api@{tenant.fqdn}"
-
-    payload = {
-        "email": email,
-        "first_name": "Master API",
-        "enabled": 1,
-        "user_type": "System User",
-        "roles": ["System Manager"],
-    }
-
-    _tenant_bootstrap_call(
-        tenant,
-        "/api/method/frappe.core.doctype.user.user.create_user",
-        payload,
-        unauthenticated=True
-    )
-
-    # 2. Generate API keys
-    resp = _tenant_bootstrap_call(
-        tenant,
-        "/api/method/frappe.core.doctype.user.user.generate_keys",
-        {"user": email},
-        unauthenticated=True
-    )
-
-    api_key = resp["message"]["api_key"]
-    api_secret = resp["message"]["api_secret"]
-
-    # 3. Store securely on master
-    tenant.tenant_api_user = email
-    tenant.tenant_api_key = api_key
-    tenant.tenant_api_secret = api_secret
-    tenant.save()
-
 
 def _ensure_tenant_app_installed(tenant):
     resp = _tenant_api_call(
@@ -113,7 +64,7 @@ def _tenant_api_call(tenant, path, data=None):
     url = tenant_base_url(tenant) + path
 
     headers = {
-        "Authorization": f"token {tenant.tenant_api_key}:{tenant.tenant_api_secret}",
+        "Authorization": f"token {tenant.tenant_api_key}:{secret(tenant, 'tenant_api_secret')}",
         "Content-Type": "application/json",
     }
 
@@ -124,7 +75,18 @@ def _tenant_api_call(tenant, path, data=None):
 
 @frappe.whitelist()
 def provision_tenant(site_name):
+    frappe.only_for("System Manager")
+
     tenant = frappe.get_doc("Tenant Site", site_name)
+    tenant.check_permission("write")
+
+    if tenant.status == "Archived":
+        frappe.throw("Archived sites cannot be provisioned")
+
+    if not tenant.tenant_api_key or not secret(tenant, "tenant_api_secret"):
+        frappe.throw("Tenant API credentials are not configured on the Tenant Site")
+
+    previous_status = tenant.status
     tenant.status = "Provisioning"
     tenant.save()
 
@@ -140,9 +102,12 @@ def provision_tenant(site_name):
         for step in steps:
             step(tenant)
     except Exception as e:
-        tenant.status = "Failed"
+        # "Failed" is not a Tenant Site status; put the record back where it was
+        # and report the real error.
+        tenant.status = previous_status
         tenant.save()
-        frappe.throw(str(e))
+        frappe.db.commit()
+        frappe.throw(f"Tenant provisioning failed: {e}")
 
     tenant.status = "Active"
     tenant.save()

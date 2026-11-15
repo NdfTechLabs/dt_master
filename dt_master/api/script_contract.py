@@ -12,6 +12,11 @@ from threading import Thread
 import frappe
 
 
+def secret(doc, fieldname):
+    """Decrypted value of a Password field; empty string when unset."""
+    return doc.get_password(fieldname, raise_exception=False) or ""
+
+
 def path_environment(node):
     for field in ("scripts_base_dir", "project_base_dir", "project_logs_dir"):
         value = getattr(node, field, None)
@@ -56,9 +61,9 @@ def tenant_environment(node, tenant):
     env.update({
         "SITE_NAME": tenant.fqdn,
         "DB_NAME": tenant.database_name,
-        "ADMIN_PASSWORD": tenant.admin_password,
+        "ADMIN_PASSWORD": secret(tenant, "admin_password"),
         "MYSQL_ROOT_USER": tenant.mysql_root_user_name,
-        "MYSQL_ROOT_PASSWORD": tenant.mysql_root_user_password,
+        "MYSQL_ROOT_PASSWORD": secret(tenant, "mysql_root_user_password"),
         "FRAPPE_UPSTREAM_PORT": tenant.port,
         "TENANT_PROTOCOL": protocol,
         "LOCAL_HOSTS_ENTRY": "true" if protocol == "http" else "false",
@@ -129,14 +134,14 @@ def mail_environment(node, server, mail_user=None):
         tenant = frappe.get_doc("Tenant Site", server.tenant_site)
         env.update({
             "MYSQL_ROOT_USER": tenant.mysql_root_user_name,
-            "MYSQL_ROOT_PASSWORD": tenant.mysql_root_user_password,
+            "MYSQL_ROOT_PASSWORD": secret(tenant, "mysql_root_user_password"),
         })
     if mail_user:
         local, separator, domain = mail_user.email.partition("@")
         if not separator or domain.lower() != server.domain.lower() or not re.fullmatch(r"[A-Za-z0-9_.+-]+", local):
             frappe.throw("Mailbox address must belong to the mail server domain")
         env["MAIL_USER"] = local
-        env["MAIL_PASSWORD"] = mail_user.get_password("password") if mail_user.password else ""
+        env["MAIL_PASSWORD"] = secret(mail_user, "password")
     return env
 
 

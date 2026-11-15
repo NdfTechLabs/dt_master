@@ -2,6 +2,8 @@ import frappe
 from frappe.utils.pdf import get_pdf
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
+from dt_master.api.tenant_auth import authorize_invoice, resolve_tenant_name
+
 
 GATEWAY_REGISTRY = {
     "Debit/Credit Card": "dt_master.api.flutterwave_linker.FlutterwaveLinker",
@@ -53,8 +55,6 @@ def _get_or_retry_payment_request(invoice, gateway_instance,phone):
     # first payment attempt
     pr = frappe.new_doc("Payment Request")
 
-    pr = frappe.new_doc("Payment Request")
-
     pr.payment_request_type = "Inward"
     pr.party_type = "Customer"
     pr.party = invoice.customer
@@ -74,8 +74,6 @@ def _get_or_retry_payment_request(invoice, gateway_instance,phone):
     pr.submit()
 
     return pr
-
-    frappe.throw("Unable to determine subscription customer")
 
 
 def _create_payment_entry(invoice, gateway):
@@ -100,7 +98,9 @@ def _create_payment_entry(invoice, gateway):
     return payment_entry
 
 @frappe.whitelist()
-def download_invoice_pdf(invoice_name,prt_format):
+def download_invoice_pdf(invoice_name, prt_format, fqdn=None):
+
+    invoice_name = authorize_invoice(invoice_name, fqdn).name
 
     # temporarily elevate permissions
     original_user = frappe.session.user
@@ -118,7 +118,9 @@ def download_invoice_pdf(invoice_name,prt_format):
         frappe.set_user(original_user)
 
 @frappe.whitelist()
-def get_payment_gateways(fqdn):
+def get_payment_gateways(fqdn=None):
+
+    resolve_tenant_name(fqdn)
 
     gateways = frappe.get_all(
         "Payment Gateway",
@@ -161,9 +163,9 @@ def get_payment_gateways(fqdn):
     return result
 
 @frappe.whitelist()
-def pay_invoice(invoice_name, gateway, gateway_instance, payment_method_id=None, phone=None):
+def pay_invoice(invoice_name, gateway, gateway_instance, payment_method_id=None, phone=None, fqdn=None):
 
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    invoice = authorize_invoice(invoice_name, fqdn)
 
     if invoice.outstanding_amount <= 0:
         subscription_name = invoice.subscription
@@ -218,9 +220,9 @@ def pay_invoice(invoice_name, gateway, gateway_instance, payment_method_id=None,
     }
 
 @frappe.whitelist()
-def get_payment_methods(invoice_name, gateway, gateway_instance):
+def get_payment_methods(invoice_name, gateway, gateway_instance, fqdn=None):
 
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    invoice = authorize_invoice(invoice_name, fqdn)
 
     linker = get_gateway_linker(gateway, gateway_instance)
 
@@ -230,8 +232,9 @@ def get_payment_methods(invoice_name, gateway, gateway_instance):
     return linker.list_payment_methods(invoice.customer)
 
 @frappe.whitelist()
-@frappe.whitelist()
-def create_payment_method(gateway, gateway_instance, reference, type, details):
+def create_payment_method(gateway, gateway_instance, reference, type, details, fqdn=None):
+
+    resolve_tenant_name(fqdn)
 
     linker = get_gateway_linker(gateway, gateway_instance)
 
@@ -245,7 +248,9 @@ def create_payment_method(gateway, gateway_instance, reference, type, details):
     )
 
 @frappe.whitelist()
-def get_encryption_key(gateway, gateway_instance):
+def get_encryption_key(gateway, gateway_instance, fqdn=None):
+
+    resolve_tenant_name(fqdn)
 
     linker = get_gateway_linker(gateway, gateway_instance)
 
