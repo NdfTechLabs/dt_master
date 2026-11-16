@@ -341,8 +341,9 @@ Represents the complete desired runtime composition, not only the changed app. T
 | `framework_version` | Link → Framework Version | Yes | Compatibility catalogue reference |
 | `base_deployment` | Link → Bench Deployment | No | Existing successful baseline |
 | `composition_hash` | Data | Calculated | Hash of normalized complete composition |
-| `candidate_artifact_ref` | Data | No | Immutable candidate-input artifact reference |
-| `candidate_artifact_digest` | Data | No | Digest of exact submitted candidate input |
+| `candidate_artifact_ref` | Data | No | Immutable candidate-input OCI reference |
+| `candidate_artifact_digest` | Data | No | Exact OCI manifest digest of the submitted candidate input |
+| `candidate_payload_sha256` | Data | No | SHA-256 of the exact candidate JSON layer bytes; required once submitted |
 | `optional_capabilities` | Code | No | Explicitly selected capability identifiers |
 | `runtime_profile` | Data | Yes | Selected supported runtime profile |
 | `runtime_constraints` | Code | No | Validated runtime constraints |
@@ -374,6 +375,10 @@ Child `Deployment Candidate Application`:
 The resolved candidate contains the full desired app inventory, not only deltas. Every included app must resolve to a registered `app_id`, immutable release descriptor/digest and commit. A removal is rejected while any affected site still has the app installed.
 
 The candidate-input snapshot is immutable once submitted. It contains candidate/schema identity, product/composition, app identities/releases/descriptors, optional capabilities, runtime constraints/profile, approved build parameters, platform targets, composition hash and provenance. It must not contain tenant credentials, database passwords, API secrets, customer data, site FQDNs, Node-specific ports, TLS private keys, live tenant configuration or arbitrary shell commands. Corrections require a new candidate-input snapshot and digest; an already-submitted snapshot is never edited in place.
+
+Before dispatch, DT Master must sign the exact candidate OCI manifest digest using Cosign keyless signing with its GitHub Actions OIDC identity and attach a candidate-origin in-toto attestation to that same digest. The attestation uses predicate type `https://ndftechlabs.com/attestations/deployment-candidate/v1` and the versioned schema `https://ndftechlabs.com/schemas/deployment-candidate-origin-predicate-v1.schema.json`. Its claims bind the candidate ID, OCI repository/digest, exact payload SHA-256, DT Master repository, producing workflow path/ref, producer source commit, run ID/attempt and correlation ID. The predicate type is a stable HTTPS vocabulary/documentation URI, not a Frappe method endpoint or DocType record URL.
+
+NDF independently verifies the signature, exact producer certificate identity, GitHub Actions OIDC issuer, Rekor transparency evidence, predicate schema, OCI subject digest and candidate payload hash before accepting the candidate for build. NDF must not sign or re-attest the DT Master-produced candidate. The actual DT Master workflow identity must be observed from a live signing run and approved separately; it must not be inferred from a proposed workflow path.
 
 Candidate status is business lifecycle state and is not a substitute for the execution state of any individual build or deployment.
 
@@ -1608,6 +1613,14 @@ customer data or arbitrary shell commands. Node-specific ports, site FQDNs,
 TLS private keys and live tenant configuration are not part of the product
 image build input.
 
+The candidate OCI artifact is a DT Master-produced artifact. DT Master owns
+its signature and candidate-origin attestation; NDF is its independent
+consumer. NDF verifies this producer evidence before candidate adaptation and
+does not confer NDF identity on the candidate. NDF separately signs and
+attests to the image and Product Deployment Descriptor artifacts it produces.
+DT Master must independently verify those NDF signatures and attestations
+before treating the returned artifacts as eligible for a deployment decision.
+
 ### 16.5 Product Deployment Descriptor
 
 NDF publishes a versioned descriptor bound to the exact OCI image digest.
@@ -1656,17 +1669,28 @@ separately; do not fork or duplicate upstream Compose behavior unnecessarily.
 
 ### 16.7 Asynchronous build request/result contract
 
-1. DT Master creates and validates a Deployment Candidate.
-2. DT Master submits a candidate ID plus immutable candidate artifact reference
-   to an authorized NDF GitHub Actions workflow.
-3. NDF validates identity, composition, runtime compatibility, dependencies
-   and source provenance.
-4. NDF resolves the exact build lock, builds the image, validates installed
-   commit identities and product smoke requirements, and publishes the image.
-5. NDF generates and publishes the Product Deployment Descriptor associated
-   with that image digest.
-6. DT Master retrieves and verifies the descriptor, image digest, descriptor
-   digest, lock hash and composition hash before marking the candidate ready.
+1. DT Master creates and validates a Deployment Candidate and freezes an
+   immutable candidate-input snapshot.
+2. DT Master publishes the candidate OCI artifact, resolves its exact manifest
+   digest, computes the SHA-256 of the exact candidate JSON layer bytes, signs
+   that digest with its GitHub Actions OIDC identity and attaches the
+   candidate-origin attestation.
+3. DT Master submits the candidate ID, immutable OCI reference, exact payload
+   SHA-256 and correlation ID to the authorized NDF GitHub Actions workflow.
+4. NDF independently verifies the DT Master signature, producer identity,
+   OIDC issuer, Rekor evidence, candidate-origin predicate, subject digest and
+   exact payload bytes before schema validation or build-input adaptation.
+5. NDF resolves the exact build lock, builds the image, validates installed
+   commit identities and product smoke requirements, then signs and attests
+   to the exact image digest and publishes the image.
+6. NDF generates, signs and attests to the Product Deployment Descriptor
+   bound to that image digest.
+7. DT Master independently verifies the NDF image signature/provenance and
+   PDD signature/PDD-to-image binding, including producer identity and
+   transparency evidence, before marking the build eligible for deployment.
+8. A successful build or trust-verification result is not deployment
+   authorization; the separate Bench Deployment policy and execution gates
+   remain mandatory.
 
 The result contract returns candidate/request ID, GitHub workflow run ID,
 status, image repository/digest, descriptor artifact reference/digest,
@@ -1726,13 +1750,15 @@ The current NDF main-branch audit found:
 6. The ai-automation manifest declares a services array, but the resolver
    composes only applications. The current image build pipeline does not
    build or publish those independent service images from that declaration.
-7. No Product Deployment Descriptor schema/generator, candidate input
-   workflow, descriptor publication, Product Inclusion Request workflow or
-   authenticated DT Master build-result notification was found in the
-   inspected NDF tree.
-8. The current build workflow selects a fixed list of products. Publishing is
-   manual and product-list based; the release workflow promotes only the
-   DhanaERP Master image.
+7. The NDF main branch now contains Product Deployment Descriptor
+   schemas/generation/publication, candidate intake and reusable candidate
+   image/PDD workflows. The DT Master develop branch audit still found no
+   Deployment Candidate DocType implementation, candidate OCI publisher and
+   signer, or candidate-dispatch workflow. Therefore the producer/consumer
+   handoff is not yet operational end to end.
+8. Product-image publication remains manual and product-list based; the
+   separate NDF candidate workflow does not replace that path. The product
+   release workflow currently promotes only the DhanaERP Master image.
 9. images/ndf/.build/dalali-v16 contains generated apps.json and
    build-metadata.json in the repository tree. Generated build output should
    be ephemeral and ignored; committed deterministic lock files remain the
