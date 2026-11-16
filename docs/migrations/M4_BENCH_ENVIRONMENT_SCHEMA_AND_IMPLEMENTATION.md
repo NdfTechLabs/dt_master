@@ -1615,11 +1615,21 @@ image build input.
 
 The candidate OCI artifact is a DT Master-produced artifact. DT Master owns
 its signature and candidate-origin attestation; NDF is its independent
-consumer. NDF verifies this producer evidence before candidate adaptation and
-does not confer NDF identity on the candidate. NDF separately signs and
-attests to the image and Product Deployment Descriptor artifacts it produces.
-DT Master must independently verify those NDF signatures and attestations
-before treating the returned artifacts as eligible for a deployment decision.
+consumer. The in-toto Statement subject is the exact candidate OCI manifest
+digest. Its predicate must bind candidate ID, OCI repository/digest, exact
+candidate JSON layer SHA-256, DT Master repository, producing workflow
+path/ref, producer source commit, run ID/attempt and cross-repository
+correlation ID. The predicate type is
+`https://ndftechlabs.com/attestations/deployment-candidate/v1`; its schema is
+`https://ndftechlabs.com/schemas/deployment-candidate-origin-predicate-v1.schema.json`.
+
+NDF verifies the producer signature, exact certificate identity, GitHub
+Actions OIDC issuer, Rekor transparency evidence, predicate schema, subject
+digest and recomputed payload hash before candidate adaptation. NDF does not
+confer NDF identity on the candidate. NDF separately signs and attests to the
+image and Product Deployment Descriptor artifacts it produces. DT Master
+must independently verify those NDF signatures and attestations before
+treating the returned artifacts as eligible for a deployment decision.
 
 ### 16.5 Product Deployment Descriptor
 
@@ -1695,6 +1705,14 @@ separately; do not fork or duplicate upstream Compose behavior unnecessarily.
 The result contract returns candidate/request ID, GitHub workflow run ID,
 status, image repository/digest, descriptor artifact reference/digest,
 composition hash, lock hash, build provenance and a safe failure code/summary.
+It also returns separately typed trust outcomes and immutable report
+references for: (a) NDF's verification of the DT Master candidate-origin
+signature/attestation; (b) DT Master's verification of the NDF image
+signature and SLSA provenance; and (c) DT Master's verification of the NDF
+PDD signature and PDD-to-image binding attestation. A successful build result
+must not omit required trust evidence, and a trust rejection must not be
+normalized into a successful build or deployment authorization.
+
 Build execution is asynchronous; DT Master does not hold an HTTP request open
 while NDF builds.
 
