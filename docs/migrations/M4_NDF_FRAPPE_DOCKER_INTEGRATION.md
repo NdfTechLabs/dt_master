@@ -1,4 +1,4 @@
-**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** as of 2026-11-09 following the final 13-point acceptance review and explicit platform-owner approval. Implementation authorization is a separate gate and has **not been granted**. M4.2–M4.7 remain pending.  
+**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** (2026-11-09); M4.2 — Runtime Infrastructure Enhancements **Complete** within its accepted NDF scope (2026-11-17); M4.3 — Docker Orchestration Engine workplan **Approved** (2026-11-17), with implementation kickoff pending. M4.4–M4.7 remain pending.  
 
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
@@ -340,17 +340,14 @@ acceptance of the NDF Frappe Docker product image or DT Master integration.
 
 ## 8. M4 milestone status
 
-The following is the authoritative M4 milestone structure. M4.0 and M4.1 are completed;
-M4.2–M4.7 have not started. M4.1 completion records architecture acceptance,
-not implementation authorization. Earlier milestone labels or stage breakdowns in historical notes do
-not supersede this table.
+The following is the authoritative M4 milestone structure. M4.0–M4.2 are completed; the M4.3 workplan is approved and its implementation has not started; M4.4–M4.7 have not started. M4.1 completion records architecture acceptance, not blanket implementation authorization. M4.2 completion is recorded against the NDF parent acceptance evidence. Earlier milestone labels or stage breakdowns in historical notes do not supersede this table.
 
 | Milestone | Name | Repository | Scope | Status |
 |---|---|---|---|---|
 | **M4.0** | Architecture and Repository Discovery | Both | Audit existing implementations, ownership, boundaries and target architecture. | **Completed** |
 | **M4.1** | Integration Contract and Architecture | Both | Schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts accepted. | **Complete (2026-11-09)** |
-| **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology and deployment artifacts. | Not started |
-| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | Not started |
+| **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology, immutable artifacts and trust/acceptance contracts. | **Complete (2026-11-17)** — A01–A20 accepted within recorded scopes; see NDF M4.2.9.5 and M4.2.9.6 closure evidence at commit `e975fc16669573275bfd9d0a90886a4a912977e0`. |
+| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | **Workplan approved (2026-11-17); implementation kickoff pending.** See `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`. |
 | **M4.4** | Product Image Deployment | `dt_master` | Immutable NDF images, deployment candidates, build tracking, provisioning and replacement deployments. | Not started |
 | **M4.5** | Runtime Application Management | Both | Bench-level app availability, marketplace compatibility, site app installation governance and composition changes. | Not started |
 | **M4.6** | Tenant Site and DT Tenant Integration | Both + `dt_tenant` | Site lifecycle with Bench Environments, tenant requests, site-level app installation and lifecycle reporting. | Not started |
@@ -358,7 +355,7 @@ not supersede this table.
 
 ### M4.1 current position
 
-M4.1 — Integration Contract and Architecture is **Complete** as of 2026-11-09 following the final 13-point architecture acceptance review and the platform owner's explicit approval. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, source-level API/UI/security audits, cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. **Implementation authorization has not been granted.** M4.2–M4.7 remain pending.
+M4.1 — Integration Contract and Architecture is **Complete** as of 2026-11-09 following the final 13-point architecture acceptance review and the platform owner's explicit approval. The target Bench Environment ownership/schema, formal migration dispositions, runtime/ingress/health architecture, NDF artifact ownership principles, source-level API/UI/security audits, cross-repository authorization policy, NDF artifact/build/deployment contract, migration/rollback policy, common runtime adapter contract, durable operation contract and secret transport contract are accepted and recorded in the canonical specification. DT Master and DT Tenant retain authoritative operation and secret ownership for their respective responsibilities; cross-repository workflows use shared correlation IDs and protected secret references. The platform owner confirms no additional DT Master API consumers are known outside DT Tenant; independent runtime, deployment and credential-inventory verification remains an implementation prerequisite. M4.1 approval did not grant blanket implementation authorization. M4.2 has since completed under its own accepted scope; the M4.3 workplan is approved, while its implementation kickoff remains a separate gate. M4.4–M4.7 remain pending.
 
 Live Frappe behavior checks that do not change the architecture are recorded
 as implementation verification requirements for the relevant implementation
