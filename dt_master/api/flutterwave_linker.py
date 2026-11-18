@@ -1,165 +1,129 @@
 import frappe
 
+
 class FlutterwaveLinker:
+	MODULE = "flutterwave_gateway.flutterwave_gateway.doctype.flutterwave_settings.api"
+	SETTINGS = "Flutterwave Settings"
 
-    MODULE = "flutterwave_gateway.flutterwave_gateway.doctype.flutterwave_settings.api"
-    SETTINGS = "Flutterwave Settings"
-    def __init__(self, gateway_instance):
+	def __init__(self, gateway_instance):
+		gateway = frappe.get_doc("Payment Gateway", gateway_instance)
 
-        gateway = frappe.get_doc("Payment Gateway", gateway_instance)
+		self.SETTINGS = gateway.gateway_controller
 
-        self.SETTINGS = gateway.gateway_controller
+	def _resolve(self, path):
+		full_path = f"{self.MODULE}.{path}"
 
-    def _resolve(self, path):
+		parts = full_path.split(".")
 
-        full_path = f"{self.MODULE}.{path}"
+		module_path = ".".join(parts[:-1])
+		fn_name = parts[-1]
 
-        parts = full_path.split(".")
+		module = frappe.get_module(module_path)
 
-        module_path = ".".join(parts[:-1])
-        fn_name = parts[-1]
+		return getattr(module, fn_name)
 
-        module = frappe.get_module(module_path)
+	def _get_subscription_owner(self, invoice):
+		# invoice.customer is already the ERPNext customer
+		if invoice.customer:
+			return invoice.customer
 
-        return getattr(module, fn_name)
+		# fallback if invoice was created from subscription
+		if invoice.subscription:
+			return frappe.db.get_value("Subscription", invoice.subscription, "customer")
 
-    def _get_subscription_owner(self, invoice):
+	def _get_customer(self, erp_customer):
+		customer_id = frappe.db.get_value(
+			"Flutterwave Customer", {"customer": erp_customer}, "flutterwave_customer_id"
+		)
 
-        # invoice.customer is already the ERPNext customer
-        if invoice.customer:
-            return invoice.customer
+		if customer_id:
+			return customer_id
 
-        # fallback if invoice was created from subscription
-        if invoice.subscription:
-            return frappe.db.get_value(
-                "Subscription",
-                invoice.subscription,
-                "customer"
-            )
+		# Get ERPNext customer details
+		customer = frappe.get_doc("Customer", erp_customer)
 
-    def _get_customer(self, erp_customer):
+		email = (
+			frappe.db.get_value("Contact Email", {"parent": customer.name}, "email_id") or customer.email_id
+		)
 
-        customer_id = frappe.db.get_value(
-            "Flutterwave Customer",
-            {"customer": erp_customer},
-            "flutterwave_customer_id"
-        )
+		phone = frappe.db.get_value("Contact Phone", {"parent": customer.name}, "phone")
 
-        if customer_id:
-            return customer_id
+		first_name = customer.customer_name
+		last_name = ""
 
-        # Get ERPNext customer details
-        customer = frappe.get_doc("Customer", erp_customer)
+		fn = self._resolve("customer.create_customer")
 
-        email = frappe.db.get_value(
-            "Contact Email",
-            {"parent": customer.name},
-            "email_id"
-        ) or customer.email_id
+		customer_id = fn(
+			settings=self.SETTINGS,
+			customer=erp_customer,
+			email=email,
+			first_name=first_name,
+			last_name=last_name,
+			phone=phone,
+		)
 
-        phone = frappe.db.get_value(
-            "Contact Phone",
-            {"parent": customer.name},
-            "phone"
-        )
+		return customer_id
 
-        first_name = customer.customer_name
-        last_name = ""
+	def list_payment_methods(self, erp_customer):
+		customer_id = self._get_customer(erp_customer)
 
-        fn = self._resolve("customer.create_customer")
+		fn = self._resolve("payment_methods.list_payment_methods")
 
-        customer_id = fn(
-            settings=self.SETTINGS,
-            customer=erp_customer,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            phone=phone
-        )
+		return fn(settings=self.SETTINGS, customer_id=customer_id)
 
-        return customer_id
+	def charge(self, reference, amount, currency, payment_method_id):
+		invoice = frappe.get_doc("Sales Invoice", reference)
 
-    def list_payment_methods(self, erp_customer):
+		customer_id = self._get_customer(invoice.customer)
 
-        customer_id = self._get_customer(erp_customer)
+		create_fn = self._resolve("charges.create_charge")
+		list_fn = self._resolve("charges.list_charges")
 
-        fn = self._resolve("payment_methods.list_payment_methods")
+		try:
+			create_fn(
+				settings=self.SETTINGS,
+				customer_id=customer_id,
+				payment_method_id=payment_method_id,
+				amount=amount,
+				currency=currency,
+				reference=reference,
+			)
 
-        return fn(
-            settings=self.SETTINGS,
-            customer_id=customer_id
-        )
+			return True
 
+		except Exception as e:
+			error = str(e)
 
-    def charge(self, reference, amount, currency, payment_method_id):
+			if "CHARGE_ALREADY_EXISTS" in error:
+				# Fetch existing charges
+				charges = list_fn(settings=self.SETTINGS)
 
-        invoice = frappe.get_doc("Sales Invoice", reference)
+				for charge in charges:
+					if charge.get("reference") == reference:
+						if charge.get("status") in ["successful", "succeeded"]:
+							return True
 
-        customer_id = self._get_customer(invoice.customer)
+						if charge.get("status") == "failed":
+							frappe.throw("Existing charge failed")
 
-        create_fn = self._resolve("charges.create_charge")
-        list_fn = self._resolve("charges.list_charges")
+				frappe.throw("Charge exists but could not be validated")
 
-        try:
+			frappe.log_error(frappe.get_traceback(), "Flutterwave Charge Failed")
 
-            create_fn(
-                settings=self.SETTINGS,
-                customer_id=customer_id,
-                payment_method_id=payment_method_id,
-                amount=amount,
-                currency=currency,
-                reference=reference
-            )
+			raise
 
-            return True
+	def create_payment_method(self, reference, type, details):
+		invoice = frappe.get_doc("Sales Invoice", reference)
 
-        except Exception as e:
+		erp_customer = self._get_subscription_owner(invoice)
 
-            error = str(e)
+		customer_id = self._get_customer(erp_customer)
 
-            if "CHARGE_ALREADY_EXISTS" in error:
+		fn = self._resolve("payment_methods.create_payment_method")
 
-                # Fetch existing charges
-                charges = list_fn(settings=self.SETTINGS)
+		return fn(settings=self.SETTINGS, customer_id=customer_id, type=type, details=details)
 
-                for charge in charges:
+	def get_encryption_key(self):
+		fn = self._resolve("security.get_encryption_key")
 
-                    if charge.get("reference") == reference:
-
-                        if charge.get("status") in ["successful", "succeeded"]:
-                            return True
-
-                        if charge.get("status") == "failed":
-                            frappe.throw("Existing charge failed")
-
-                frappe.throw("Charge exists but could not be validated")
-
-            frappe.log_error(
-                frappe.get_traceback(),
-                "Flutterwave Charge Failed"
-            )
-
-            raise
-
-    def create_payment_method(self, reference, type, details):
-
-        invoice = frappe.get_doc("Sales Invoice", reference)
-
-        erp_customer = self._get_subscription_owner(invoice)
-
-        customer_id = self._get_customer(erp_customer)
-
-        fn = self._resolve("payment_methods.create_payment_method")
-
-        return fn(
-            settings=self.SETTINGS,
-            customer_id=customer_id,
-            type=type,
-            details=details
-        )
-
-    def get_encryption_key(self):
-
-        fn = self._resolve("security.get_encryption_key")
-
-        return fn(settings=self.SETTINGS)
+		return fn(settings=self.SETTINGS)

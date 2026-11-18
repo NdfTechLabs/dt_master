@@ -2,12 +2,11 @@
 """Read-only VM rehearsal sizing/readiness; never dump/copy data or print secrets."""
 
 import argparse
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REMOTE = r'''
+REMOTE = r"""
 from datetime import datetime,timezone
 import hashlib,json,os,pathlib,shutil,stat,subprocess
 if os.geteuid()!=0 or subprocess.check_output(['hostname'],text=True).strip()!='mail.ndftechlabs.com':
@@ -80,21 +79,41 @@ report['http_baseline']={}
 for name in ['dalali.ndftechlabs.com','demo.ndftechlabs.com','dulamanenterprise.ndftechlabs.com','erp.ndftechlabs.com']:
  report['http_baseline'][name]=run(['curl','--silent','--show-error','--max-time','10','--resolve',name+':443:127.0.0.1','--output','/dev/null','--write-out','%{http_code}','https://'+name+'/api/method/ping'])
 print(json.dumps(report,indent=2))
-'''
+"""
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--execute", action="store_true")
-    args = parser.parse_args()
-    if not args.execute:
-        print("Read-only preflight; --execute runs size/SELECT/service checks. No data copies, dump, lock or download.")
-        return
-    result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=60",
-                             "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "ssh.ndftechlabs.com",
-                             "sudo -n nice -n 15 ionice -c 3 python3 -"], input=REMOTE, text=True, timeout=900)
-    raise SystemExit(result.returncode)
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--execute", action="store_true")
+	args = parser.parse_args()
+	if not args.execute:
+		print(
+			"Read-only preflight; --execute runs size/SELECT/service checks. No data copies, dump, lock or download."
+		)
+		return
+	result = subprocess.run(
+		[
+			"ssh",
+			"-T",
+			"-o",
+			"BatchMode=yes",
+			"-o",
+			"StrictHostKeyChecking=yes",
+			"-o",
+			"ConnectTimeout=60",
+			"-o",
+			"ServerAliveInterval=15",
+			"-o",
+			"ServerAliveCountMax=2",
+			"ssh.ndftechlabs.com",
+			"sudo -n nice -n 15 ionice -c 3 python3 -",
+		],
+		input=REMOTE,
+		text=True,
+		timeout=900,
+	)
+	raise SystemExit(result.returncode)
 
 
 if __name__ == "__main__":
-    main()
+	main()

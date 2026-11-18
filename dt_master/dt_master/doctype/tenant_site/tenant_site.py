@@ -3,6 +3,7 @@
 
 # import frappe
 from frappe.model.document import Document
+
 from dt_master.api.script_contract import validate_app_rows
 
 
