@@ -27,6 +27,7 @@
   "storage_gb",
   "max_sites",
   "docker_inspection_section",
+  "docker_readiness_requirements",
   "docker_inspection_status",
   "docker_readiness",
   "docker_inspected_on",
@@ -123,6 +124,13 @@
    "fieldtype": "Section Break",
    "label": "Docker Runtime Inspection",
    "description": "Latest read-only inspection of the system Docker Engine. Independent of Host-native Node lifecycle state."
+  },
+  {
+   "fieldname": "docker_readiness_requirements",
+   "fieldtype": "Code",
+   "label": "Docker Readiness Requirements",
+   "options": "JSON",
+   "description": "Node-owned, explicitly configured Docker workload requirements. Leave empty until approved requirements are defined. Contract: docs/migrations/schemas/infrastructure-node-docker-readiness-requirements-v1.schema.json."
   },
   {
    "fieldname": "docker_inspection_status",
