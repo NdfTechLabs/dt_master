@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NdfTechLabs/dt_master/blob/develop/docs/migrations/schemas/infrastructure-node-docker-inspection-v1.schema.json",
+  "title": "Infrastructure Node Docker Inspection Snapshot",
+  "description": "Versioned, read-only observation of Docker runtime capability and machine resources on one Infrastructure Node. This snapshot is not an audit log; Node Action Log retains inspection-attempt history.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_at",
+    "duration_ms",
+    "inspection_status",
+    "readiness",
+    "host",
+    "docker_cli",
+    "engine",
+    "compose",
+    "storage",
+    "permissions",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "inspection_status": {
+      "enum": [
+        "Successful",
+        "Partial",
+        "Failed",
+        "Timed Out"
+      ]
+    },
+    "readiness": {
+      "enum": [
+        "Unknown",
+        "Ready",
+        "Degraded",
+        "Not Ready"
+      ]
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cpu",
+        "memory"
+      ],
+      "properties": {
+        "cpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "logical_cores"
+          ],
+          "properties": {
+            "logical_cores": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_bytes",
+            "available_bytes"
+          ],
+          "properties": {
+            "total_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "available_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "docker_cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "path",
+        "client_version"
+      ],
+      "properties": {
+        "installed": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "server_version",
+        "api_version",
+        "minimum_api_version"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "Available",
+            "Unavailable",
+            "Not Installed",
+            "Unknown"
+          ]
+        },
+        "server_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "api_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "minimum_api_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "compose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "version",
+        "compatibility"
+      ],
+      "properties": {
+        "installed": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "compatibility": {
+          "enum": [
+            "Compatible",
+            "Incompatible",
+            "Unavailable",
+            "Unknown"
+          ]
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "driver",
+        "data_root",
+        "filesystem"
+      ],
+      "properties": {
+        "driver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filesystem": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mount_point",
+            "total_bytes",
+            "available_bytes",
+            "used_bytes"
+          ],
+          "properties": {
+            "mount_point": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "available_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "used_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_identity",
+        "inspection_access"
+      ],
+      "properties": {
+        "execution_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inspection_access": {
+          "enum": [
+            "Allowed",
+            "Denied",
+            "Partial",
+            "Unknown"
+          ]
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "Info",
+              "Warning",
+              "Error"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
