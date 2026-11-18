@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Read-only Docker runtime and host-capacity inspection.
 set -uo pipefail
+# Inspect the Node's system-default Docker context, never a caller-selected endpoint.
+unset DOCKER_HOST DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
 
 started_ns=$(date +%s%N 2>/dev/null || echo 0)
 observed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
