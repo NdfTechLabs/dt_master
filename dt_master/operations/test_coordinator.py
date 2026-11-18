@@ -132,3 +132,119 @@ class TestOperationWorkerClaim(unittest.TestCase):
         ):
             worker.execute_operation("operation-test")
         handler.assert_not_called()
+
+
+    def test_guest_cannot_start_operation(self):
+        with patch.dict(frappe.session, {"user": "Guest"}):
+            with self.assertRaises(frappe.PermissionError):
+                coordinator.start_operation(
+                    "test.noop", "Infrastructure Node", "NODE-TEST", {}, "request-guest"
+                )
+
+    def test_unsupported_target_doctype_is_rejected(self):
+        with (
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
+            patch.object(frappe, "only_for"),
+        ):
+            with self.assertRaises(frappe.ValidationError):
+                coordinator.start_operation("test.noop", "User", "operator@example.com", {}, "request-user")
+
+    def test_registered_payload_validator_rejects_malformed_payload(self):
+        with (
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
+            patch.object(frappe, "only_for"),
+            patch.object(coordinator.frappe, "get_doc", return_value=self.target),
+        ):
+            with self.assertRaises(frappe.ValidationError):
+                coordinator.start_operation(
+                    "test.noop",
+                    "Infrastructure Node",
+                    "NODE-TEST",
+                    {"unexpected": "value"},
+                    "request-invalid-payload",
+                )
+
+    def test_dispatch_uses_registry_queue_and_worker_entrypoint(self):
+        queued_operation = MagicMock()
+        queued_operation.name = "operation-test"
+        queued_operation.operation_id = "operation-test"
+        queued_operation.execution_state = "Pending Dispatch"
+        queued_operation.operation_type = "test.noop"
+        queued_operation.contract_version = "1.0.0"
+        queued_operation.business_state = "Accepted"
+        job = MagicMock()
+        job.id = "rq-job-123"
+        with (
+            patch.object(coordinator.frappe, "get_doc", side_effect=[queued_operation, queued_operation]),
+            patch.object(coordinator.frappe.db, "set_value"),
+            patch.object(coordinator.frappe.db, "sql"),
+            patch.object(coordinator.frappe.db, "commit"),
+            patch.object(coordinator.frappe, "enqueue", return_value=job) as enqueue,
+            patch.object(coordinator, "now_datetime", return_value="2026-11-18 00:00:00"),
+        ):
+            coordinator.dispatch_operation("operation-test")
+        enqueue.assert_called_once_with(
+            "dt_master.operations.worker.execute_operation",
+            queue="short",
+            timeout=60,
+            job_name="dt-master-operation-operation-test",
+            enqueue_after_commit=False,
+            operation_id="operation-test",
+        )
+
+
+class TestOperationWorkerExecution(unittest.TestCase):
+    def setUp(self):
+        self.operation = MagicMock()
+        self.operation.operation_id = "operation-test"
+        self.operation.correlation_id = "correlation-test"
+        self.operation.operation_type = "test.noop"
+        self.operation.contract_version = "1.0.0"
+        self.operation.request_payload = "{}"
+        self.operation.target_doctype = "Infrastructure Node"
+        self.operation.target_name = "NODE-TEST"
+        self.operation.initiated_by = "operator@example.com"
+        self.operation.initiator_type = "Human"
+        self.operation.execution_identity = "frappe-worker"
+
+    def _run_worker(self, handler):
+        definition = replace(get_operation("test.noop"), handler=handler, authorize=MagicMock())
+        cursor = MagicMock()
+        cursor.rowcount = 1
+        target = MagicMock()
+        with (
+            patch.object(worker.frappe, "get_doc", side_effect=[self.operation, target]),
+            patch.object(worker, "get_operation", return_value=definition),
+            patch.object(worker.frappe.db, "sql"),
+            patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker.frappe.db, "commit"),
+            patch.object(worker.frappe.db, "rollback") as rollback,
+            patch.object(worker.frappe.db, "set_value") as set_value,
+            patch.object(worker.frappe, "log_error"),
+            patch.object(worker.frappe, "set_user"),
+            patch.dict(worker.frappe.session, {"user": "Administrator"}),
+            patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
+        ):
+            worker.execute_operation("operation-test")
+        return set_value, rollback, definition
+
+    def test_worker_success_persists_structured_result(self):
+        handler = MagicMock(return_value={"status": "ok"})
+        set_value, rollback, _ = self._run_worker(handler)
+        handler.assert_called_once()
+        rollback.assert_not_called()
+        saved_values = set_value.call_args.args[2]
+        self.assertEqual(saved_values["execution_state"], "Succeeded")
+        self.assertEqual(saved_values["business_state"], "Completed")
+        self.assertEqual(saved_values["result_payload"], '{"status":"ok"}')
+
+    def test_worker_failure_persists_sanitized_failure(self):
+        handler = MagicMock(side_effect=RuntimeError("sensitive internal detail"))
+        set_value, rollback, _ = self._run_worker(handler)
+        handler.assert_called_once()
+        rollback.assert_called_once()
+        saved_values = set_value.call_args.args[2]
+        self.assertEqual(saved_values["execution_state"], "Failed")
+        self.assertEqual(saved_values["business_state"], "Failed")
+        self.assertEqual(saved_values["error_code"], "HANDLER_FAILED")
+        self.assertNotIn("sensitive internal detail", saved_values["error_summary"])
