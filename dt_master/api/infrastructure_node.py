@@ -5,6 +5,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script, secret
+from dt_master.docker_readiness import evaluate_node_docker_readiness
 
 ALLOWED_TRANSITIONS = {
 	"Declared": ["SSH Ready", "Error"],
@@ -1127,15 +1128,19 @@ def inspect_docker_runtime(node_name):
 
 	finished = now_datetime()
 	snapshot["inspection_status"] = status
+	evaluation = evaluate_node_docker_readiness(node, snapshot)
+	evaluation_json = json.dumps(evaluation, separators=(",", ":"), sort_keys=True)
 	snapshot_json = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
-	# db.set_value intentionally bypasses the DocType's client-edit protection;
-	# only this authorized server method writes the four server-owned fields.
+	# Persist observation and its independently evaluated readiness together.
+	# The probe-provided snapshot["readiness"] is retained only for schema
+	# compatibility and is never used as the authoritative Node readiness.
 	frappe.db.set_value(
 		"Infrastructure Node",
 		node.name,
 		{
 			"docker_inspection_status": status,
-			"docker_readiness": snapshot["readiness"],
+			"docker_readiness": evaluation["readiness"],
+			"docker_readiness_evaluation": evaluation_json,
 			"docker_inspected_on": finished,
 			"docker_inspection_snapshot": snapshot_json,
 		},
@@ -1155,4 +1160,9 @@ def inspect_docker_runtime(node_name):
 		started_at=started,
 		finished_at=finished,
 	)
-	return {"inspection_status": status, "readiness": snapshot["readiness"], "snapshot": snapshot}
+	return {
+		"inspection_status": status,
+		"readiness": evaluation["readiness"],
+		"readiness_evaluation": evaluation,
+		"snapshot": snapshot,
+	}
