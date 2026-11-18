@@ -8,6 +8,9 @@ import subprocess
 from pathlib import PurePosixPath
 from queue import Queue
 from threading import Thread
+from time import monotonic
+
+from dt_master.api.ssh_transport import build_ssh_argv
 
 import frappe
 
@@ -179,7 +182,7 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
         frappe.throw("Invalid SSH port")
     script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
     env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
-    command = ["ssh", "-o", "BatchMode=yes", "-p", str(port), f"{ssh['user']}@{ssh['host']}", build_remote_command(env, script)]
+    command = build_ssh_argv(ssh, build_remote_command(env, script))
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
     queue = Queue()
 
