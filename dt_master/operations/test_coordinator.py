@@ -175,6 +175,7 @@ class TestOperationWorkerClaim(unittest.TestCase):
         operation.operation_id = "operation-test"
         operation.operation_type = "test.noop"
         operation.contract_version = "1.0.0"
+        operation.execution_state = "Queued"
         definition = get_operation("test.noop")
         handler = MagicMock()
         definition = replace(definition, handler=handler)
@@ -191,6 +192,23 @@ class TestOperationWorkerClaim(unittest.TestCase):
             worker.execute_operation("operation-test")
         handler.assert_not_called()
 
+    def test_terminal_operation_is_unchanged_by_stale_contract_delivery(self):
+        operation = MagicMock()
+        operation.operation_id = "operation-test"
+        operation.operation_type = "test.noop"
+        operation.contract_version = "0.9.0"
+        operation.execution_state = "Succeeded"
+        with (
+            patch.object(worker.frappe, "get_doc", return_value=operation),
+            patch.object(worker, "get_operation") as get_operation,
+            patch.object(worker.frappe.db, "sql") as sql,
+            patch.object(worker, "_set_operation_fields") as set_fields,
+        ):
+            worker.execute_operation("operation-test")
+
+        get_operation.assert_not_called()
+        sql.assert_not_called()
+        set_fields.assert_not_called()
 
 
 class TestOperationWorkerExecution(unittest.TestCase):
@@ -200,6 +218,7 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.operation.correlation_id = "correlation-test"
         self.operation.operation_type = "test.noop"
         self.operation.contract_version = "1.0.0"
+        self.operation.execution_state = "Queued"
         self.operation.request_payload = "{}"
         self.operation.target_doctype = "Infrastructure Node"
         self.operation.target_name = "NODE-TEST"
