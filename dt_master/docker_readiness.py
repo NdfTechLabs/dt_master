@@ -14,7 +14,6 @@ from typing import Any
 
 EVALUATOR_VERSION = "1.1.0"
 REQUIREMENTS_VERSION = "1.0.0"
-READINESS_STATES = {"Unknown", "Ready", "Degraded", "Not Ready"}
 SEVERITIES = {"Required", "Recommended"}
 
 _REQUIREMENT_PATHS = {
@@ -157,8 +156,6 @@ def _validate_snapshot(snapshot: dict[str, Any]) -> None:
         raise ReadinessContractError("Unsupported Docker inspection snapshot schema")
     if snapshot.get("inspection_status") not in {"Successful", "Partial", "Failed", "Timed Out"}:
         raise ReadinessContractError("Invalid inspection status")
-    if snapshot.get("readiness") not in READINESS_STATES:
-        raise ReadinessContractError("Invalid snapshot readiness value")
     observed_at = snapshot.get("observed_at")
     if not isinstance(observed_at, str):
         raise ReadinessContractError("Snapshot observed_at must be an ISO-8601 timestamp")
