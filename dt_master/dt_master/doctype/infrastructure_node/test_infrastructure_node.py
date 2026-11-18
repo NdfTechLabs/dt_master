@@ -3,6 +3,8 @@
 
 import frappe
 from frappe.tests import IntegrationTestCase
+
+from dt_master.dt_master.doctype.infrastructure_node.infrastructure_node import InfrastructureNode
 from frappe.utils import get_datetime
 
 # On IntegrationTestCase, the doctype test records and all
@@ -104,7 +106,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 	def test_equivalent_inspection_datetime_representations_are_unchanged(self):
 		timestamp = "2026-11-18 11:00:00"
 		self.assertEqual(
-			frappe.get_doc("Infrastructure Node")._normalize_inspection_value(
+			InfrastructureNode._normalize_inspection_value(
 				"docker_inspected_on", timestamp
 			),
 			get_datetime(timestamp),
