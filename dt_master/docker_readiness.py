@@ -1,7 +1,7 @@
 """Pure Docker readiness evaluation for Infrastructure Nodes.
 
-The evaluator has no Frappe or I/O dependencies. Callers must supply a
-validated requirements document and an inspection snapshot.
+The evaluator has no Frappe or I/O dependencies. Callers supply normalized
+requirements built from the typed Infrastructure Node fields and a snapshot.
 """
 from __future__ import annotations
 
@@ -12,12 +12,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-EVALUATOR_VERSION = "1.0.0"
+EVALUATOR_VERSION = "1.1.0"
 REQUIREMENTS_VERSION = "1.0.0"
 READINESS_STATES = {"Unknown", "Ready", "Degraded", "Not Ready"}
-SEVERITIES = {"required", "recommended"}
+SEVERITIES = {"Required", "Recommended"}
 
-# Each requirement maps to one observed value in the v1 inspection snapshot.
 _REQUIREMENT_PATHS = {
     "docker_engine_required": ("engine", "availability"),
     "docker_compose_required": ("compose", "compatibility"),
@@ -29,17 +28,27 @@ _REQUIREMENT_PATHS = {
     "min_compose_version": ("compose", "version"),
 }
 _NUMERIC_REQUIREMENTS = {
-    "min_cpu_cores",
-    "min_total_memory_bytes",
-    "min_available_memory_bytes",
-    "min_available_storage_bytes",
+    "min_cpu_cores", "min_total_memory_bytes",
+    "min_available_memory_bytes", "min_available_storage_bytes",
 }
 _VERSION_REQUIREMENTS = {"min_engine_version", "min_compose_version"}
 _BOOLEAN_REQUIREMENTS = {"docker_engine_required", "docker_compose_required"}
 
+# Maps normalized evaluator keys to Infrastructure Node value/severity fields.
+NODE_REQUIREMENT_FIELDS = {
+    "docker_engine_required": ("docker_engine_required", "docker_engine_severity", "boolean"),
+    "docker_compose_required": ("docker_compose_required", "docker_compose_severity", "boolean"),
+    "min_cpu_cores": ("docker_min_cpu_cores", "docker_min_cpu_cores_severity", "number"),
+    "min_total_memory_bytes": ("docker_min_total_memory_bytes", "docker_min_total_memory_severity", "number"),
+    "min_available_memory_bytes": ("docker_min_available_memory_bytes", "docker_min_available_memory_severity", "number"),
+    "min_available_storage_bytes": ("docker_min_available_storage_bytes", "docker_min_available_storage_severity", "number"),
+    "min_engine_version": ("docker_min_engine_version", "docker_min_engine_version_severity", "version"),
+    "min_compose_version": ("docker_min_compose_version", "docker_min_compose_version_severity", "version"),
+}
+
 
 class ReadinessContractError(ValueError):
-    """Raised when a policy or snapshot violates the evaluator contract."""
+    """Raised when requirements or a snapshot violate the evaluator contract."""
 
 
 def _canonical_fingerprint(value: dict[str, Any]) -> str:
@@ -63,47 +72,74 @@ def _path_value(snapshot: dict[str, Any], path: tuple[str, ...]) -> Any:
     return current
 
 
-def _validate_requirements(requirements: dict[str, Any]) -> list[dict[str, Any]]:
+def build_node_readiness_requirements(node: Any) -> dict[str, Any]:
+    """Normalize individual typed Node fields into the evaluator's private contract."""
+    checks = []
+    for key, (value_field, severity_field, kind) in NODE_REQUIREMENT_FIELDS.items():
+        value = node.get(value_field)
+        if kind == "boolean":
+            if not value:
+                if node.get(severity_field):
+                    raise ReadinessContractError(f"{severity_field} requires {value_field} to be enabled")
+                continue
+            expected = True
+        else:
+            if value in (None, ""):
+                if node.get(severity_field):
+                    raise ReadinessContractError(f"{severity_field} requires {value_field} to be configured")
+                continue
+            expected = value
+        severity = node.get(severity_field)
+        if severity not in SEVERITIES:
+            raise ReadinessContractError(f"{severity_field} must be Required or Recommended")
+        checks.append({"key": key, "severity": severity.lower(), "expected": expected})
+
+    max_age = node.get("docker_max_snapshot_age_seconds")
+    if max_age not in (None, ""):
+        if isinstance(max_age, bool) or not isinstance(max_age, int) or max_age <= 0:
+            raise ReadinessContractError("docker_max_snapshot_age_seconds must be a positive integer")
+
+    if not checks:
+        return {}
+    return {
+        "requirements_version": REQUIREMENTS_VERSION,
+        "checks": checks,
+        **({"max_snapshot_age_seconds": max_age} if max_age else {}),
+    }
+
+
+def validate_docker_readiness_requirements(requirements: dict[str, Any]) -> None:
+    """Validate the normalized requirements document."""
     if not isinstance(requirements, dict) or requirements.get("requirements_version") != REQUIREMENTS_VERSION:
         raise ReadinessContractError("Unsupported Docker readiness requirements version")
     if set(requirements) - {"requirements_version", "checks", "max_snapshot_age_seconds"}:
-        raise ReadinessContractError("Unknown top-level requirements property")
+        raise ReadinessContractError("Unknown requirements property")
     checks = requirements.get("checks")
-    if not isinstance(checks, list):
-        raise ReadinessContractError("Requirements checks must be a list")
-    if not checks:
+    if not isinstance(checks, list) or not checks:
         raise ReadinessContractError("At least one readiness requirement must be configured")
     seen = set()
-    normalized = []
     for check in checks:
         if not isinstance(check, dict) or set(check) != {"key", "severity", "expected"}:
             raise ReadinessContractError("Each check must contain exactly key, severity and expected")
         key, severity, expected = check["key"], check["severity"], check["expected"]
-        if not isinstance(key, str) or key not in _REQUIREMENT_PATHS or key in seen:
+        if key not in _REQUIREMENT_PATHS or key in seen:
             raise ReadinessContractError(f"Unknown or duplicate readiness requirement: {key}")
-        if severity not in SEVERITIES:
+        if severity not in {"required", "recommended"}:
             raise ReadinessContractError(f"Invalid severity for requirement: {key}")
-        if key in _BOOLEAN_REQUIREMENTS and not isinstance(expected, bool):
-            raise ReadinessContractError(f"{key} expected value must be boolean")
+        if key in _BOOLEAN_REQUIREMENTS and expected is not True:
+            raise ReadinessContractError(f"{key} must be enabled when configured")
         if key in _NUMERIC_REQUIREMENTS and (
-            isinstance(expected, bool) or not isinstance(expected, (int, float)) or expected <= 0
+            isinstance(expected, bool) or not isinstance(expected, int) or expected <= 0
         ):
-            raise ReadinessContractError(f"{key} expected value must be a positive number")
+            raise ReadinessContractError(f"{key} must be a positive integer")
         if key in _VERSION_REQUIREMENTS:
             _version_tuple(expected, key)
         seen.add(key)
-        normalized.append(check)
     max_age = requirements.get("max_snapshot_age_seconds")
     if max_age is not None and (
         isinstance(max_age, bool) or not isinstance(max_age, int) or max_age <= 0
     ):
         raise ReadinessContractError("max_snapshot_age_seconds must be a positive integer")
-    return normalized
-
-
-def validate_docker_readiness_requirements(requirements: dict[str, Any]) -> None:
-    """Validate a requirements document stored directly on an Infrastructure Node."""
-    _validate_requirements(requirements)
 
 
 def _validate_snapshot(snapshot: dict[str, Any]) -> None:
@@ -130,11 +166,7 @@ def evaluate_docker_readiness(
     *,
     evaluated_at: datetime | None = None,
 ) -> dict[str, Any]:
-    """Evaluate configured Node requirements against one inspection snapshot.
-
-    The snapshot's existing readiness value is deliberately ignored. Only the
-    evaluator result is authoritative for persisted Docker readiness.
-    """
+    """Evaluate normalized Node requirements against one inspection snapshot."""
     _validate_snapshot(snapshot)
     now = evaluated_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -157,8 +189,7 @@ def evaluate_docker_readiness(
                 "remediation": "Configure the approved Node-level Docker readiness requirements.",
             }],
         }
-    checks = _validate_requirements(requirements)
-
+    validate_docker_readiness_requirements(requirements)
     observed_at = datetime.fromisoformat(snapshot["observed_at"].replace("Z", "+00:00"))
     max_age = requirements.get("max_snapshot_age_seconds")
     stale = max_age is not None and (now - observed_at).total_seconds() > max_age
@@ -171,13 +202,9 @@ def evaluate_docker_readiness(
     def add(code: str, severity: str, requirement: str | None, observed: Any,
             expected: Any, message: str, remediation: str) -> None:
         diagnostics.append({
-            "code": code,
-            "severity": severity,
-            "requirement": requirement,
-            "observed": observed,
-            "expected": expected,
-            "message": message,
-            "remediation": remediation,
+            "code": code, "severity": severity, "requirement": requirement,
+            "observed": observed, "expected": expected,
+            "message": message, "remediation": remediation,
         })
 
     if stale:
@@ -190,13 +217,9 @@ def evaluate_docker_readiness(
         unknown_required = True
         unknown_evidence = True
 
-    # Failed/partial snapshots do not distinguish observed false values from
-    # fallback defaults, so their component values cannot prove a requirement.
     evidence_trustworthy = snapshot["inspection_status"] == "Successful" and not stale
-    for check in checks:
+    for check in requirements["checks"]:
         key, severity, expected = check["key"], check["severity"], check["expected"]
-        if key in _BOOLEAN_REQUIREMENTS and expected is False:
-            continue
         observed = _path_value(snapshot, _REQUIREMENT_PATHS[key])
         if not evidence_trustworthy or observed is None:
             add(
