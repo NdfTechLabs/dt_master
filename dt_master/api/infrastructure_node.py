@@ -102,7 +102,8 @@ def _get_ssh_config(node):
     return {
         "host": node.ip_address.strip(),
         "user": node.ssh_user,
-        "port": node.ssh_port or 22
+        "port": node.ssh_port or 22,
+        "host_alias": getattr(node, "ssh_host_alias", None) or None,
     }
 
 def _get_node_dependencies(node):
