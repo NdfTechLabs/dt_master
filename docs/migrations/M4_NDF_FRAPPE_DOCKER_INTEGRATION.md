@@ -340,18 +340,31 @@ acceptance of the NDF Frappe Docker product image or DT Master integration.
 
 ## 8. M4 milestone status
 
-The following is the authoritative M4 milestone structure. M4.0–M4.2 are completed; the M4.3 workplan is approved and its implementation has not started; M4.4–M4.7 have not started. M4.1 completion records architecture acceptance, not blanket implementation authorization. M4.2 completion is recorded against the NDF parent acceptance evidence. Earlier milestone labels or stage breakdowns in historical notes do not supersede this table.
+The following is the authoritative M4 milestone structure. M4.0–M4.2 are completed. M4.3 implementation has started: M4.3.1 is complete and M4.3.2 is the next active package. M4.4–M4.7 have not started. M4.1 completion records architecture acceptance, not blanket implementation authorization. M4.2 completion is recorded against the NDF parent acceptance evidence. Earlier milestone labels or stage breakdowns in historical notes do not supersede this table.
 
 | Milestone | Name | Repository | Scope | Status |
 |---|---|---|---|---|
 | **M4.0** | Architecture and Repository Discovery | Both | Audit existing implementations, ownership, boundaries and target architecture. | **Completed** |
 | **M4.1** | Integration Contract and Architecture | Both | Schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts accepted. | **Complete (2026-11-09)** |
 | **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology, immutable artifacts and trust/acceptance contracts. | **Complete (2026-11-17)** — A01–A20 accepted within recorded scopes; see NDF M4.2.9.5 and M4.2.9.6 closure evidence at commit `e975fc16669573275bfd9d0a90886a4a912977e0`. |
-| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | **Workplan approved (2026-11-17); implementation kickoff pending.** See `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`. |
+| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | **In progress (2026-11-18): M4.3.1 complete; M4.3.2 next.** See `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`. |
 | **M4.4** | Product Image Deployment | `dt_master` | Immutable NDF images, deployment candidates, build tracking, provisioning and replacement deployments. | Not started |
 | **M4.5** | Runtime Application Management | Both | Bench-level app availability, marketplace compatibility, site app installation governance and composition changes. | Not started |
 | **M4.6** | Tenant Site and DT Tenant Integration | Both + `dt_tenant` | Site lifecycle with Bench Environments, tenant requests, site-level app installation and lifecycle reporting. | Not started |
 | **M4.7** | Integration Testing and Production Readiness | Both | End-to-end tests, migration validation, security, monitoring, recovery, rollback and production readiness. | Not started |
+
+### M4.3 current position
+
+M4.3 — Docker Orchestration Engine is underway on `develop`. The approved workplan remains the detailed source for package scope and acceptance criteria.
+
+- **M4.3.1 — Runtime Foundation and Readiness: Complete (2026-11-17).** The source-level review mapped the existing Infrastructure Node/related DocTypes, Host-native lifecycle implementation and accepted runtime contracts. It established that Docker orchestration/readiness is not yet implemented in DT Master.
+- **M4.3.2 — Infrastructure Node Docker Readiness: Next package.** This is an application implementation task focused on Infrastructure Node and its related DocTypes, APIs, remote-execution path, scripts, UI and tests. It is not a manual physical-server inspection exercise.
+- **M4.3.2.1–M4.3.2.6:** These are execution steps nested within M4.3.2, not separate M4.3 work packages. The immediate next step is M4.3.2.1: file-by-file implementation review and design.
+- **M4.3.3–M4.3.10:** Remain subsequent, separately scoped work packages in the approved sequence. In particular, mutating runtime operations remain gated on M4.3.3's durable operation foundation and the later adapter/orchestration packages.
+- Host-native Node and Bench functionality must remain operational throughout M4.3.
+
+The M4.3.1 local review snapshot was `develop` at `73f0378` (clean working tree), with Frappe 16.53.0, ERPNext 16.52.1 and Python 3.14.3. This is historical baseline evidence for that review, not a live-node verification result or a claim about the current remote HEAD.
+
 
 ### M4.1 current position
 
