@@ -5,6 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from dt_master.dt_master.doctype.infrastructure_node.infrastructure_node import InfrastructureNode
+from dt_master.docker_readiness import evaluate_node_docker_readiness
 from frappe.utils import get_datetime
 
 # On IntegrationTestCase, the doctype test records and all
@@ -75,6 +76,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertEqual(node.docker_readiness, "Unknown")
 		self.assertFalse(node.docker_inspected_on)
 		self.assertFalse(node.docker_inspection_snapshot)
+		self.assertFalse(node.docker_readiness_evaluation)
 		node.validate()
 
 	def test_new_node_rejects_client_supplied_docker_observations(self):
@@ -117,3 +119,41 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.docker_inspected_on = "2026-11-18 11:00:00"
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
+
+
+    def test_new_node_rejects_client_supplied_readiness_evaluation(self):
+        node = self._new_node()
+        node.docker_readiness_evaluation = '{"readiness":"Ready"}'
+        with self.assertRaises(frappe.ValidationError):
+            node.validate()
+
+    def test_saved_node_rejects_client_supplied_readiness_evaluation(self):
+        node = self._new_node()
+        node.insert(ignore_permissions=True)
+        node.docker_readiness_evaluation = '{"readiness":"Ready"}'
+        with self.assertRaises(frappe.ValidationError):
+            node.save(ignore_permissions=True)
+
+    def test_requirements_change_detection_covers_typed_fields(self):
+        class Values:
+            def __init__(self, **kwargs):
+                self.values = kwargs
+
+            def get(self, key):
+                return self.values.get(key)
+
+        previous = Values(docker_engine_required=0, docker_min_cpu_cores=4)
+        current = Values(docker_engine_required=1, docker_min_cpu_cores=4)
+        self.assertTrue(InfrastructureNode._docker_requirements_changed(previous, current))
+        self.assertFalse(InfrastructureNode._docker_requirements_changed(previous, previous))
+
+    def test_missing_snapshot_evaluates_to_unknown(self):
+        node = self._new_node()
+        node.docker_engine_required = 1
+        node.docker_engine_severity = "Required"
+        result = evaluate_node_docker_readiness(node, None)
+        self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE",
+        )
