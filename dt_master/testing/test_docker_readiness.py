@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from dt_master.docker_readiness import (
     ReadinessContractError,
     evaluate_docker_readiness,
+    validate_docker_readiness_requirements,
 )
 
 
@@ -157,9 +158,17 @@ class TestDockerReadiness(unittest.TestCase):
         with self.assertRaises(ReadinessContractError):
             evaluate_docker_readiness(policy([item, item]), snapshot())
 
-    def test_unconfigured_policy_is_rejected_not_ready(self):
-        with self.assertRaises(ReadinessContractError):
-            evaluate_docker_readiness(policy([]), snapshot())
+    def test_unconfigured_node_requirements_result_in_unknown(self):
+        result = evaluate_docker_readiness(None, snapshot())
+        self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_READINESS_REQUIREMENTS_UNCONFIGURED")
+
+    def test_empty_node_requirements_result_in_unknown(self):
+        result = evaluate_docker_readiness({}, snapshot())
+        self.assertEqual(result["readiness"], "Unknown")
+
+    def test_node_requirements_validator_accepts_explicit_policy(self):
+        validate_docker_readiness_requirements(policy([check("docker_engine_required", True)]))
 
     def test_snapshot_readiness_is_not_authoritative(self):
         data = snapshot(readiness="Ready")
