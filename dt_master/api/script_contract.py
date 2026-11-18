@@ -206,15 +206,18 @@ def run_remote_script(node, ssh, category, script_name, env, event, context, use
         decoder = codecs.getincrementaldecoder("utf-8")("replace")
         try:
             while True:
-                raw = os.read(pipe.fileno(), 4096)
+                raw = pipe.read(4096)
                 if not raw:
                     break
-                chunk = decoder.decode(raw)
+                # Popen pipes return bytes; lightweight test doubles and
+                # compatible file-like streams may return text directly.
+                chunk = raw if isinstance(raw, str) else decoder.decode(raw)
                 if chunk:
                     queue.put((stream, chunk))
-            tail = decoder.decode(b"", final=True)
-            if tail:
-                queue.put((stream, tail))
+            if not isinstance(raw, str):
+                tail = decoder.decode(b"", final=True)
+                if tail:
+                    queue.put((stream, tail))
         finally:
             pipe.close()
             queue.put((stream, None))
