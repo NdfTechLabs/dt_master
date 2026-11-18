@@ -101,6 +101,11 @@ def _validate_requirements(requirements: dict[str, Any]) -> list[dict[str, Any]]
     return normalized
 
 
+def validate_docker_readiness_requirements(requirements: dict[str, Any]) -> None:
+    """Validate a requirements document stored directly on an Infrastructure Node."""
+    _validate_requirements(requirements)
+
+
 def _validate_snapshot(snapshot: dict[str, Any]) -> None:
     if not isinstance(snapshot, dict) or snapshot.get("schema_version") != "1.0.0":
         raise ReadinessContractError("Unsupported Docker inspection snapshot schema")
@@ -120,7 +125,7 @@ def _validate_snapshot(snapshot: dict[str, Any]) -> None:
 
 
 def evaluate_docker_readiness(
-    requirements: dict[str, Any],
+    requirements: dict[str, Any] | None,
     snapshot: dict[str, Any],
     *,
     evaluated_at: datetime | None = None,
@@ -130,11 +135,29 @@ def evaluate_docker_readiness(
     The snapshot's existing readiness value is deliberately ignored. Only the
     evaluator result is authoritative for persisted Docker readiness.
     """
-    checks = _validate_requirements(requirements)
     _validate_snapshot(snapshot)
     now = evaluated_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
         raise ReadinessContractError("evaluated_at must be timezone-aware")
+    if requirements in (None, {}):
+        return {
+            "readiness": "Unknown",
+            "evaluator_version": EVALUATOR_VERSION,
+            "requirements_version": None,
+            "requirements_fingerprint": None,
+            "inspection_observed_at": snapshot["observed_at"],
+            "evaluated_at": now.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "diagnostics": [{
+                "code": "DOCKER_READINESS_REQUIREMENTS_UNCONFIGURED",
+                "severity": "Warning",
+                "requirement": None,
+                "observed": None,
+                "expected": None,
+                "message": "Docker readiness requirements have not been configured on this Infrastructure Node.",
+                "remediation": "Configure the approved Node-level Docker readiness requirements.",
+            }],
+        }
+    checks = _validate_requirements(requirements)
 
     observed_at = datetime.fromisoformat(snapshot["observed_at"].replace("Z", "+00:00"))
     max_age = requirements.get("max_snapshot_age_seconds")
