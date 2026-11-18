@@ -171,7 +171,7 @@ def build_remote_command(env, script_path, use_sudo=True):
     return f"sudo -n {command}" if use_sudo else command
 
 
-def run_remote_script(node, ssh, category, script_name, env, event, context, use_sudo=True):
+def run_remote_script(node, ssh, category, script_name, env, event, context, use_sudo=True, timeout_seconds=300, max_output_bytes=2_000_000):
     """Drain both pipes concurrently; preserve existing event names and result tuple."""
     if not node.scripts_base_dir or not str(node.scripts_base_dir).startswith("/"):
         frappe.throw("An absolute scripts base directory must be configured on the node")
@@ -190,8 +190,10 @@ def run_remote_script(node, ssh, category, script_name, env, event, context, use
     script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
     env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
     command = build_ssh_argv(ssh, build_remote_command(env, script, use_sudo=use_sudo))
-    timeout_seconds = 300
-    max_output_bytes = 2_000_000
+    if not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 3600:
+        raise ValueError("Remote script timeout must be between 1 and 3600 seconds")
+    if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 20_000_000:
+        raise ValueError("Remote script output limit must be between 1 and 20000000 bytes")
     proc = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         bufsize=1, start_new_session=True,
