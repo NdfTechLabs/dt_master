@@ -233,7 +233,6 @@ def reconcile_extension_major_versions(extension, parsed):
 	created_or_found = []
 
 	ref_type = parsed.get("ref_type")
-	source_ref = parsed.get("source_ref") or parsed.get("git_ref")
 
 	install_strategy = (
 		"git_branch" if ref_type == "branch" else "git_tag" if ref_type == "tag" else "git_commit"
@@ -311,7 +310,7 @@ def _handle_readonly_result(tenant, app_row, result, action):
 		raise frappe.ValidationError("Invalid app inspection result from shell script")
 	if action == "check_version":
 		extension = get_or_create_extension(parsed)
-		extension_versions = reconcile_extension_major_versions(extension, parsed)
+		reconcile_extension_major_versions(extension, parsed)
 		app_row.target_version = parsed.get("latest_minor_version") or app_row.target_version
 	app_row.status = "Installed" if parsed.get("installed") == "true" else "Uninstalled"
 	app_row.installed_version = parsed.get("installed_version") or app_row.installed_version
@@ -427,8 +426,6 @@ def _run_app_action(tenant_name, row_name, action, source=None):
 def tenant_base_url(tenant):
 	protocol = (tenant.protocol or "https").lower().replace("://", "")
 	fqdn = tenant.fqdn
-	port = tenant.port
-
 	if protocol == "https":
 		# Public access via Nginx
 		return f"https://{fqdn}"
