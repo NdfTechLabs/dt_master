@@ -16,7 +16,7 @@ _USER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}")
 
 def _config_args():
     """Return the managed OpenSSH config argument, if configured."""
-    config = frappe.conf.get("dt_master_ssh_config")
+    config = getattr(frappe, "conf", {}).get("dt_master_ssh_config")
     if not config:
         return []
     if not isinstance(config, str) or not config.startswith("/") or any(c in config for c in "\n\r\0"):
