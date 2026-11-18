@@ -127,6 +127,7 @@ class TestOperationWorkerClaim(unittest.TestCase):
             patch.object(worker, "get_operation", return_value=definition),
             patch.object(worker.frappe.db, "sql"),
             patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
             patch.object(worker.frappe.db, "commit"),
         ):
             worker.execute_operation("operation-test")
