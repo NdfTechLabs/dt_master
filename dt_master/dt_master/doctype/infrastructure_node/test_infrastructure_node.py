@@ -1,6 +1,8 @@
 # Copyright (c) 2025, Dhana Technologies and Contributors
 # See license.txt
 
+import json
+
 import frappe
 from frappe.tests import IntegrationTestCase
 
@@ -160,3 +162,35 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			result["diagnostics"][0]["code"],
 			"DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE",
 		)
+
+	def test_requirement_change_reevaluates_and_persists_latest_snapshot(self):
+		node = self._new_node()
+		node.insert(ignore_permissions=True)
+		snapshot = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-18T08:00:00Z",
+			"inspection_status": "Successful",
+			"readiness": "Not Ready",
+			"engine": {"availability": "Available"},
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"docker_inspection_status": "Successful",
+				"docker_inspection_snapshot": json.dumps(snapshot),
+			},
+			update_modified=False,
+		)
+		node.reload()
+		node.docker_engine_required = 1
+		node.docker_engine_severity = "Required"
+		node.save(ignore_permissions=True)
+		node.reload()
+
+		self.assertEqual(node.docker_readiness, "Ready")
+		evaluation = json.loads(node.docker_readiness_evaluation)
+		self.assertEqual(evaluation["readiness"], "Ready")
+		self.assertTrue(evaluation["requirements_fingerprint"])
+		self.assertEqual(evaluation["inspection_observed_at"], snapshot["observed_at"])
+
