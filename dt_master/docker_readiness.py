@@ -315,7 +315,7 @@ def evaluate_node_docker_readiness(node: Any, snapshot: dict[str, Any] | None) -
     Missing evidence is an explicit Unknown result. The inspection snapshot's
     own readiness value is never used as an authority.
     """
-    now = datetime.datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     try:
         requirements = build_node_readiness_requirements(node)
         if snapshot is None:
