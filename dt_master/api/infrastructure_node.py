@@ -949,6 +949,13 @@ def _validate_docker_snapshot(snapshot):
                 "host", "docker_cli", "engine", "compose", "storage", "permissions", "diagnostics"}
     if set(snapshot) != required:
         raise ValueError("Docker inspection snapshot has an invalid top-level contract")
+    observed_at = snapshot["observed_at"]
+    if not isinstance(observed_at, str):
+        raise ValueError("Invalid Docker inspection timestamp")
+    try:
+        datetime.datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("Invalid Docker inspection timestamp") from exc
     if snapshot["inspection_status"] not in {"Successful", "Partial", "Failed", "Timed Out"}:
         raise ValueError("Invalid Docker inspection status")
     if snapshot["readiness"] not in {"Unknown", "Ready", "Degraded", "Not Ready"}:
@@ -1039,7 +1046,7 @@ def inspect_docker_runtime(node_name):
                 snapshot = _docker_failure_snapshot(status, f"Invalid inspection payload: {exc}", int(max(0, (now_datetime() - started).total_seconds() * 1000)))
     except Exception as exc:
         status = "Failed"
-        stderr = (stderr + "\\n" + str(exc)).strip()
+        stderr = (stderr + "\n" + str(exc)).strip()
         snapshot = _docker_failure_snapshot(status, str(exc), int(max(0, (now_datetime() - started).total_seconds() * 1000)))
 
     finished = now_datetime()
