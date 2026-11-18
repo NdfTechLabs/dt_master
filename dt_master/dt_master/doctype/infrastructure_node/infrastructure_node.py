@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import get_datetime
 
 from dt_master.docker_readiness import (
 	ReadinessContractError,
@@ -70,7 +71,11 @@ class InfrastructureNode(Document):
 
 	@staticmethod
 	def _normalize_inspection_value(field, value):
-		"""Treat unset database values and their DocField defaults as equivalent."""
+		"""Normalize equivalent Frappe form and database representations."""
 		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
 			return DOCKER_INSPECTION_DEFAULTS[field]
+		if field == "docker_inspected_on" and value:
+			# Form submissions may carry a datetime as a string while the
+			# database-loaded document exposes a Python datetime object.
+			return get_datetime(value)
 		return value
