@@ -16,7 +16,6 @@
   "target_doctype",
   "target_name",
   "infrastructure_node",
-  "bench_environment",
   "tenant_site",
   "actor_section",
   "initiator_type",
@@ -127,13 +126,6 @@
    "fieldtype": "Link",
    "label": "Infrastructure Node",
    "options": "Infrastructure Node",
-   "read_only": 1
-  },
-  {
-   "fieldname": "bench_environment",
-   "fieldtype": "Link",
-   "label": "Bench Environment",
-   "options": "Bench Environment",
    "read_only": 1
   },
   {
