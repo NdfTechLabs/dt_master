@@ -2,11 +2,13 @@
 
 import base64
 import json
+import os
 import re
 import shlex
+import signal
 import subprocess
 from pathlib import PurePosixPath
-from queue import Queue
+from queue import Empty, Queue
 from threading import Thread
 from time import monotonic
 
@@ -187,7 +189,12 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
     script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
     env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
     command = build_ssh_argv(ssh, build_remote_command(env, script))
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+    timeout_seconds = 300
+    max_output_bytes = 2_000_000
+    proc = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        bufsize=1, start_new_session=True,
+    )
     queue = Queue()
 
     def drain(pipe, stream):
@@ -203,18 +210,59 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
         thread.start()
     secrets = [str(value) for key, value in env.items() if value and any(word in key for word in ("PASSWORD", "SECRET", "TOKEN"))]
     output = {"stdout": [], "stderr": []}
+    output_bytes = 0
     finished = 0
-    while finished < 2:
-        stream, line = queue.get()
-        if line is None:
-            finished += 1
-            continue
-        for secret in sorted(secrets, key=len, reverse=True):
-            line = line.replace(secret, "[REDACTED]")
-        output[stream].append(line)
-        frappe.publish_realtime(event, {**context, "line": line, "stream": stream}, user=frappe.session.user)
-    for thread in threads:
-        thread.join()
-    proc.wait()
-    frappe.publish_realtime(event, {**context, "status": "Completed" if proc.returncode == 0 else "Failed"}, user=frappe.session.user)
-    return proc.returncode, "\n".join(output["stdout"]), "\n".join(output["stderr"])
+    deadline = monotonic() + timeout_seconds
+    failure_status = None
+    try:
+        while finished < 2:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                failure_status = "Timed Out"
+                break
+            try:
+                stream, line = queue.get(timeout=min(0.25, remaining))
+            except Empty:
+                continue
+            if line is None:
+                finished += 1
+                continue
+            for secret in sorted(secrets, key=len, reverse=True):
+                line = line.replace(secret, "[REDACTED]")
+            line_size = len((line + "\n").encode("utf-8", errors="replace"))
+            if output_bytes + line_size > max_output_bytes:
+                failure_status = "Output Limit Exceeded"
+                break
+            output_bytes += line_size
+            output[stream].append(line)
+            frappe.publish_realtime(event, {**context, "line": line, "stream": stream}, user=frappe.session.user)
+    finally:
+        if failure_status:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait()
+        else:
+            proc.wait()
+        for thread in threads:
+            thread.join(timeout=2)
+
+    if failure_status == "Timed Out":
+        output["stderr"].append(f"Remote script exceeded {timeout_seconds}s execution timeout")
+        return_code = 124
+    elif failure_status == "Output Limit Exceeded":
+        output["stderr"].append(f"Remote script output exceeded {max_output_bytes} byte limit")
+        return_code = 125
+    else:
+        return_code = proc.returncode
+    final_status = "Completed" if return_code == 0 else ("Timed Out" if return_code == 124 else "Failed")
+    frappe.publish_realtime(event, {**context, "status": final_status}, user=frappe.session.user)
+    return return_code, "\n".join(output["stdout"]), "\n".join(output["stderr"])
