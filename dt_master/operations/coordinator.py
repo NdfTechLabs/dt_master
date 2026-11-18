@@ -192,3 +192,25 @@ def dispatch_operation(operation_id):
     )
     frappe.db.commit()
     return _operation_response(frappe.get_doc("Infrastructure Operation", operation.name))
+
+
+def dispatch_pending_operations(batch_size=25):
+    """Retry a bounded batch of durable records left Pending Dispatch."""
+    pending = frappe.get_all(
+        "Infrastructure Operation",
+        filters={"execution_state": "Pending Dispatch", "dispatch_state": "Pending"},
+        fields=["name"],
+        order_by="creation asc",
+        limit_page_length=max(1, min(int(batch_size), 100)),
+    )
+    dispatched = 0
+    for row in pending:
+        try:
+            dispatch_operation(row.name)
+            dispatched += 1
+        except Exception:
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Infrastructure Operation redispatch failed: {row.name}",
+            )
+    return {"examined": len(pending), "submitted": dispatched}
