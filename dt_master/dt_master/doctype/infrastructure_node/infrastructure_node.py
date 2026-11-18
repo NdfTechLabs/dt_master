@@ -39,7 +39,7 @@ class InfrastructureNode(Document):
 	def on_update(self):
 		"""Reevaluate readiness whenever this Node's requirements change."""
 		previous = self.get_doc_before_save()
-		if not previous or not self._docker_requirements_changed(previous):
+		if not previous or not self._docker_requirements_changed(previous, self):
 			return
 
 		self._reevaluate_docker_readiness()
