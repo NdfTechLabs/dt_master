@@ -6,7 +6,10 @@ import json
 import frappe
 from frappe.model.document import Document
 
-from dt_master.docker_readiness import ReadinessContractError, validate_docker_readiness_requirements
+from dt_master.docker_readiness import (
+	ReadinessContractError,
+	validate_docker_readiness_requirements,
+)
 
 DOCKER_INSPECTION_FIELDS = (
 	"docker_inspection_status",
