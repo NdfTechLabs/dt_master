@@ -3,6 +3,13 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import get_datetime
+
+from dt_master.docker_readiness import (
+	ReadinessContractError,
+	build_node_readiness_requirements,
+	validate_docker_readiness_requirements,
+)
 
 DOCKER_INSPECTION_FIELDS = (
 	"docker_inspection_status",
@@ -22,6 +29,19 @@ DOCKER_INSPECTION_DEFAULTS = {
 class InfrastructureNode(Document):
 	def validate(self):
 		self._prevent_direct_docker_inspection_updates()
+		self._validate_docker_readiness_requirements()
+
+	def _validate_docker_readiness_requirements(self):
+		"""Validate individually configured, typed Node readiness fields."""
+		try:
+			requirements = build_node_readiness_requirements(self)
+			if requirements:
+				validate_docker_readiness_requirements(requirements)
+		except ReadinessContractError as exc:
+			frappe.throw(
+				frappe._("Invalid Docker readiness requirements: {0}").format(str(exc)),
+				title=frappe._("Invalid Docker Readiness Requirements"),
+			)
 
 	def _prevent_direct_docker_inspection_updates(self):
 		"""Keep inspection evidence server-managed, not user-editable DocType data."""
@@ -51,7 +71,11 @@ class InfrastructureNode(Document):
 
 	@staticmethod
 	def _normalize_inspection_value(field, value):
-		"""Treat unset database values and their DocField defaults as equivalent."""
+		"""Normalize equivalent Frappe form and database representations."""
 		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
 			return DOCKER_INSPECTION_DEFAULTS[field]
+		if field == "docker_inspected_on" and value:
+			# Form submissions may carry a datetime as a string while the
+			# database-loaded document exposes a Python datetime object.
+			return get_datetime(value)
 		return value
