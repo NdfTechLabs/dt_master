@@ -182,8 +182,8 @@ function start_execution_log_stream(dialog, node_name) {
             dialog.log_el.append(`<div style="color:#0f0">PROCESS COMPLETED</div>`);
         }
 
-        if (data.status === "Failed") {
-            dialog.log_el.append(`<div style="color:red">PROCESS FAILED</div>`);
+        if (data.status === "Failed" || data.status === "Timed Out") {
+            dialog.log_el.append(`<div style="color:red">PROCESS FAILED OR TIMED OUT</div>`);
         }
 
     });
