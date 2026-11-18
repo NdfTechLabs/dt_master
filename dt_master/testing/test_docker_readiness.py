@@ -196,6 +196,27 @@ class TestDockerReadiness(unittest.TestCase):
         )
         self.assertEqual(result["max_snapshot_age_seconds"], 3600)
 
+
+    def test_node_gib_requirements_normalize_to_snapshot_bytes(self):
+        class Node:
+            values = {
+                "docker_min_total_memory_gib": 8,
+                "docker_min_total_memory_severity": "Required",
+                "docker_min_available_memory_gib": 2.5,
+                "docker_min_available_memory_severity": "Recommended",
+                "docker_min_available_storage_gib": 20,
+                "docker_min_available_storage_severity": "Required",
+            }
+
+            def get(self, key):
+                return self.values.get(key)
+
+        result = build_node_readiness_requirements(Node())
+        self.assertEqual(
+            [item["expected"] for item in result["checks"]],
+            [8 * 1024**3, round(2.5 * 1024**3), 20 * 1024**3],
+        )
+
     def test_node_fields_reject_severity_without_requirement(self):
         class Node:
             def get(self, key):
