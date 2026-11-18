@@ -108,6 +108,14 @@ class TestDockerReadiness(unittest.TestCase):
         )
         self.assertEqual(result["readiness"], "Unknown")
 
+    def test_missing_recommended_evidence_is_not_ready(self):
+        data = snapshot()
+        data["host"]["cpu"]["logical_cores"] = None
+        result = evaluate_docker_readiness(
+            policy([check("min_cpu_cores", 16, "recommended")]), data
+        )
+        self.assertEqual(result["readiness"], "Unknown")
+
     def test_stale_snapshot_is_unknown_for_required_checks(self):
         result = evaluate_docker_readiness(
             policy([check("docker_engine_required", True)], max_age=60),
