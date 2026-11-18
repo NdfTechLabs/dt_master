@@ -7,6 +7,10 @@ import uuid
 import frappe
 from frappe.tests import IntegrationTestCase
 
+# These tests create their own minimal records and must not bootstrap the
+# unrelated Infrastructure Node / Tenant Site / ERPNext fixture graph.
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Infrastructure Node", "Tenant Site"]
+
 
 class IntegrationTestInfrastructureOperation(IntegrationTestCase):
     def _new_operation(self, **overrides):
