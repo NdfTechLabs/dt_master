@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.tests import IntegrationTestCase
+import unittest
 
 from dt_master.operations.coordinator import _canonical_payload, _reject_secret_values
 from dt_master.operations.registry import (
@@ -11,7 +11,7 @@ from dt_master.operations.registry import (
 )
 
 
-class TestOperationRegistryAndContracts(IntegrationTestCase):
+class TestOperationRegistryAndContracts(unittest.TestCase):
     def test_noop_operation_is_registered(self):
         definition = get_operation("test.noop")
         self.assertEqual(definition.operation_type, "test.noop")
@@ -53,7 +53,7 @@ class TestOperationRegistryAndContracts(IntegrationTestCase):
         _reject_secret_values({"database_secret_ref": "vault://platform/db"})
 
 
-definition_for_test_payload(payload):
+def definition_for_test_payload(payload):
     """Return a copy of the no-op definition with a general object validator."""
     from dataclasses import replace
 
