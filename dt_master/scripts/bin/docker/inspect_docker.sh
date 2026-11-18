@@ -85,7 +85,6 @@ done
 [[ "$fs_available" =~ ^[0-9]+$ ]] || fs_available=null
 [[ "$fs_used" =~ ^[0-9]+$ ]] || fs_used=null
 
-readiness="Not Ready"
 inspection_status="Successful"
 if [[ "$cpu" == "null" || "$mem_total" == "null" || "$mem_available" == "null" ]]; then
     inspection_status="Partial"
@@ -95,13 +94,6 @@ if [[ "$engine_availability" == "Available" && "$storage_driver" == "null" ]]; t
     inspection_status="Partial"
     add_diag "DOCKER_STORAGE_INCOMPLETE" "Warning" "Docker storage metadata could not be collected."
 fi
-if [[ "$docker_installed" != true ]]; then
-    readiness="Not Ready"
-elif [[ "$engine_availability" != "Available" ]]; then
-    readiness="Not Ready"
-elif [[ "$compose_installed" != true || "$inspection_status" == "Partial" ]]; then
-    readiness="Degraded"
-fi
 
 finished_ns=$(date +%s%N 2>/dev/null || echo "$started_ns")
 duration_ms=0
@@ -109,9 +101,9 @@ if [[ "$started_ns" =~ ^[0-9]+$ && "$finished_ns" =~ ^[0-9]+$ ]]; then
     duration_ms=$(( (finished_ns - started_ns) / 1000000 ))
 fi
 
-python3 - "$observed_at" "$duration_ms" "$inspection_status" "$readiness" "$cpu" "$mem_total" "$mem_available" "$docker_installed" "$docker_path" "$client_version" "$engine_availability" "$server_version" "$api_version" "$minimum_api_version" "$compose_installed" "$compose_version" "$compose_compatibility" "$storage_driver" "$data_root" "$mount_point" "$fs_total" "$fs_available" "$fs_used" "$execution_identity" "$inspection_access" "$diagnostics" <<'PY'
+python3 - "$observed_at" "$duration_ms" "$inspection_status" "$cpu" "$mem_total" "$mem_available" "$docker_installed" "$docker_path" "$client_version" "$engine_availability" "$server_version" "$api_version" "$minimum_api_version" "$compose_installed" "$compose_version" "$compose_compatibility" "$storage_driver" "$data_root" "$mount_point" "$fs_total" "$fs_available" "$fs_used" "$execution_identity" "$inspection_access" "$diagnostics" <<'PY'
 import json, sys
-(v_at, duration, status, readiness, cpu, mem_total, mem_available,
+(v_at, duration, status, cpu, mem_total, mem_available,
  cli_installed, cli_path, cli_version, engine, server, api, min_api,
  compose_installed, compose_version, compose_compat, driver, data_root,
  mount, fs_total, fs_available, fs_used, identity, access, diagnostics) = sys.argv[1:]
@@ -121,7 +113,7 @@ def nullable(value):
     return None if value in ("", "null") else value
 snapshot = {
  "schema_version":"1.0.0", "observed_at":v_at, "duration_ms":int(duration),
- "inspection_status":status, "readiness":readiness,
+ "inspection_status":status,
  "host":{"cpu":{"logical_cores":number(cpu)},
          "memory":{"total_bytes":number(mem_total),"available_bytes":number(mem_available)}},
  "docker_cli":{"installed":cli_installed == "true","path":nullable(cli_path),"client_version":nullable(cli_version)},
