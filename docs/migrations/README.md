@@ -9,6 +9,7 @@ from historical migration and deployment experiments.
   **canonical M4.0–M4.7 milestone tracker**, integration architecture, current
   milestone position and remaining work.
 - [M4.3 — Docker Orchestration Engine workplan](M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md): current M4.3 package sequence, M4.3.1 completion record, M4.3.2 implementation breakdown and acceptance boundaries.
+- [M4.3.2.2 — Infrastructure Node Docker readiness schema](M4.3.2_NODE_DOCKER_READINESS_SCHEMA.md): accepted Node field ownership, inspection/readiness semantics and the versioned JSON snapshot contract.
 - [M4.1 — Bench Environment schema and implementation](M4_BENCH_ENVIRONMENT_SCHEMA_AND_IMPLEMENTATION.md):
   canonical M4.1 target ownership model, schema, accepted architecture and authorization decisions, migration dispositions, implementation contracts and the separate implementation-authorization gate.
 - [M4 — DT Master file-level audit](M4_DT_MASTER_FILE_LEVEL_AUDIT.md):
