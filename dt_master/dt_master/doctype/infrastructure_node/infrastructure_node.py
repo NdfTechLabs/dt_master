@@ -1,13 +1,12 @@
 # Copyright (c) 2025, Dhana Technologies and contributors
 # For license information, please see license.txt
 
-import json
-
 import frappe
 from frappe.model.document import Document
 
 from dt_master.docker_readiness import (
 	ReadinessContractError,
+	build_node_readiness_requirements,
 	validate_docker_readiness_requirements,
 )
 
@@ -32,14 +31,12 @@ class InfrastructureNode(Document):
 		self._validate_docker_readiness_requirements()
 
 	def _validate_docker_readiness_requirements(self):
-		"""Validate the Node-owned requirements document before persistence."""
-		raw = self.get("docker_readiness_requirements")
-		if not raw:
-			return
+		"""Validate individually configured, typed Node readiness fields."""
 		try:
-			requirements = json.loads(raw) if isinstance(raw, str) else raw
-			validate_docker_readiness_requirements(requirements)
-		except (json.JSONDecodeError, ReadinessContractError, TypeError) as exc:
+			requirements = build_node_readiness_requirements(self)
+			if requirements:
+				validate_docker_readiness_requirements(requirements)
+		except ReadinessContractError as exc:
 			frappe.throw(
 				frappe._("Invalid Docker readiness requirements: {0}").format(str(exc)),
 				title=frappe._("Invalid Docker Readiness Requirements"),
