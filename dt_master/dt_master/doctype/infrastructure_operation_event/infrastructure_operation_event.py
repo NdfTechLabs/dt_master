@@ -32,8 +32,8 @@ class InfrastructureOperationEvent(Document):
         if not self.event_type:
             frappe.throw(_("Event type is required."))
 
-    def on_update(self):
-        frappe.throw(_("Operation events are append-only and cannot be modified."))
+        if not self.is_new():
+            frappe.throw(_("Operation events are append-only and cannot be modified."))
 
     def on_trash(self):
         frappe.throw(_("Operation events cannot be deleted."))
