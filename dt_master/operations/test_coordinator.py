@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import unittest
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import frappe
@@ -117,12 +118,14 @@ class TestOperationWorkerClaim(unittest.TestCase):
         operation.operation_type = "test.noop"
         operation.contract_version = "1.0.0"
         definition = get_operation("test.noop")
+        handler = MagicMock()
+        definition = replace(definition, handler=handler)
         with (
             patch.object(worker.frappe, "get_doc", return_value=operation),
+            patch.object(worker, "get_operation", return_value=definition),
             patch.object(worker.frappe.db, "sql"),
             patch.object(worker.frappe.db, "affected_rows", return_value=0),
             patch.object(worker.frappe.db, "commit"),
-            patch.object(definition, "handler") as handler,
         ):
             worker.execute_operation("operation-test")
         handler.assert_not_called()
