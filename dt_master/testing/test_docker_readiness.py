@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from dt_master.docker_readiness import (
     ReadinessContractError,
+    build_node_readiness_requirements,
     evaluate_docker_readiness,
     validate_docker_readiness_requirements,
 )
@@ -169,6 +170,54 @@ class TestDockerReadiness(unittest.TestCase):
 
     def test_node_requirements_validator_accepts_explicit_policy(self):
         validate_docker_readiness_requirements(policy([check("docker_engine_required", True)]))
+
+
+    def test_node_fields_normalize_to_required_and_recommended_checks(self):
+        class Node:
+            values = {
+                "docker_engine_required": 1,
+                "docker_engine_severity": "Required",
+                "docker_min_cpu_cores": 8,
+                "docker_min_cpu_cores_severity": "Recommended",
+                "docker_max_snapshot_age_seconds": 3600,
+            }
+
+            def get(self, key):
+                return self.values.get(key)
+
+        result = build_node_readiness_requirements(Node())
+        self.assertEqual(result["requirements_version"], "1.0.0")
+        self.assertEqual(
+            result["checks"],
+            [
+                {"key": "docker_engine_required", "severity": "required", "expected": True},
+                {"key": "min_cpu_cores", "severity": "recommended", "expected": 8},
+            ],
+        )
+        self.assertEqual(result["max_snapshot_age_seconds"], 3600)
+
+    def test_node_fields_reject_severity_without_requirement(self):
+        class Node:
+            def get(self, key):
+                return "Required" if key == "docker_engine_severity" else None
+
+        with self.assertRaises(ReadinessContractError):
+            build_node_readiness_requirements(Node())
+
+    def test_node_fields_reject_configured_requirement_without_severity(self):
+        class Node:
+            def get(self, key):
+                return 4 if key == "docker_min_cpu_cores" else None
+
+        with self.assertRaises(ReadinessContractError):
+            build_node_readiness_requirements(Node())
+
+    def test_recommended_requirement_failure_is_degraded_when_all_evidence_is_present(self):
+        result = evaluate_docker_readiness(
+            policy([check("min_cpu_cores", 16, "recommended")]),
+            snapshot(),
+        )
+        self.assertEqual(result["readiness"], "Degraded")
 
     def test_snapshot_readiness_is_not_authoritative(self):
         data = snapshot(readiness="Ready")
