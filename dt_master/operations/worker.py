@@ -21,18 +21,28 @@ def _set_operation_fields(operation_id, values):
 def execute_operation(operation_id):
     """Claim and execute one registered operation exactly once per active attempt."""
     operation = frappe.get_doc("Infrastructure Operation", operation_id)
+
+    # A duplicate or stale queue delivery must never mutate an operation that
+    # has already left the dispatchable states, even if its registry entry or
+    # contract version has since changed.
+    if operation.execution_state not in {"Pending Dispatch", "Queued"}:
+        return
+
     definition = get_operation(operation.operation_type)
     if operation.contract_version != definition.contract_version:
-        _set_operation_fields(
-            operation_id,
-            {
-                "execution_state": "Failed",
-                "business_state": "Failed",
-                "error_code": "UNSUPPORTED_CONTRACT_VERSION",
-                "error_summary": "The registered operation contract version has changed.",
-                "completed_on": now_datetime(),
-            },
+        # Keep the contract-mismatch transition conditional: another worker
+        # may have claimed the operation after our initial read.
+        frappe.db.sql(
+            """UPDATE `tabInfrastructure Operation`
+               SET execution_state = 'Failed', business_state = 'Failed',
+                   error_code = 'UNSUPPORTED_CONTRACT_VERSION',
+                   error_summary = 'The registered operation contract version has changed.',
+                   completed_on = %s
+               WHERE name = %s
+                 AND execution_state IN ('Pending Dispatch', 'Queued')""",
+            (now_datetime(), operation_id),
         )
+        frappe.db.commit()
         return
 
     # Conditional update is the worker-claim compare-and-set. Duplicate RQ
@@ -100,7 +110,7 @@ def execute_operation(operation_id):
                 "heartbeat_on": now_datetime(),
             },
         )
-    except Exception as exc:
+    except Exception:
         frappe.db.rollback()
         frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
         _set_operation_fields(
