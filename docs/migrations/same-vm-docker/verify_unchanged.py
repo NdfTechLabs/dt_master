@@ -2,26 +2,35 @@
 """Read-only pre-change check against audit.py JSON. Never repairs differences."""
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: verify_unchanged.py /path/to/baseline-audit.json")
-    baseline = json.loads(Path(sys.argv[1]).read_text())
-    expected = {item["path"]: item["sha256"] for item in baseline["nginx_configs"]}
-    expected["/home/frappe/bench/config/supervisor.conf"] = baseline["supervisor_config_sha256"]
-    expected["/home/frappe/bench/sites/common_site_config.json"] = baseline["common_config_sha256"]
-    for site in baseline["sites"]:
-        expected[f"/home/frappe/bench/sites/{site['site']}/site_config.json"] = site["config_sha256"]
-    for config in baseline["cloudflare"]["config_files"]:
-        expected[config["path"]] = config["sha256"]
-    code = ("expected = " + repr(expected) + "\nexpected_host = " + repr(baseline["hostname"])
-            + "\nexpected_routes = " + repr(baseline["routes"])
-            + "\nexpected_forward_policy = " + repr(baseline["iptables"]["FORWARD"].get("policy"))
-            + "\n") + '''
+	if len(sys.argv) != 2:
+		raise SystemExit("Usage: verify_unchanged.py /path/to/baseline-audit.json")
+	baseline = json.loads(Path(sys.argv[1]).read_text())
+	expected = {item["path"]: item["sha256"] for item in baseline["nginx_configs"]}
+	expected["/home/frappe/bench/config/supervisor.conf"] = baseline["supervisor_config_sha256"]
+	expected["/home/frappe/bench/sites/common_site_config.json"] = baseline["common_config_sha256"]
+	for site in baseline["sites"]:
+		expected[f"/home/frappe/bench/sites/{site['site']}/site_config.json"] = site["config_sha256"]
+	for config in baseline["cloudflare"]["config_files"]:
+		expected[config["path"]] = config["sha256"]
+	code = (
+		(
+			"expected = "
+			+ repr(expected)
+			+ "\nexpected_host = "
+			+ repr(baseline["hostname"])
+			+ "\nexpected_routes = "
+			+ repr(baseline["routes"])
+			+ "\nexpected_forward_policy = "
+			+ repr(baseline["iptables"]["FORWARD"].get("policy"))
+			+ "\n"
+		)
+		+ """
 import hashlib,json,pathlib,shutil,subprocess
 hostname=subprocess.run(['hostname'],capture_output=True,text=True,check=True).stdout.strip()
 if hostname!=expected_host:
@@ -55,15 +64,31 @@ print(json.dumps({'hostname':hostname,'config_fingerprints_unchanged':not change
                   'forward_policy_unchanged':forward_unchanged},indent=2))
 if changed or not bench_running or not wireguard or not routes_unchanged or not forward_unchanged or any(value!='active' for value in services.values()):
     raise SystemExit(1)
-'''
-    result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-                             "-o", "ConnectTimeout=30", "ssh.ndftechlabs.com", "sudo -n python3 -"],
-                            input=code, capture_output=True, text=True, timeout=70)
-    print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
-    raise SystemExit(result.returncode)
+"""
+	)
+	result = subprocess.run(
+		[
+			"ssh",
+			"-T",
+			"-o",
+			"BatchMode=yes",
+			"-o",
+			"StrictHostKeyChecking=yes",
+			"-o",
+			"ConnectTimeout=30",
+			"ssh.ndftechlabs.com",
+			"sudo -n python3 -",
+		],
+		input=code,
+		capture_output=True,
+		text=True,
+		timeout=70,
+	)
+	print(result.stdout, end="")
+	if result.stderr:
+		print(result.stderr, file=sys.stderr, end="")
+	raise SystemExit(result.returncode)
 
 
 if __name__ == "__main__":
-    main()
+	main()

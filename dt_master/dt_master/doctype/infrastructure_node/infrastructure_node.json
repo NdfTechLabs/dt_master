@@ -36,6 +36,7 @@
   "ip_address",
   "ssh_user",
   "ssh_port",
+  "ssh_host_alias",
   "wsgi_port",
   "os_type",
   "os_version",
@@ -179,6 +180,12 @@
    "fieldname": "ssh_port",
    "fieldtype": "Int",
    "label": "SSH Port"
+  },
+  {
+   "fieldname": "ssh_host_alias",
+   "fieldtype": "Data",
+   "label": "SSH Host Alias",
+   "description": "Optional alias from the administrator-managed OpenSSH configuration used for direct or gateway access."
   },
   {
    "fieldname": "access_notes",

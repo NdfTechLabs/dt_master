@@ -3,9 +3,8 @@
 
 import argparse
 import json
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REMOTE = r'''
@@ -108,17 +107,42 @@ print(json.dumps(result))
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--execute", action="store_true")
-    args = parser.parse_args()
-    if not args.execute:
-        print(json.dumps({"dry_run": True, "purpose": "Native runtime/library feasibility using private copies",
-                          "downloads": False, "build": False, "production_mounts": False, "site_data": False}))
-        return
-    result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=60",
-                             "ssh.ndftechlabs.com", "sudo -n nice -n 15 ionice -c 3 python3 -"], input=REMOTE, text=True, timeout=900)
-    raise SystemExit(result.returncode)
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--execute", action="store_true")
+	args = parser.parse_args()
+	if not args.execute:
+		print(
+			json.dumps(
+				{
+					"dry_run": True,
+					"purpose": "Native runtime/library feasibility using private copies",
+					"downloads": False,
+					"build": False,
+					"production_mounts": False,
+					"site_data": False,
+				}
+			)
+		)
+		return
+	result = subprocess.run(
+		[
+			"ssh",
+			"-T",
+			"-o",
+			"BatchMode=yes",
+			"-o",
+			"StrictHostKeyChecking=yes",
+			"-o",
+			"ConnectTimeout=60",
+			"ssh.ndftechlabs.com",
+			"sudo -n nice -n 15 ionice -c 3 python3 -",
+		],
+		input=REMOTE,
+		text=True,
+		timeout=900,
+	)
+	raise SystemExit(result.returncode)
 
 
 if __name__ == "__main__":
-    main()
+	main()

@@ -4,7 +4,6 @@
 import frappe
 from frappe.model.document import Document
 
-
 DOCKER_INSPECTION_FIELDS = (
 	"docker_inspection_status",
 	"docker_readiness",
