@@ -1,6 +1,7 @@
 """Shared Python → shell contract. No remote work happens during import."""
 
 import base64
+import codecs
 import json
 import os
 import re
@@ -195,19 +196,25 @@ def run_remote_script(node, ssh, category, script_name, env, event, context, use
     if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 20_000_000:
         raise ValueError("Remote script output limit must be between 1 and 20000000 bytes")
     proc = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        bufsize=1, start_new_session=True,
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     # Bounded chunk queue prevents a noisy remote process from consuming unbounded memory.
     queue = Queue(maxsize=64)
 
     def drain(pipe, stream):
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
         try:
             while True:
-                chunk = pipe.read(4096)
-                if not chunk:
+                raw = os.read(pipe.fileno(), 4096)
+                if not raw:
                     break
-                queue.put((stream, chunk))
+                chunk = decoder.decode(raw)
+                if chunk:
+                    queue.put((stream, chunk))
+            tail = decoder.decode(b"", final=True)
+            if tail:
+                queue.put((stream, tail))
         finally:
             pipe.close()
             queue.put((stream, None))
