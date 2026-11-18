@@ -32,7 +32,8 @@ class InfrastructureNode(Document):
 			changed_fields = [
 				field
 				for field in DOCKER_INSPECTION_FIELDS
-				if self.get(field) != previous.get(field)
+				if self._normalize_inspection_value(field, self.get(field))
+				!= self._normalize_inspection_value(field, previous.get(field))
 			]
 		else:
 			changed_fields = [
@@ -48,3 +49,10 @@ class InfrastructureNode(Document):
 				).format(", ".join(changed_fields)),
 				title=frappe._("Read-only Inspection Data"),
 			)
+
+	@staticmethod
+	def _normalize_inspection_value(field, value):
+		"""Treat unset database values and their DocField defaults as equivalent."""
+		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
+			return DOCKER_INSPECTION_DEFAULTS[field]
+		return value
