@@ -27,7 +27,24 @@
   "storage_gb",
   "max_sites",
   "docker_inspection_section",
-  "docker_readiness_requirements",
+  "docker_readiness_requirements_section",
+  "docker_engine_required",
+  "docker_engine_severity",
+  "docker_compose_required",
+  "docker_compose_severity",
+  "docker_min_cpu_cores",
+  "docker_min_cpu_cores_severity",
+  "docker_min_total_memory_bytes",
+  "docker_min_total_memory_severity",
+  "docker_min_available_memory_bytes",
+  "docker_min_available_memory_severity",
+  "docker_min_available_storage_bytes",
+  "docker_min_available_storage_severity",
+  "docker_min_engine_version",
+  "docker_min_engine_version_severity",
+  "docker_min_compose_version",
+  "docker_min_compose_version_severity",
+  "docker_max_snapshot_age_seconds",
   "docker_inspection_status",
   "docker_readiness",
   "docker_inspected_on",
@@ -124,13 +141,6 @@
    "fieldtype": "Section Break",
    "label": "Docker Runtime Inspection",
    "description": "Latest read-only inspection of the system Docker Engine. Independent of Host-native Node lifecycle state."
-  },
-  {
-   "fieldname": "docker_readiness_requirements",
-   "fieldtype": "Code",
-   "label": "Docker Readiness Requirements",
-   "options": "JSON",
-   "description": "Node-owned, explicitly configured Docker workload requirements. Leave empty until approved requirements are defined. Contract: docs/migrations/schemas/infrastructure-node-docker-readiness-requirements-v1.schema.json."
   },
   {
    "fieldname": "docker_inspection_status",
@@ -362,6 +372,132 @@
    "fieldname": "scripts_base_dir",
    "fieldtype": "Data",
    "label": "Scripts Base Dir"
+  },
+  {
+   "fieldname": "docker_readiness_requirements_section",
+   "fieldtype": "Section Break",
+   "label": "Docker Readiness Requirements",
+   "description": "Explicit per-Node prerequisites for Docker-backed Bench workloads. Blank values are not requirements; no thresholds are assumed."
+  },
+  {
+   "fieldname": "docker_engine_required",
+   "fieldtype": "Check",
+   "label": "Require Docker Engine",
+   "default": "0",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_engine_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_engine_required",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_compose_required",
+   "fieldtype": "Check",
+   "label": "Require Docker Compose",
+   "default": "0",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_compose_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_compose_required",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_cpu_cores",
+   "fieldtype": "Int",
+   "label": "Minimum CPU Cores",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_cpu_cores_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_cpu_cores ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_total_memory_bytes",
+   "fieldtype": "Int",
+   "label": "Minimum Total Memory (Bytes)",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_total_memory_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_total_memory_bytes ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_available_memory_bytes",
+   "fieldtype": "Int",
+   "label": "Minimum Available Memory (Bytes)",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_available_memory_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_available_memory_bytes ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_available_storage_bytes",
+   "fieldtype": "Int",
+   "label": "Minimum Available Storage (Bytes)",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_available_storage_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_available_storage_bytes ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_engine_version",
+   "fieldtype": "Data",
+   "label": "Minimum Docker Engine Version",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_engine_version_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_engine_version ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_min_compose_version",
+   "fieldtype": "Data",
+   "label": "Minimum Docker Compose Version",
+   "description": "Optional Node-level Docker readiness requirement."
+  },
+  {
+   "fieldname": "docker_min_compose_version_severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "\nRequired\nRecommended",
+   "depends_on": "eval:doc.docker_min_compose_version ",
+   "description": "Required failures produce Not Ready; recommended failures produce Degraded."
+  },
+  {
+   "fieldname": "docker_max_snapshot_age_seconds",
+   "fieldtype": "Int",
+   "label": "Maximum Inspection Age (Seconds)",
+   "description": "Optional maximum age for inspection evidence. Stale evidence produces Unknown."
   }
  ],
  "grid_page_length": 50,
