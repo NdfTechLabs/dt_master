@@ -46,3 +46,11 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
+
+	def test_saved_node_rejects_client_supplied_docker_readiness(self):
+		node = self._new_node()
+		node.insert(ignore_permissions=True)
+
+		node.docker_readiness = "Ready"
+		with self.assertRaises(frappe.ValidationError):
+			node.save(ignore_permissions=True)
