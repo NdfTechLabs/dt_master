@@ -46,6 +46,7 @@
   "docker_min_compose_version_severity",
   "docker_max_snapshot_age_seconds",
   "docker_inspection_results_section",
+  "docker_readiness_summary",
   "docker_inspection_status",
   "docker_readiness",
   "docker_readiness_evaluation",
@@ -513,6 +514,12 @@
    "fieldname": "docker_inspection_results_section",
    "fieldtype": "Section Break",
    "label": "Latest Docker Inspection Results"
+  },
+  {
+   "fieldname": "docker_readiness_summary",
+   "fieldtype": "HTML",
+   "label": "Docker Runtime Summary",
+   "description": "Read-only summary of the latest inspection and server-side readiness evaluation. Detailed versioned observation remains available below."
   }
  ],
  "grid_page_length": 50,
