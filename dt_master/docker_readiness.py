@@ -321,21 +321,33 @@ def evaluate_node_docker_readiness(node: Any, snapshot: dict[str, Any] | None) -
         if snapshot is None:
             if requirements:
                 validate_docker_readiness_requirements(requirements)
+            configured = bool(requirements)
             return {
                 "readiness": "Unknown",
                 "evaluator_version": EVALUATOR_VERSION,
-                "requirements_version": REQUIREMENTS_VERSION if requirements else None,
-                "requirements_fingerprint": _canonical_fingerprint(requirements) if requirements else None,
+                "requirements_version": REQUIREMENTS_VERSION if configured else None,
+                "requirements_fingerprint": _canonical_fingerprint(requirements) if configured else None,
                 "inspection_observed_at": None,
                 "evaluated_at": now.isoformat().replace("+00:00", "Z"),
                 "diagnostics": [{
-                    "code": "DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE",
+                    "code": (
+                        "DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE"
+                        if configured else "DOCKER_READINESS_REQUIREMENTS_UNCONFIGURED"
+                    ),
                     "severity": "Warning",
                     "requirement": None,
                     "observed": None,
                     "expected": None,
-                    "message": "No usable Docker inspection snapshot is available for this Infrastructure Node.",
-                    "remediation": "Run a Docker runtime inspection before relying on readiness.",
+                    "message": (
+                        "No usable Docker inspection snapshot is available for this Infrastructure Node."
+                        if configured else
+                        "Docker readiness requirements have not been configured on this Infrastructure Node."
+                    ),
+                    "remediation": (
+                        "Run a Docker runtime inspection before relying on readiness."
+                        if configured else
+                        "Configure the approved Node-level Docker readiness requirements."
+                    ),
                 }],
             }
         return evaluate_docker_readiness(requirements, snapshot, evaluated_at=now)
