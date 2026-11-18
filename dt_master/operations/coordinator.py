@@ -35,6 +35,8 @@ def _canonical_payload(definition, payload):
         frappe.throw(_("Registered payload validators must return an object."), frappe.ValidationError)
     _reject_secret_values(normalized)
     encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if len(encoded) > 65536:
+        frappe.throw(_("Operation request exceeds the 64 KiB payload limit."), frappe.ValidationError)
     return normalized, encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
