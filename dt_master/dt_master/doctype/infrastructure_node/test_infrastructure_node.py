@@ -22,6 +22,17 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.access_verified = 0
 		return node
 
+	def test_node_can_leave_docker_requirements_unconfigured(self):
+		node = self._new_node()
+		self.assertFalse(node.docker_readiness_requirements)
+		node.validate()
+
+	def test_new_node_rejects_malformed_docker_requirements(self):
+		node = self._new_node()
+		node.docker_readiness_requirements = '{"requirements_version":"9.0.0","checks":[]}'
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
 	def test_new_node_accepts_default_docker_inspection_state(self):
 		node = self._new_node()
 
