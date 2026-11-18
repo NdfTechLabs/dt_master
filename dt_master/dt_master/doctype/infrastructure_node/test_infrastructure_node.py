@@ -54,3 +54,17 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.docker_readiness = "Ready"
 		with self.assertRaises(frappe.ValidationError):
 			node.save(ignore_permissions=True)
+
+	def test_new_node_rejects_client_supplied_inspection_status(self):
+		node = self._new_node()
+		node.docker_inspection_status = "Successful"
+
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+	def test_new_node_rejects_client_supplied_inspection_timestamp(self):
+		node = self._new_node()
+		node.docker_inspected_on = "2026-11-18 11:00:00"
+
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
