@@ -84,7 +84,8 @@ def build_node_readiness_requirements(node: Any) -> dict[str, Any]:
                 continue
             expected = True
         else:
-            if value in (None, ""):
+            # Frappe Int fields commonly expose an unset value as zero.
+            if value in (None, "", 0):
                 if node.get(severity_field):
                     raise ReadinessContractError(f"{severity_field} requires {value_field} to be configured")
                 continue
@@ -95,11 +96,15 @@ def build_node_readiness_requirements(node: Any) -> dict[str, Any]:
         checks.append({"key": key, "severity": severity.lower(), "expected": expected})
 
     max_age = node.get("docker_max_snapshot_age_seconds")
-    if max_age not in (None, ""):
+    if max_age not in (None, "", 0):
         if isinstance(max_age, bool) or not isinstance(max_age, int) or max_age <= 0:
             raise ReadinessContractError("docker_max_snapshot_age_seconds must be a positive integer")
 
     if not checks:
+        if max_age not in (None, "", 0):
+            raise ReadinessContractError(
+                "At least one readiness requirement must be configured before setting maximum inspection age"
+            )
         return {}
     return {
         "requirements_version": REQUIREMENTS_VERSION,
