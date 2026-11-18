@@ -160,21 +160,22 @@ def parse_output(stdout):
     return result
 
 
-def build_remote_command(env, script_path):
+def build_remote_command(env, script_path, use_sudo=True):
     exports = []
     for key, value in env.items():
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
             raise ValueError(f"Invalid environment key: {key}")
         exports.append(f"export {key}={shlex.quote(str(value) if value is not None else '')}; ")
     payload = "".join(exports) + f"exec bash {shlex.quote(str(script_path))}"
-    return f"sudo -n bash -c {shlex.quote(payload)}"
+    command = f"bash -c {shlex.quote(payload)}"
+    return f"sudo -n {command}" if use_sudo else command
 
 
-def run_remote_script(node, ssh, category, script_name, env, event, context):
+def run_remote_script(node, ssh, category, script_name, env, event, context, use_sudo=True):
     """Drain both pipes concurrently; preserve existing event names and result tuple."""
     if not node.scripts_base_dir or not str(node.scripts_base_dir).startswith("/"):
         frappe.throw("An absolute scripts base directory must be configured on the node")
-    if category not in {"node", "site", "app", "mail"} or not re.fullmatch(r"[a-z_]+\.sh", script_name):
+    if category not in {"node", "site", "app", "mail", "docker"} or not re.fullmatch(r"[a-z_]+\.sh", script_name):
         raise ValueError("Invalid script path")
     if not ssh.get("host_alias"):
         for key in ("host", "user"):
@@ -188,19 +189,23 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
             frappe.throw("Invalid SSH port")
     script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
     env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
-    command = build_ssh_argv(ssh, build_remote_command(env, script))
+    command = build_ssh_argv(ssh, build_remote_command(env, script, use_sudo=use_sudo))
     timeout_seconds = 300
     max_output_bytes = 2_000_000
     proc = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         bufsize=1, start_new_session=True,
     )
-    queue = Queue()
+    # Bounded chunk queue prevents a noisy remote process from consuming unbounded memory.
+    queue = Queue(maxsize=64)
 
     def drain(pipe, stream):
         try:
-            for line in iter(pipe.readline, ""):
-                queue.put((stream, line.rstrip("\r\n")))
+            while True:
+                chunk = pipe.read(4096)
+                if not chunk:
+                    break
+                queue.put((stream, chunk))
         finally:
             pipe.close()
             queue.put((stream, None))
@@ -210,6 +215,7 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
         thread.start()
     secrets = [str(value) for key, value in env.items() if value and any(word in key for word in ("PASSWORD", "SECRET", "TOKEN"))]
     output = {"stdout": [], "stderr": []}
+    pending = {"stdout": "", "stderr": ""}
     output_bytes = 0
     finished = 0
     deadline = monotonic() + timeout_seconds
@@ -221,21 +227,32 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
                 failure_status = "Timed Out"
                 break
             try:
-                stream, line = queue.get(timeout=min(0.25, remaining))
+                stream, chunk = queue.get(timeout=min(0.25, remaining))
             except Empty:
                 continue
-            if line is None:
+            if chunk is None:
                 finished += 1
+                if pending[stream]:
+                    line = pending[stream]
+                    for secret in sorted(secrets, key=len, reverse=True):
+                        line = line.replace(secret, "[REDACTED]")
+                    output[stream].append(line)
+                    frappe.publish_realtime(event, {**context, "line": line, "stream": stream}, user=frappe.session.user)
+                    pending[stream] = ""
                 continue
-            for secret in sorted(secrets, key=len, reverse=True):
-                line = line.replace(secret, "[REDACTED]")
-            line_size = len((line + "\n").encode("utf-8", errors="replace"))
-            if output_bytes + line_size > max_output_bytes:
+            chunk_size = len(chunk.encode("utf-8", errors="replace"))
+            if output_bytes + chunk_size > max_output_bytes:
                 failure_status = "Output Limit Exceeded"
                 break
-            output_bytes += line_size
-            output[stream].append(line)
-            frappe.publish_realtime(event, {**context, "line": line, "stream": stream}, user=frappe.session.user)
+            output_bytes += chunk_size
+            pending[stream] += chunk
+            while "\n" in pending[stream]:
+                line, pending[stream] = pending[stream].split("\n", 1)
+                line = line.rstrip("\r")
+                for secret in sorted(secrets, key=len, reverse=True):
+                    line = line.replace(secret, "[REDACTED]")
+                output[stream].append(line)
+                frappe.publish_realtime(event, {**context, "line": line, "stream": stream}, user=frappe.session.user)
     finally:
         if failure_status:
             try:
@@ -250,10 +267,18 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
                 except ProcessLookupError:
                     pass
                 proc.wait()
+            # Release blocked bounded-queue writers after terminating the process.
+            while any(thread.is_alive() for thread in threads):
+                try:
+                    queue.get(timeout=0.05)
+                except Empty:
+                    pass
+                for thread in threads:
+                    thread.join(timeout=0.05)
         else:
             proc.wait()
-        for thread in threads:
-            thread.join(timeout=2)
+            for thread in threads:
+                thread.join(timeout=2)
 
     if failure_status == "Timed Out":
         output["stderr"].append(f"Remote script exceeded {timeout_seconds}s execution timeout")
