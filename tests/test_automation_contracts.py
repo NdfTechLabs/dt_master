@@ -477,6 +477,38 @@ class ContractTests(unittest.TestCase):
             self.nodes._validate_docker_snapshot(dict(snapshot, schema_version="2.0.0"))
 
 
+    def test_shared_runner_streams_output_and_preserves_legacy_sudo_default(self):
+        with patch.object(self.contract, "build_ssh_argv", return_value=["bash", "-c", "printf 'docker-ok\\n'"]):
+            code, stdout, stderr = self.contract.run_remote_script(
+                self.docs["node"], {"host": "127.0.0.1", "user": "demo"}, "docker",
+                "inspect_docker.sh", {}, "script_execution_log", {"node": "demo-node"},
+                use_sudo=False, timeout_seconds=3, max_output_bytes=1024,
+            )
+        self.assertEqual((code, stdout, stderr), (0, "docker-ok", ""))
+        command = self.contract.build_remote_command({}, "/tmp/check.sh")
+        self.assertTrue(command.startswith("sudo -n bash -c "))
+
+    def test_shared_runner_enforces_output_limit_and_reports_failure(self):
+        with patch.object(self.contract, "build_ssh_argv", return_value=["bash", "-c", "printf 'too much output\\n'"]):
+            code, stdout, stderr = self.contract.run_remote_script(
+                self.docs["node"], {"host": "127.0.0.1", "user": "demo"}, "docker",
+                "inspect_docker.sh", {}, "script_execution_log", {"node": "demo-node"},
+                use_sudo=False, timeout_seconds=3, max_output_bytes=4,
+            )
+        self.assertEqual(code, 125)
+        self.assertIn("output exceeded", stderr)
+
+    def test_shared_runner_times_out_and_terminates_process_group(self):
+        with patch.object(self.contract, "build_ssh_argv", return_value=["bash", "-c", "sleep 5"]):
+            code, stdout, stderr = self.contract.run_remote_script(
+                self.docs["node"], {"host": "127.0.0.1", "user": "demo"}, "docker",
+                "inspect_docker.sh", {}, "script_execution_log", {"node": "demo-node"},
+                use_sudo=False, timeout_seconds=1, max_output_bytes=1024,
+            )
+        self.assertEqual(code, 124)
+        self.assertIn("execution timeout", stderr)
+
+
 class ShellTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="contract-", dir="/tmp/opencode" if Path("/tmp/opencode").is_dir() else None)
