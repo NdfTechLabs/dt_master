@@ -248,3 +248,79 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.assertEqual(saved_values["business_state"], "Failed")
         self.assertEqual(saved_values["error_code"], "HANDLER_FAILED")
         self.assertNotIn("sensitive internal detail", saved_values["error_summary"])
+
+
+class TestPendingOperationDispatch(unittest.TestCase):
+    def test_scheduler_dispatches_only_bounded_pending_records(self):
+        pending = [MagicMock(name="OP-1"), MagicMock(name="OP-2")]
+        pending[0].name = "OP-1"
+        pending[1].name = "OP-2"
+        with (
+            patch.object(coordinator.frappe, "get_all", return_value=pending) as get_all,
+            patch.object(coordinator, "dispatch_operation") as dispatch,
+        ):
+            result = coordinator.dispatch_pending_operations(batch_size=2)
+        self.assertEqual(result, {"examined": 2, "submitted": 2})
+        self.assertEqual(dispatch.call_count, 2)
+        get_all.assert_called_once_with(
+            "Infrastructure Operation",
+            filters={"execution_state": "Pending Dispatch", "dispatch_state": "Pending"},
+            fields=["name"],
+            order_by="creation asc",
+            limit_page_length=2,
+        )
+
+    def test_scheduler_continues_after_one_dispatch_failure(self):
+        pending = [MagicMock(), MagicMock()]
+        pending[0].name = "OP-FAIL"
+        pending[1].name = "OP-OK"
+        with (
+            patch.object(coordinator.frappe, "get_all", return_value=pending),
+            patch.object(coordinator, "dispatch_operation", side_effect=[RuntimeError("queue down"), None]) as dispatch,
+            patch.object(coordinator.frappe, "log_error") as log_error,
+        ):
+            result = coordinator.dispatch_pending_operations(batch_size=2)
+        self.assertEqual(result, {"examined": 2, "submitted": 1})
+        self.assertEqual(dispatch.call_count, 2)
+        log_error.assert_called_once()
+
+
+class TestOperationAPI(unittest.TestCase):
+    def test_start_api_returns_accepted_operation_and_http_202(self):
+        expected = {
+            "operation_id": "operation-test",
+            "correlation_id": "correlation-test",
+            "business_state": "Accepted",
+            "execution_state": "Pending Dispatch",
+            "reused": False,
+            "status_url": "/api/method/dt_master.api.operations.get_operation",
+        }
+        with (
+            patch("dt_master.api.operations.start_operation", return_value=expected) as start_operation,
+            patch.object(frappe.local, "response", {}),
+        ):
+            from dt_master.api.operations import start
+
+            result = start(
+                operation_type="test.noop",
+                target_doctype="Infrastructure Node",
+                target_name="NODE-TEST",
+                payload="{}",
+                idempotency_key="api-request-123",
+            )
+        self.assertEqual(result, expected)
+        self.assertEqual(frappe.local.response["http_status_code"], 202)
+        start_operation.assert_called_once()
+
+    def test_status_api_rejects_another_users_operation(self):
+        from dt_master.api.operations import get_operation
+
+        operation = MagicMock()
+        operation.initiated_by = "another@example.com"
+        with (
+            patch.object(frappe, "get_doc", return_value=operation),
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
+            patch.object(frappe, "get_roles", return_value=["Tenant User"]),
+        ):
+            with self.assertRaises(frappe.PermissionError):
+                get_operation("operation-private")
