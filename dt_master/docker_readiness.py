@@ -14,7 +14,6 @@ from typing import Any
 
 EVALUATOR_VERSION = "1.1.0"
 REQUIREMENTS_VERSION = "1.0.0"
-READINESS_STATES = {"Unknown", "Ready", "Degraded", "Not Ready"}
 SEVERITIES = {"Required", "Recommended"}
 
 _REQUIREMENT_PATHS = {
@@ -157,8 +156,6 @@ def _validate_snapshot(snapshot: dict[str, Any]) -> None:
         raise ReadinessContractError("Unsupported Docker inspection snapshot schema")
     if snapshot.get("inspection_status") not in {"Successful", "Partial", "Failed", "Timed Out"}:
         raise ReadinessContractError("Invalid inspection status")
-    if snapshot.get("readiness") not in READINESS_STATES:
-        raise ReadinessContractError("Invalid snapshot readiness value")
     observed_at = snapshot.get("observed_at")
     if not isinstance(observed_at, str):
         raise ReadinessContractError("Snapshot observed_at must be an ISO-8601 timestamp")
@@ -306,3 +303,66 @@ def evaluate_docker_readiness(
         "evaluated_at": now.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         "diagnostics": diagnostics,
     }
+
+
+
+def evaluate_node_docker_readiness(node: Any, snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    """Evaluate the latest evidence against this Node's configured requirements.
+
+    Missing evidence is an explicit Unknown result. The inspection snapshot's
+    own readiness value is never used as an authority.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        requirements = build_node_readiness_requirements(node)
+        if snapshot is None:
+            if requirements:
+                validate_docker_readiness_requirements(requirements)
+            configured = bool(requirements)
+            return {
+                "readiness": "Unknown",
+                "evaluator_version": EVALUATOR_VERSION,
+                "requirements_version": REQUIREMENTS_VERSION if configured else None,
+                "requirements_fingerprint": _canonical_fingerprint(requirements) if configured else None,
+                "inspection_observed_at": None,
+                "evaluated_at": now.isoformat().replace("+00:00", "Z"),
+                "diagnostics": [{
+                    "code": (
+                        "DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE"
+                        if configured else "DOCKER_READINESS_REQUIREMENTS_UNCONFIGURED"
+                    ),
+                    "severity": "Warning",
+                    "requirement": None,
+                    "observed": None,
+                    "expected": None,
+                    "message": (
+                        "No usable Docker inspection snapshot is available for this Infrastructure Node."
+                        if configured else
+                        "Docker readiness requirements have not been configured on this Infrastructure Node."
+                    ),
+                    "remediation": (
+                        "Run a Docker runtime inspection before relying on readiness."
+                        if configured else
+                        "Configure the approved Node-level Docker readiness requirements."
+                    ),
+                }],
+            }
+        return evaluate_docker_readiness(requirements, snapshot, evaluated_at=now)
+    except ReadinessContractError as exc:
+        return {
+            "readiness": "Unknown",
+            "evaluator_version": EVALUATOR_VERSION,
+            "requirements_version": REQUIREMENTS_VERSION,
+            "requirements_fingerprint": None,
+            "inspection_observed_at": snapshot.get("observed_at") if isinstance(snapshot, dict) else None,
+            "evaluated_at": now.isoformat().replace("+00:00", "Z"),
+            "diagnostics": [{
+                "code": "DOCKER_READINESS_EVALUATION_ERROR",
+                "severity": "Error",
+                "requirement": None,
+                "observed": None,
+                "expected": None,
+                "message": f"Docker readiness could not be evaluated: {exc}",
+                "remediation": "Correct the Node readiness requirements or inspection evidence, then reevaluate.",
+            }],
+        }

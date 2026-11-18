@@ -48,6 +48,7 @@
   "docker_inspection_results_section",
   "docker_inspection_status",
   "docker_readiness",
+  "docker_readiness_evaluation",
   "docker_inspected_on",
   "docker_inspection_snapshot",
   "access_section",
@@ -162,6 +163,14 @@
    "read_only": 1,
    "in_list_view": 1,
    "description": "Whether this Node currently satisfies the platform's Docker workload prerequisites."
+  },
+  {
+   "fieldname": "docker_readiness_evaluation",
+   "fieldtype": "Code",
+   "label": "Docker Readiness Evaluation",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Server-managed output from the Node-level Docker readiness evaluator, including evaluator version, requirements fingerprint, timestamps and diagnostics."
   },
   {
    "fieldname": "docker_inspected_on",

@@ -5,6 +5,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script, secret
+from dt_master.docker_readiness import evaluate_node_docker_readiness
 
 ALLOWED_TRANSITIONS = {
 	"Declared": ["SSH Ready", "Error"],
@@ -935,7 +936,6 @@ def _docker_failure_snapshot(status, message, duration_ms=0):
 		"observed_at": observed,
 		"duration_ms": max(0, int(duration_ms)),
 		"inspection_status": status,
-		"readiness": "Unknown",
 		"host": {"cpu": {"logical_cores": None}, "memory": {"total_bytes": None, "available_bytes": None}},
 		"docker_cli": {"installed": False, "path": None, "client_version": None},
 		"engine": {
@@ -975,7 +975,6 @@ def _validate_docker_snapshot(snapshot):
 		"observed_at",
 		"duration_ms",
 		"inspection_status",
-		"readiness",
 		"host",
 		"docker_cli",
 		"engine",
@@ -984,7 +983,8 @@ def _validate_docker_snapshot(snapshot):
 		"permissions",
 		"diagnostics",
 	}
-	if set(snapshot) != required:
+	optional_legacy = {"readiness"}
+	if not required.issubset(snapshot) or set(snapshot) - required - optional_legacy:
 		raise ValueError("Docker inspection snapshot has an invalid top-level contract")
 	observed_at = snapshot["observed_at"]
 	if not isinstance(observed_at, str):
@@ -995,8 +995,10 @@ def _validate_docker_snapshot(snapshot):
 		raise ValueError("Invalid Docker inspection timestamp") from exc
 	if snapshot["inspection_status"] not in {"Successful", "Partial", "Failed", "Timed Out"}:
 		raise ValueError("Invalid Docker inspection status")
-	if snapshot["readiness"] not in {"Unknown", "Ready", "Degraded", "Not Ready"}:
-		raise ValueError("Invalid Docker readiness")
+	# Accept the deprecated field only on legacy payloads. It is never
+	# consumed as readiness evidence; DT Master evaluates readiness separately.
+	if "readiness" in snapshot and snapshot["readiness"] not in {"Unknown", "Ready", "Degraded", "Not Ready"}:
+		raise ValueError("Invalid legacy Docker readiness value")
 	if not isinstance(snapshot["duration_ms"], int) or snapshot["duration_ms"] < 0:
 		raise ValueError("Invalid Docker inspection duration")
 
@@ -1127,15 +1129,19 @@ def inspect_docker_runtime(node_name):
 
 	finished = now_datetime()
 	snapshot["inspection_status"] = status
+	evaluation = evaluate_node_docker_readiness(node, snapshot)
+	evaluation_json = json.dumps(evaluation, separators=(",", ":"), sort_keys=True)
 	snapshot_json = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
-	# db.set_value intentionally bypasses the DocType's client-edit protection;
-	# only this authorized server method writes the four server-owned fields.
+	# Persist the observation and its independently evaluated readiness together.
+	# The snapshot contains observations only; readiness lives on the Node and
+	# in docker_readiness_evaluation.
 	frappe.db.set_value(
 		"Infrastructure Node",
 		node.name,
 		{
 			"docker_inspection_status": status,
-			"docker_readiness": snapshot["readiness"],
+			"docker_readiness": evaluation["readiness"],
+			"docker_readiness_evaluation": evaluation_json,
 			"docker_inspected_on": finished,
 			"docker_inspection_snapshot": snapshot_json,
 		},
@@ -1155,4 +1161,9 @@ def inspect_docker_runtime(node_name):
 		started_at=started,
 		finished_at=finished,
 	)
-	return {"inspection_status": status, "readiness": snapshot["readiness"], "snapshot": snapshot}
+	return {
+		"inspection_status": status,
+		"readiness": evaluation["readiness"],
+		"readiness_evaluation": evaluation,
+		"snapshot": snapshot,
+	}
