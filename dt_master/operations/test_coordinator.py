@@ -111,29 +111,6 @@ class TestOperationCoordinator(unittest.TestCase):
         self.assertEqual(result["execution_state"], "Pending Dispatch")
 
 
-class TestOperationWorkerClaim(unittest.TestCase):
-    def test_duplicate_delivery_does_not_invoke_handler(self):
-        operation = MagicMock()
-        operation.operation_id = "operation-test"
-        operation.operation_type = "test.noop"
-        operation.contract_version = "1.0.0"
-        definition = get_operation("test.noop")
-        handler = MagicMock()
-        definition = replace(definition, handler=handler)
-        cursor = MagicMock()
-        cursor.rowcount = 0
-        with (
-            patch.object(worker.frappe, "get_doc", return_value=operation),
-            patch.object(worker, "get_operation", return_value=definition),
-            patch.object(worker.frappe.db, "sql"),
-            patch.object(worker.frappe.db, "_cursor", cursor),
-            patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
-            patch.object(worker.frappe.db, "commit"),
-        ):
-            worker.execute_operation("operation-test")
-        handler.assert_not_called()
-
-
     def test_guest_cannot_start_operation(self):
         with patch.dict(frappe.session, {"user": "Guest"}):
             with self.assertRaises(frappe.PermissionError):
@@ -191,6 +168,29 @@ class TestOperationWorkerClaim(unittest.TestCase):
             enqueue_after_commit=False,
             operation_id="operation-test",
         )
+
+class TestOperationWorkerClaim(unittest.TestCase):
+    def test_duplicate_delivery_does_not_invoke_handler(self):
+        operation = MagicMock()
+        operation.operation_id = "operation-test"
+        operation.operation_type = "test.noop"
+        operation.contract_version = "1.0.0"
+        definition = get_operation("test.noop")
+        handler = MagicMock()
+        definition = replace(definition, handler=handler)
+        cursor = MagicMock()
+        cursor.rowcount = 0
+        with (
+            patch.object(worker.frappe, "get_doc", return_value=operation),
+            patch.object(worker, "get_operation", return_value=definition),
+            patch.object(worker.frappe.db, "sql"),
+            patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
+            patch.object(worker.frappe.db, "commit"),
+        ):
+            worker.execute_operation("operation-test")
+        handler.assert_not_called()
+
 
 
 class TestOperationWorkerExecution(unittest.TestCase):
