@@ -84,11 +84,19 @@ done
 
 readiness="Not Ready"
 inspection_status="Successful"
+if [[ "$cpu" == "null" || "$mem_total" == "null" || "$mem_available" == "null" ]]; then
+    inspection_status="Partial"
+    add_diag "HOST_CAPACITY_INCOMPLETE" "Warning" "One or more host CPU or memory measurements could not be collected."
+fi
+if [[ "$engine_availability" == "Available" && "$storage_driver" == "null" ]]; then
+    inspection_status="Partial"
+    add_diag "DOCKER_STORAGE_INCOMPLETE" "Warning" "Docker storage metadata could not be collected."
+fi
 if [[ "$docker_installed" != true ]]; then
     readiness="Not Ready"
 elif [[ "$engine_availability" != "Available" ]]; then
     readiness="Not Ready"
-elif [[ "$compose_installed" != true ]]; then
+elif [[ "$compose_installed" != true || "$inspection_status" == "Partial" ]]; then
     readiness="Degraded"
 fi
 
