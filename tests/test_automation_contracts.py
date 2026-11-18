@@ -452,6 +452,31 @@ class ContractTests(unittest.TestCase):
             remote.assert_not_called()
 
 
+    def test_docker_inspection_script_is_in_the_managed_app_script_tree(self):
+        script = SCRIPTS / "bin" / "docker" / "inspect_docker.sh"
+        self.assertTrue(script.is_file())
+        self.assertTrue(os.access(script, os.R_OK))
+
+    def test_docker_inspection_remote_command_does_not_escalate_privileges(self):
+        command = self.contract.build_remote_command({}, "/opt/dtsaas/scripts/bin/docker/inspect_docker.sh", use_sudo=False)
+        self.assertTrue(command.startswith("bash -c "))
+        self.assertNotIn("sudo", command)
+        legacy = self.contract.build_remote_command({}, "/opt/dtsaas/scripts/bin/node/install_deps.sh")
+        self.assertTrue(legacy.startswith("sudo -n bash -c "))
+
+    def test_docker_category_is_allowlisted_by_shared_runner(self):
+        source = (APP / "api" / "script_contract.py").read_text()
+        self.assertIn('"node", "site", "app", "mail", "docker"', source)
+
+    def test_docker_snapshot_validator_rejects_unknown_schema_and_extra_keys(self):
+        snapshot = self.nodes._docker_failure_snapshot("Failed", "demo")
+        self.assertEqual(self.nodes._validate_docker_snapshot(snapshot)["schema_version"], "1.0.0")
+        with self.assertRaises(ValueError):
+            self.nodes._validate_docker_snapshot(dict(snapshot, unexpected=True))
+        with self.assertRaises(ValueError):
+            self.nodes._validate_docker_snapshot(dict(snapshot, schema_version="2.0.0"))
+
+
 class ShellTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="contract-", dir="/tmp/opencode" if Path("/tmp/opencode").is_dir() else None)
