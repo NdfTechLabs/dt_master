@@ -41,6 +41,9 @@ class DemoDoc(dict):
     def save(self, **kwargs):
         return self
 
+    def reload(self):
+        return self
+
     def check_permission(self, permission):
         return None
 
@@ -507,6 +510,32 @@ class ContractTests(unittest.TestCase):
             )
         self.assertEqual(code, 124)
         self.assertIn("execution timeout", stderr)
+
+
+    def test_docker_inspection_api_persists_snapshot_and_logs_without_node_lifecycle_changes(self):
+        node = self.docs["node"]
+        before = (node.state, node.status)
+        snapshot = self.nodes._docker_failure_snapshot("Partial", "one optional probe unavailable")
+        snapshot["readiness"] = "Degraded"
+        with patch.object(self.nodes, "run_remote_script", return_value=(0, json.dumps(snapshot), "")):
+            result = self.nodes.inspect_docker_runtime(node.name)
+        self.assertEqual(result["inspection_status"], "Partial")
+        self.assertEqual(result["readiness"], "Degraded")
+        self.assertEqual((node.state, node.status), before)
+        self.assertEqual(node.node_action_logs[-1]["action_type"], "Docker Inspection")
+        self.assertEqual(node.node_action_logs[-1]["state_before"], node.node_action_logs[-1]["state_after"])
+        values = self.frappe.db.set_value.call_args.args[2]
+        self.assertEqual(values["docker_inspection_status"], "Partial")
+        self.assertEqual(values["docker_readiness"], "Degraded")
+
+    def test_docker_inspection_api_records_timeout_without_changing_node_state(self):
+        node = self.docs["node"]
+        before = (node.state, node.status)
+        with patch.object(self.nodes, "run_remote_script", return_value=(124, "", "timed out")):
+            result = self.nodes.inspect_docker_runtime(node.name)
+        self.assertEqual(result["inspection_status"], "Timed Out")
+        self.assertEqual((node.state, node.status), before)
+        self.assertEqual(node.node_action_logs[-1]["result"], "Timed Out")
 
 
 class ShellTests(unittest.TestCase):
