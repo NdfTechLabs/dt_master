@@ -955,11 +955,56 @@ def _validate_docker_snapshot(snapshot):
         raise ValueError("Invalid Docker readiness")
     if not isinstance(snapshot["duration_ms"], int) or snapshot["duration_ms"] < 0:
         raise ValueError("Invalid Docker inspection duration")
-    for key in ("host", "docker_cli", "engine", "compose", "storage", "permissions"):
-        if not isinstance(snapshot[key], dict):
-            raise ValueError(f"Invalid Docker inspection section: {key}")
+
+    def exact_keys(value, keys, label):
+        if not isinstance(value, dict) or set(value) != set(keys):
+            raise ValueError(f"Invalid Docker inspection section: {label}")
+
+    def nullable_string(value):
+        return value is None or isinstance(value, str)
+
+    exact_keys(snapshot["host"], ("cpu", "memory"), "host")
+    exact_keys(snapshot["host"]["cpu"], ("logical_cores",), "host.cpu")
+    exact_keys(snapshot["host"]["memory"], ("total_bytes", "available_bytes"), "host.memory")
+    exact_keys(snapshot["docker_cli"], ("installed", "path", "client_version"), "docker_cli")
+    exact_keys(snapshot["engine"], ("availability", "server_version", "api_version", "minimum_api_version"), "engine")
+    exact_keys(snapshot["compose"], ("installed", "version", "compatibility"), "compose")
+    exact_keys(snapshot["storage"], ("driver", "data_root", "filesystem"), "storage")
+    exact_keys(snapshot["storage"]["filesystem"], ("mount_point", "total_bytes", "available_bytes", "used_bytes"), "storage.filesystem")
+    exact_keys(snapshot["permissions"], ("execution_identity", "inspection_access"), "permissions")
+
+    cpu = snapshot["host"]["cpu"]["logical_cores"]
+    if cpu is not None and (not isinstance(cpu, int) or cpu < 1):
+        raise ValueError("Invalid logical CPU count")
+    for value in (snapshot["host"]["memory"]["total_bytes"], snapshot["host"]["memory"]["available_bytes"],
+                  snapshot["storage"]["filesystem"]["total_bytes"], snapshot["storage"]["filesystem"]["available_bytes"],
+                  snapshot["storage"]["filesystem"]["used_bytes"]):
+        if value is not None and (not isinstance(value, int) or value < 0):
+            raise ValueError("Invalid byte measurement")
+    for value in (snapshot["docker_cli"]["path"], snapshot["docker_cli"]["client_version"],
+                  snapshot["engine"]["server_version"], snapshot["engine"]["api_version"],
+                  snapshot["engine"]["minimum_api_version"], snapshot["compose"]["version"],
+                  snapshot["storage"]["driver"], snapshot["storage"]["data_root"],
+                  snapshot["storage"]["filesystem"]["mount_point"],
+                  snapshot["permissions"]["execution_identity"]):
+        if not nullable_string(value):
+            raise ValueError("Invalid nullable string in Docker inspection snapshot")
+    if not isinstance(snapshot["docker_cli"]["installed"], bool) or not isinstance(snapshot["compose"]["installed"], bool):
+        raise ValueError("Invalid Docker component installed flag")
+    if snapshot["engine"]["availability"] not in {"Available", "Unavailable", "Not Installed", "Unknown"}:
+        raise ValueError("Invalid Docker Engine availability")
+    if snapshot["compose"]["compatibility"] not in {"Compatible", "Incompatible", "Unavailable", "Unknown"}:
+        raise ValueError("Invalid Docker Compose compatibility")
+    if snapshot["permissions"]["inspection_access"] not in {"Allowed", "Denied", "Partial", "Unknown"}:
+        raise ValueError("Invalid Docker inspection access")
     if not isinstance(snapshot["diagnostics"], list):
         raise ValueError("Invalid Docker inspection diagnostics")
+    for diagnostic in snapshot["diagnostics"]:
+        exact_keys(diagnostic, ("code", "severity", "message"), "diagnostics[]")
+        if not all(isinstance(diagnostic[key], str) and diagnostic[key] for key in ("code", "severity", "message")):
+            raise ValueError("Invalid Docker diagnostic fields")
+        if diagnostic["severity"] not in {"Info", "Warning", "Error"}:
+            raise ValueError("Invalid Docker diagnostic severity")
     return snapshot
 
 
