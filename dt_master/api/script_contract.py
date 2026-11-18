@@ -174,12 +174,16 @@ def run_remote_script(node, ssh, category, script_name, env, event, context):
         frappe.throw("An absolute scripts base directory must be configured on the node")
     if category not in {"node", "site", "app", "mail"} or not re.fullmatch(r"[a-z_]+\.sh", script_name):
         raise ValueError("Invalid script path")
-    for key in ("host", "user"):
-        if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.:@-]*", ssh[key]):
-            frappe.throw(f"Invalid SSH {key}")
-    port = int(ssh["port"])
-    if not 1 <= port <= 65535:
-        frappe.throw("Invalid SSH port")
+    if not ssh.get("host_alias"):
+        for key in ("host", "user"):
+            if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.:@-]*", str(ssh.get(key) or "")):
+                frappe.throw(f"Invalid SSH {key}")
+        try:
+            port = int(ssh.get("port") or 22)
+        except (TypeError, ValueError):
+            frappe.throw("Invalid SSH port")
+        if not 1 <= port <= 65535:
+            frappe.throw("Invalid SSH port")
     script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
     env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
     command = build_ssh_argv(ssh, build_remote_command(env, script))
