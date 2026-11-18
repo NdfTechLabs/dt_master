@@ -101,6 +101,29 @@ class TestDockerReadiness(unittest.TestCase):
         self.assertEqual(result["readiness"], "Unknown")
         self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_EVIDENCE_MISSING")
 
+    def test_unknown_engine_observation_is_not_a_confirmed_failure(self):
+        data = snapshot()
+        data["engine"]["availability"] = "Unknown"
+        result = evaluate_docker_readiness(
+            policy([check("docker_engine_required", True)]), data
+        )
+        self.assertEqual(result["readiness"], "Unknown")
+
+    def test_unavailable_compose_probe_is_not_a_confirmed_failure(self):
+        data = snapshot()
+        data["compose"]["compatibility"] = "Unavailable"
+        result = evaluate_docker_readiness(
+            policy([check("docker_compose_required", True)]), data
+        )
+        self.assertEqual(result["readiness"], "Unknown")
+
+    def test_versions_compare_with_zero_padded_components(self):
+        result = evaluate_docker_readiness(
+            policy([check("min_engine_version", "29.0")]),
+            snapshot(),
+        )
+        self.assertEqual(result["readiness"], "Ready")
+
     def test_partial_inspection_is_not_treated_as_complete_evidence(self):
         result = evaluate_docker_readiness(
             policy([check("docker_engine_required", True)]),
