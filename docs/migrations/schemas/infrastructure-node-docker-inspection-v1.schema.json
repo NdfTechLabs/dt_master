@@ -10,7 +10,6 @@
     "observed_at",
     "duration_ms",
     "inspection_status",
-    "readiness",
     "host",
     "docker_cli",
     "engine",
@@ -45,7 +44,8 @@
         "Ready",
         "Degraded",
         "Not Ready"
-      ]
+      ],
+      "description": "Deprecated legacy observation field. New inspection scripts must omit it; DT Master never consumes it as readiness evidence."
     },
     "host": {
       "type": "object",
