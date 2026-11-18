@@ -517,8 +517,11 @@ class ContractTests(unittest.TestCase):
         before = (node.state, node.status)
         snapshot = self.nodes._docker_failure_snapshot("Partial", "one optional probe unavailable")
         snapshot["readiness"] = "Degraded"
-        with patch.object(self.nodes, "run_remote_script", return_value=(0, json.dumps(snapshot), "")):
+        with patch.object(self.nodes, "run_remote_script", return_value=(0, json.dumps(snapshot), "")) as runner:
             result = self.nodes.inspect_docker_runtime(node.name)
+        args, kwargs = runner.call_args
+        self.assertEqual(args[2:4], ("docker", "inspect_docker.sh"))
+        self.assertFalse(kwargs["use_sudo"])
         self.assertEqual(result["inspection_status"], "Partial")
         self.assertEqual(result["readiness"], "Degraded")
         self.assertEqual((node.state, node.status), before)
