@@ -61,7 +61,12 @@ def execute_operation(operation_id):
         # Re-check authorization immediately before handler execution. The
         # original actor remains recorded; the worker's session is not used
         # as a substitute for that actor.
-        definition.authorize(target)
+        worker_user = frappe.session.user
+        try:
+            frappe.set_user(operation.initiated_by)
+            definition.authorize(target)
+        finally:
+            frappe.set_user(worker_user)
         result = definition.handler(
             {
                 "operation_id": operation.operation_id,
@@ -76,7 +81,12 @@ def execute_operation(operation_id):
         )
         if not isinstance(result, dict):
             raise ValueError("Operation handlers must return a JSON object")
+        from dt_master.operations.coordinator import _reject_secret_values
+
+        _reject_secret_values(result, "result")
         result_json = json.dumps(result, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if len(result_json) > 65536:
+            raise ValueError("Operation result exceeds the 64 KiB result limit")
         _set_operation_fields(
             operation_id,
             {
@@ -98,7 +108,7 @@ def execute_operation(operation_id):
                 "execution_state": "Failed",
                 "business_state": "Failed",
                 "error_code": "HANDLER_FAILED",
-                "error_summary": str(exc)[:500],
+                "error_summary": "The registered operation handler failed. See the restricted server error log.",
                 "completed_on": now_datetime(),
             },
         )
