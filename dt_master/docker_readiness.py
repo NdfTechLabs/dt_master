@@ -50,7 +50,8 @@ def _canonical_fingerprint(value: dict[str, Any]) -> str:
 def _version_tuple(value: Any, label: str) -> tuple[int, ...]:
     if not isinstance(value, str) or not re.fullmatch(r"v?\d+(?:\.\d+){1,3}", value.strip()):
         raise ReadinessContractError(f"{label} must be a numeric dotted version")
-    return tuple(int(part) for part in value.strip().removeprefix("v").split("."))
+    parts = tuple(int(part) for part in value.strip().removeprefix("v").split("."))
+    return parts + (0,) * (4 - len(parts))
 
 
 def _path_value(snapshot: dict[str, Any], path: tuple[str, ...]) -> Any:
@@ -141,6 +142,7 @@ def evaluate_docker_readiness(
     diagnostics: list[dict[str, Any]] = []
     failures: list[str] = []
     unknown_required = False
+    unknown_evidence = False
     recommended_failure = False
 
     def add(code: str, severity: str, requirement: str | None, observed: Any,
@@ -163,6 +165,7 @@ def evaluate_docker_readiness(
             "Run a fresh Docker runtime inspection.",
         )
         unknown_required = True
+        unknown_evidence = True
 
     # Failed/partial snapshots do not distinguish observed false values from
     # fallback defaults, so their component values cannot prove a requirement.
@@ -176,15 +179,16 @@ def evaluate_docker_readiness(
                 f"Reliable inspection evidence is unavailable for {key}.",
                 "Obtain a successful, complete Docker inspection.",
             )
+            unknown_evidence = True
             if severity == "required":
                 unknown_required = True
             continue
 
         passed = False
         if key == "docker_engine_required":
-            passed = observed == "Available" if expected else observed != "Available"
+            passed = True if expected is False else observed == "Available"
         elif key == "docker_compose_required":
-            passed = observed == "Compatible" if expected else observed != "Compatible"
+            passed = True if expected is False else observed == "Compatible"
         elif key in _NUMERIC_REQUIREMENTS:
             passed = isinstance(observed, (int, float)) and not isinstance(observed, bool) and observed >= expected
         elif key in _VERSION_REQUIREMENTS:
@@ -218,7 +222,7 @@ def evaluate_docker_readiness(
 
     if failures:
         readiness = "Not Ready"
-    elif unknown_required:
+    elif unknown_required or unknown_evidence:
         readiness = "Unknown"
     elif recommended_failure:
         readiness = "Degraded"
