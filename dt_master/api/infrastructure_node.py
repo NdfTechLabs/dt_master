@@ -919,7 +919,7 @@ def _docker_ssh_config(node):
 
 
 def _docker_failure_snapshot(status, message, duration_ms=0):
-    observed = now_datetime().isoformat()
+    observed = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     return {
         "schema_version": DOCKER_INSPECTION_SCHEMA_VERSION,
         "observed_at": observed,
@@ -1026,21 +1026,21 @@ def inspect_docker_runtime(node_name):
         )
         if code == 124:
             status = "Timed Out"
-            snapshot = _docker_failure_snapshot(status, stderr or "Docker inspection timed out.")
+            snapshot = _docker_failure_snapshot(status, stderr or "Docker inspection timed out.", int(max(0, (now_datetime() - started).total_seconds() * 1000)))
         elif code != 0:
             status = "Failed"
-            snapshot = _docker_failure_snapshot(status, stderr or stdout or f"Inspection exited with {code}.")
+            snapshot = _docker_failure_snapshot(status, stderr or stdout or f"Inspection exited with {code}.", int(max(0, (now_datetime() - started).total_seconds() * 1000)))
         else:
             try:
                 snapshot = _validate_docker_snapshot(json.loads(stdout.strip()))
                 status = snapshot["inspection_status"]
             except (ValueError, TypeError, json.JSONDecodeError) as exc:
                 status = "Failed"
-                snapshot = _docker_failure_snapshot(status, f"Invalid inspection payload: {exc}")
+                snapshot = _docker_failure_snapshot(status, f"Invalid inspection payload: {exc}", int(max(0, (now_datetime() - started).total_seconds() * 1000)))
     except Exception as exc:
         status = "Failed"
         stderr = (stderr + "\\n" + str(exc)).strip()
-        snapshot = _docker_failure_snapshot(status, str(exc))
+        snapshot = _docker_failure_snapshot(status, str(exc), int(max(0, (now_datetime() - started).total_seconds() * 1000)))
 
     finished = now_datetime()
     snapshot["inspection_status"] = status
