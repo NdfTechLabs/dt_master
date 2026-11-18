@@ -48,7 +48,7 @@ def execute_operation(operation_id):
              AND attempt_count < max_attempts""",
         (definition.queue, claimed_at, claimed_at, operation_id),
     )
-    if frappe.db.affected_rows() != 1:
+    if frappe.db._cursor.rowcount != 1:
         frappe.db.commit()
         return
     frappe.db.commit()
