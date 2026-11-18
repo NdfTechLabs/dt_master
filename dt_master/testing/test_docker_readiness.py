@@ -1,5 +1,6 @@
 """Unit tests for the pure Docker readiness evaluator."""
 import unittest
+from pathlib import Path
 from datetime import datetime, timezone
 
 from dt_master.docker_readiness import (
@@ -15,7 +16,6 @@ def snapshot(**overrides):
         "schema_version": "1.0.0",
         "observed_at": "2026-11-18T08:00:00Z",
         "inspection_status": "Successful",
-        "readiness": "Not Ready",  # Evaluator must not trust this field.
         "host": {
             "cpu": {"logical_cores": 8},
             "memory": {"total_bytes": 16_000_000_000, "available_bytes": 8_000_000_000},
@@ -240,13 +240,26 @@ class TestDockerReadiness(unittest.TestCase):
         )
         self.assertEqual(result["readiness"], "Degraded")
 
-    def test_snapshot_readiness_is_not_authoritative(self):
-        data = snapshot(readiness="Ready")
-        data["engine"]["availability"] = "Unavailable"
+    def test_inspection_script_does_not_emit_readiness_decisions(self):
+        script = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
+        content = script.read_text(encoding="utf-8")
+        self.assertNotIn('"readiness":', content)
+        self.assertNotIn('readiness="Not Ready"', content)
+
+    def test_snapshot_does_not_require_readiness_field(self):
+        data = snapshot()
+        self.assertNotIn("readiness", data)
         result = evaluate_docker_readiness(
             policy([check("docker_engine_required", True)]), data
         )
-        self.assertEqual(result["readiness"], "Not Ready")
+        self.assertEqual(result["readiness"], "Ready")
+
+    def test_legacy_snapshot_readiness_is_ignored(self):
+        data = snapshot(readiness="Not Ready")
+        result = evaluate_docker_readiness(
+            policy([check("docker_engine_required", True)]), data
+        )
+        self.assertEqual(result["readiness"], "Ready")
 
 
 if __name__ == "__main__":
