@@ -123,26 +123,27 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 
 
 
+
 	def test_new_node_rejects_client_supplied_readiness_evaluation(self):
 		node = self._new_node()
 		node.docker_readiness_evaluation = '{"readiness":"Ready"}'
 		with self.assertRaises(frappe.ValidationError):
-		    node.validate()
+			node.validate()
 
 	def test_saved_node_rejects_client_supplied_readiness_evaluation(self):
 		node = self._new_node()
 		node.insert(ignore_permissions=True)
 		node.docker_readiness_evaluation = '{"readiness":"Ready"}'
 		with self.assertRaises(frappe.ValidationError):
-		    node.save(ignore_permissions=True)
+			node.save(ignore_permissions=True)
 
 	def test_requirements_change_detection_covers_typed_fields(self):
 		class Values:
-		    def __init__(self, **kwargs):
-		        self.values = kwargs
+			def __init__(self, **kwargs):
+				self.values = kwargs
 
-		    def get(self, key):
-		        return self.values.get(key)
+			def get(self, key):
+				return self.values.get(key)
 
 		previous = Values(docker_engine_required=0, docker_min_cpu_cores=4)
 		current = Values(docker_engine_required=1, docker_min_cpu_cores=4)
@@ -156,6 +157,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		result = evaluate_node_docker_readiness(node, None)
 		self.assertEqual(result["readiness"], "Unknown")
 		self.assertEqual(
-		    result["diagnostics"][0]["code"],
-		    "DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE",
+			result["diagnostics"][0]["code"],
+			"DOCKER_INSPECTION_EVIDENCE_UNAVAILABLE",
 		)
