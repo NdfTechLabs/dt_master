@@ -172,6 +172,8 @@ def evaluate_docker_readiness(
     evidence_trustworthy = snapshot["inspection_status"] == "Successful" and not stale
     for check in checks:
         key, severity, expected = check["key"], check["severity"], check["expected"]
+        if key in _BOOLEAN_REQUIREMENTS and expected is False:
+            continue
         observed = _path_value(snapshot, _REQUIREMENT_PATHS[key])
         if not evidence_trustworthy or observed is None:
             add(
@@ -186,11 +188,20 @@ def evaluate_docker_readiness(
 
         passed = False
         if key == "docker_engine_required":
-            passed = True if expected is False else observed == "Available"
+            if observed == "Unknown":
+                observed = None
+            else:
+                passed = observed == "Available"
         elif key == "docker_compose_required":
-            passed = True if expected is False else observed == "Compatible"
+            if observed in {"Unknown", "Unavailable"}:
+                observed = None
+            else:
+                passed = observed == "Compatible"
         elif key in _NUMERIC_REQUIREMENTS:
-            passed = isinstance(observed, (int, float)) and not isinstance(observed, bool) and observed >= expected
+            if isinstance(observed, bool) or not isinstance(observed, (int, float)):
+                observed = None
+            else:
+                passed = observed >= expected
         elif key in _VERSION_REQUIREMENTS:
             try:
                 passed = _version_tuple(observed, key) >= _version_tuple(expected, key)
@@ -203,6 +214,7 @@ def evaluate_docker_readiness(
                 f"Inspection returned an invalid value for {key}.",
                 "Correct the inspection probe and run inspection again.",
             )
+            unknown_evidence = True
             if severity == "required":
                 unknown_required = True
             continue
