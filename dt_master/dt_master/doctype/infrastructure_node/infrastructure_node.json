@@ -34,11 +34,11 @@
   "docker_compose_severity",
   "docker_min_cpu_cores",
   "docker_min_cpu_cores_severity",
-  "docker_min_total_memory_bytes",
+  "docker_min_total_memory_gib",
   "docker_min_total_memory_severity",
-  "docker_min_available_memory_bytes",
+  "docker_min_available_memory_gib",
   "docker_min_available_memory_severity",
-  "docker_min_available_storage_bytes",
+  "docker_min_available_storage_gib",
   "docker_min_available_storage_severity",
   "docker_min_engine_version",
   "docker_min_engine_version_severity",
@@ -425,10 +425,10 @@
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
-   "fieldname": "docker_min_total_memory_bytes",
-   "fieldtype": "Int",
-   "label": "Minimum Total Memory (Bytes)",
-   "description": "Optional Node-level Docker readiness requirement."
+   "fieldname": "docker_min_total_memory_gib",
+   "fieldtype": "Float",
+   "label": "Minimum Total Memory (GiB)",
+   "description": "Optional Node-level minimum expressed in GiB (1 GiB = 1,073,741,824 bytes)."
   },
   {
    "fieldname": "docker_min_total_memory_severity",
@@ -439,10 +439,10 @@
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
-   "fieldname": "docker_min_available_memory_bytes",
-   "fieldtype": "Int",
-   "label": "Minimum Available Memory (Bytes)",
-   "description": "Optional Node-level Docker readiness requirement."
+   "fieldname": "docker_min_available_memory_gib",
+   "fieldtype": "Float",
+   "label": "Minimum Available Memory (GiB)",
+   "description": "Optional Node-level minimum expressed in GiB (1 GiB = 1,073,741,824 bytes)."
   },
   {
    "fieldname": "docker_min_available_memory_severity",
@@ -453,10 +453,10 @@
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
-   "fieldname": "docker_min_available_storage_bytes",
-   "fieldtype": "Int",
-   "label": "Minimum Available Storage (Bytes)",
-   "description": "Optional Node-level Docker readiness requirement."
+   "fieldname": "docker_min_available_storage_gib",
+   "fieldtype": "Float",
+   "label": "Minimum Available Storage (GiB)",
+   "description": "Optional Node-level minimum expressed in GiB (1 GiB = 1,073,741,824 bytes)."
   },
   {
    "fieldname": "docker_min_available_storage_severity",
