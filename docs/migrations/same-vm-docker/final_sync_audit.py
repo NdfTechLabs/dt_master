@@ -2,12 +2,11 @@
 """Scoped read-only source control-plane/queue audit; no fencing or data sync."""
 
 import argparse
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REMOTE = r'''
+REMOTE = r"""
 from datetime import datetime,timezone
 import hashlib,json,os,pathlib,re,subprocess
 if os.geteuid()!=0 or subprocess.check_output(['hostname'],text=True).strip()!='mail.ndftechlabs.com':raise RuntimeError('Wrong audit host/account')
@@ -54,21 +53,41 @@ w=pathlib.Path('/var/lib/ndf-rootless-migration/rehearsal-v1');private={'checked
 (w/'final-sync-control-plane-audit.json').write_text(json.dumps(private,indent=2))
 print(json.dumps({'checked_utc':private['checked_utc'],'read_only':True,'control_plane_match_counts':summaries,'pilot_scheduler':pilot['scheduler'],'pending_email_status_counts':pilot['pending_email'],'shared_queue_lengths':queue_counts,'cron_summary':crons,
  'limits':['Shared queue lengths are not proof of no pilot in-flight jobs','No Redis pickle/description/credential data decoded or displayed','Scoped aliases/cron audit cannot prove absence of external writers','No fencing, source pause, copy, schema sync or cutover executed']},indent=2))
-'''
+"""
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--execute", action="store_true")
-    args = parser.parse_args()
-    if not args.execute:
-        print("Read-only final-sync ownership/queue/cron audit; no source changes, lock/dump, pickle decode or traffic switch.")
-        return
-    result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=60",
-                             "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "ssh.ndftechlabs.com",
-                             "sudo -n nice -n 15 python3 -"], input=REMOTE, text=True, timeout=300)
-    raise SystemExit(result.returncode)
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--execute", action="store_true")
+	args = parser.parse_args()
+	if not args.execute:
+		print(
+			"Read-only final-sync ownership/queue/cron audit; no source changes, lock/dump, pickle decode or traffic switch."
+		)
+		return
+	result = subprocess.run(
+		[
+			"ssh",
+			"-T",
+			"-o",
+			"BatchMode=yes",
+			"-o",
+			"StrictHostKeyChecking=yes",
+			"-o",
+			"ConnectTimeout=60",
+			"-o",
+			"ServerAliveInterval=15",
+			"-o",
+			"ServerAliveCountMax=2",
+			"ssh.ndftechlabs.com",
+			"sudo -n nice -n 15 python3 -",
+		],
+		input=REMOTE,
+		text=True,
+		timeout=300,
+	)
+	raise SystemExit(result.returncode)
 
 
 if __name__ == "__main__":
-    main()
+	main()

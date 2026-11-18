@@ -4,9 +4,8 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REMOTE = r'''
@@ -85,24 +84,54 @@ print(json.dumps({key:value for key,value in receipt.items() if key!='candidate'
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--execute", action="store_true")
-    args = parser.parse_args()
-    package_plan = json.loads((HERE / "rootless-packages.json").read_text())
-    source = json.loads((HERE / "source-manifest.json").read_text())
-    candidate = package_plan["later_application_image_candidate_not_authorized"]
-    request = {"digest": candidate["amd64_digest"], "compressed_bytes": candidate["compressed_bytes"],
-               "runtime": source["runtime"], "commits": {app["app"]:app["commit"] for app in source["apps"] if app["app"] in {"frappe", "erpnext"}}}
-    if not args.execute:
-        print(json.dumps({"dry_run": True, "vm_only": True, "image": candidate["image"], **request,
-                          "customer_data_loaded": False}, indent=2))
-        return
-    code = "REQUEST = " + repr(request) + "\n" + REMOTE
-    result = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-                             "-o", "ConnectTimeout=60", "ssh.ndftechlabs.com", "sudo -n nice -n 10 python3 -"],
-                            input=code, text=True, timeout=2800)
-    raise SystemExit(result.returncode)
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--execute", action="store_true")
+	args = parser.parse_args()
+	package_plan = json.loads((HERE / "rootless-packages.json").read_text())
+	source = json.loads((HERE / "source-manifest.json").read_text())
+	candidate = package_plan["later_application_image_candidate_not_authorized"]
+	request = {
+		"digest": candidate["amd64_digest"],
+		"compressed_bytes": candidate["compressed_bytes"],
+		"runtime": source["runtime"],
+		"commits": {
+			app["app"]: app["commit"] for app in source["apps"] if app["app"] in {"frappe", "erpnext"}
+		},
+	}
+	if not args.execute:
+		print(
+			json.dumps(
+				{
+					"dry_run": True,
+					"vm_only": True,
+					"image": candidate["image"],
+					**request,
+					"customer_data_loaded": False,
+				},
+				indent=2,
+			)
+		)
+		return
+	code = "REQUEST = " + repr(request) + "\n" + REMOTE
+	result = subprocess.run(
+		[
+			"ssh",
+			"-T",
+			"-o",
+			"BatchMode=yes",
+			"-o",
+			"StrictHostKeyChecking=yes",
+			"-o",
+			"ConnectTimeout=60",
+			"ssh.ndftechlabs.com",
+			"sudo -n nice -n 10 python3 -",
+		],
+		input=code,
+		text=True,
+		timeout=2800,
+	)
+	raise SystemExit(result.returncode)
 
 
 if __name__ == "__main__":
-    main()
+	main()

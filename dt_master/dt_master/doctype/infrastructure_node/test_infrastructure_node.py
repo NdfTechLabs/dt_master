@@ -4,7 +4,6 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-
 # On IntegrationTestCase, the doctype test records and all
 # link-field test record dependencies are recursively loaded
 EXTRA_TEST_RECORD_DEPENDENCIES = []

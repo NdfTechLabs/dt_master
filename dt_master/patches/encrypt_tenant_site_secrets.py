@@ -17,6 +17,4 @@ def execute():
 			if not value or set(value) == {"*"}:
 				continue
 			set_encrypted_password("Tenant Site", row.name, value, fieldname)
-			frappe.db.set_value(
-				"Tenant Site", row.name, fieldname, "*" * len(value), update_modified=False
-			)
+			frappe.db.set_value("Tenant Site", row.name, fieldname, "*" * len(value), update_modified=False)
