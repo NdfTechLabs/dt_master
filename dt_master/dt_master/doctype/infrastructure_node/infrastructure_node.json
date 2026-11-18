@@ -26,6 +26,11 @@
   "ram_gb",
   "storage_gb",
   "max_sites",
+  "docker_inspection_section",
+  "docker_inspection_status",
+  "docker_readiness",
+  "docker_inspected_on",
+  "docker_inspection_snapshot",
   "access_section",
   "hosting_model",
   "ip_address",
@@ -111,6 +116,47 @@
    "fieldname": "max_sites",
    "fieldtype": "Int",
    "label": "Max Sites"
+  },
+  {
+   "fieldname": "docker_inspection_section",
+   "fieldtype": "Section Break",
+   "label": "Docker Runtime Inspection",
+   "description": "Latest read-only inspection of the system Docker Engine. Independent of Host-native Node lifecycle state."
+  },
+  {
+   "fieldname": "docker_inspection_status",
+   "fieldtype": "Select",
+   "label": "Inspection Status",
+   "options": "Not Inspected\nSuccessful\nPartial\nFailed\nTimed Out",
+   "default": "Not Inspected",
+   "read_only": 1,
+   "in_list_view": 0,
+   "description": "Outcome of the latest inspection attempt; separate from Docker workload readiness."
+  },
+  {
+   "fieldname": "docker_readiness",
+   "fieldtype": "Select",
+   "label": "Docker Readiness",
+   "options": "Unknown\nReady\nDegraded\nNot Ready",
+   "default": "Unknown",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Whether this Node currently satisfies the platform's Docker workload prerequisites."
+  },
+  {
+   "fieldname": "docker_inspected_on",
+   "fieldtype": "Datetime",
+   "label": "Last Inspected On",
+   "read_only": 1,
+   "description": "Timestamp of the latest completed or attempted Docker inspection."
+  },
+  {
+   "fieldname": "docker_inspection_snapshot",
+   "fieldtype": "Code",
+   "label": "Docker Inspection Snapshot",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Versioned, read-only JSON snapshot. Contract: docs/migrations/schemas/infrastructure-node-docker-inspection-v1.schema.json. Inspection history remains in Node Action Log."
   },
   {
    "fieldname": "access_section",
@@ -239,35 +285,35 @@
   },
   {
    "button_color": "Primary",
-   "description": "SSH Ready \u2192 Deps Installed",
+   "description": "SSH Ready → Deps Installed",
    "fieldname": "install_dependencies",
    "fieldtype": "Button",
    "label": "Install Dependencies"
   },
   {
    "button_color": "Primary",
-   "description": "Deps Installed \u2192 Project Installed",
+   "description": "Deps Installed → Project Installed",
    "fieldname": "install_bench",
    "fieldtype": "Button",
    "label": "Install Bench"
   },
   {
    "button_color": "Info",
-   "description": "Project Installed \u2192 Initialized",
+   "description": "Project Installed → Initialized",
    "fieldname": "initialize_project",
    "fieldtype": "Button",
    "label": "Initialize Project"
   },
   {
    "button_color": "Success",
-   "description": "Healthy / Stopped \u2192 Running",
+   "description": "Healthy / Stopped → Running",
    "fieldname": "start_project",
    "fieldtype": "Button",
    "label": "Start Project"
   },
   {
    "button_color": "Warning",
-   "description": "Running \u2192 Stopped",
+   "description": "Running → Stopped",
    "fieldname": "stop_project",
    "fieldtype": "Button",
    "label": "Stop Project"
@@ -281,7 +327,7 @@
   },
   {
    "button_color": "Info",
-   "description": "Initialized \u2192 Healthy",
+   "description": "Initialized → Healthy",
    "fieldname": "prepare_project",
    "fieldtype": "Button",
    "label": "Prepare Project"
