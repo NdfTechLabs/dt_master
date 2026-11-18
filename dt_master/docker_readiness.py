@@ -39,9 +39,9 @@ NODE_REQUIREMENT_FIELDS = {
     "docker_engine_required": ("docker_engine_required", "docker_engine_severity", "boolean"),
     "docker_compose_required": ("docker_compose_required", "docker_compose_severity", "boolean"),
     "min_cpu_cores": ("docker_min_cpu_cores", "docker_min_cpu_cores_severity", "number"),
-    "min_total_memory_bytes": ("docker_min_total_memory_bytes", "docker_min_total_memory_severity", "number"),
-    "min_available_memory_bytes": ("docker_min_available_memory_bytes", "docker_min_available_memory_severity", "number"),
-    "min_available_storage_bytes": ("docker_min_available_storage_bytes", "docker_min_available_storage_severity", "number"),
+    "min_total_memory_bytes": ("docker_min_total_memory_gib", "docker_min_total_memory_severity", "gib"),
+    "min_available_memory_bytes": ("docker_min_available_memory_gib", "docker_min_available_memory_severity", "gib"),
+    "min_available_storage_bytes": ("docker_min_available_storage_gib", "docker_min_available_storage_severity", "gib"),
     "min_engine_version": ("docker_min_engine_version", "docker_min_engine_version_severity", "version"),
     "min_compose_version": ("docker_min_compose_version", "docker_min_compose_version_severity", "version"),
 }
@@ -89,7 +89,12 @@ def build_node_readiness_requirements(node: Any) -> dict[str, Any]:
                 if node.get(severity_field):
                     raise ReadinessContractError(f"{severity_field} requires {value_field} to be configured")
                 continue
-            expected = value
+            if kind == "gib":
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+                    raise ReadinessContractError(f"{value_field} must be a positive GiB value")
+                expected = round(value * 1024**3)
+            else:
+                expected = value
         severity = node.get(severity_field)
         if severity not in SEVERITIES:
             raise ReadinessContractError(f"{severity_field} must be Required or Recommended")
