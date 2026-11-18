@@ -40,12 +40,13 @@ def execute_operation(operation_id):
     claimed_at = now_datetime()
     frappe.db.sql(
         """UPDATE `tabInfrastructure Operation`
-           SET execution_state = 'Running', attempt_count = attempt_count + 1,
+           SET execution_state = 'Running', dispatch_state = 'Dispatched', queue_name = %s,
+               attempt_count = attempt_count + 1,
                started_on = COALESCE(started_on, %s), heartbeat_on = %s
            WHERE name = %s
              AND execution_state IN ('Pending Dispatch', 'Queued')
              AND attempt_count < max_attempts""",
-        (claimed_at, claimed_at, operation_id),
+        (definition.queue, claimed_at, claimed_at, operation_id),
     )
     if frappe.db.affected_rows() != 1:
         frappe.db.commit()
