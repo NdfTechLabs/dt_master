@@ -1,8 +1,9 @@
 # Copyright (c) 2026, Dhana Technologies and contributors
 # For license information, please see license.txt
 
-import frappe
 import unittest
+
+import frappe
 
 from dt_master.operations.coordinator import _canonical_payload, _reject_secret_values
 from dt_master.operations.registry import (
