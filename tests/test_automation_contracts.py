@@ -139,7 +139,7 @@ class ContractTests(unittest.TestCase):
 				self.assertTrue((SCRIPTS / "bin" / category / script).is_file())
 
 	def test_all_lifecycle_outcomes_are_valid_doctype_options(self):
-		for module, mapping, doctype, state_field in (
+		for _module, mapping, doctype, state_field in (
 			(self.sites, self.sites.TENANT_SITE_TRANSITIONS, "tenant_site", "automation_state"),
 			(self.mail, self.mail.MAIL_SERVER_TRANSITIONS, "mail_server", "automation_state"),
 			(self.nodes, self.nodes.NODE_TRANSITIONS, "infrastructure_node", "state"),
@@ -856,7 +856,7 @@ site::destroy
 		self.assertNotIn("DUPLICATE_SQL_DROP", result.stdout)
 
 	def test_backup_pruning_is_site_scoped_and_keeps_latest(self):
-		result = self.shell("""
+		self.shell("""
 for site in demo.example.test other.example.test; do
     for stamp in 20260101000000 20260102000000; do
         mkdir -p "$PROJECT_BASE_DIR/backups/$site/$stamp"
