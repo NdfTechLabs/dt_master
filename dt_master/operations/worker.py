@@ -4,7 +4,6 @@
 import json
 
 import frappe
-from frappe import _
 from frappe.utils import now_datetime
 
 from dt_master.operations.registry import get_operation
