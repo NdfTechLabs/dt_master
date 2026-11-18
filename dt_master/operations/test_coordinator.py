@@ -295,9 +295,10 @@ class TestOperationAPI(unittest.TestCase):
             "reused": False,
             "status_url": "/api/method/dt_master.api.operations.get_operation",
         }
+        response = {}
         with (
             patch("dt_master.api.operations.start_operation", return_value=expected) as start_operation,
-            patch.object(frappe.local, "response", {}),
+            patch.object(frappe.local, "response", response),
         ):
             from dt_master.api.operations import start
 
@@ -308,8 +309,8 @@ class TestOperationAPI(unittest.TestCase):
                 payload="{}",
                 idempotency_key="api-request-123",
             )
+            self.assertEqual(response["http_status_code"], 202)
         self.assertEqual(result, expected)
-        self.assertEqual(frappe.local.response["http_status_code"], 202)
         start_operation.assert_called_once()
 
     def test_status_api_rejects_another_users_operation(self):
