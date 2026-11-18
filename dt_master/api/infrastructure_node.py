@@ -897,3 +897,129 @@ def stop_project(node_name):
         )
 
     return "Production services stopped successfully"
+
+
+DOCKER_INSPECTION_SCHEMA_VERSION = "1.0.0"
+
+
+def _docker_ssh_config(node):
+    """Reuse the Infrastructure Node SSH identity and managed OpenSSH alias."""
+    node.check_permission("write")
+    if not node.access_verified:
+        frappe.throw("Node access not verified")
+    host_alias = getattr(node, "ssh_host_alias", None) or None
+    if not host_alias and (not node.ip_address or not node.ssh_user):
+        frappe.throw("Incomplete SSH configuration")
+    return {
+        "host": (node.ip_address or "").strip(),
+        "user": node.ssh_user,
+        "port": node.ssh_port or 22,
+        "host_alias": host_alias,
+    }
+
+
+def _docker_failure_snapshot(status, message, duration_ms=0):
+    observed = now_datetime().isoformat()
+    return {
+        "schema_version": DOCKER_INSPECTION_SCHEMA_VERSION,
+        "observed_at": observed,
+        "duration_ms": max(0, int(duration_ms)),
+        "inspection_status": status,
+        "readiness": "Unknown",
+        "host": {"cpu": {"logical_cores": None},
+                 "memory": {"total_bytes": None, "available_bytes": None}},
+        "docker_cli": {"installed": False, "path": None, "client_version": None},
+        "engine": {"availability": "Unknown", "server_version": None,
+                   "api_version": None, "minimum_api_version": None},
+        "compose": {"installed": False, "version": None, "compatibility": "Unknown"},
+        "storage": {"driver": None, "data_root": None,
+                    "filesystem": {"mount_point": None, "total_bytes": None,
+                                   "available_bytes": None, "used_bytes": None}},
+        "permissions": {"execution_identity": None, "inspection_access": "Unknown"},
+        "diagnostics": [{"code": "INSPECTION_" + status.upper().replace(" ", "_"),
+                         "severity": "Error", "message": str(message)[:500]}],
+    }
+
+
+def _validate_docker_snapshot(snapshot):
+    """Validate the versioned payload and reject unexpected or malformed data."""
+    if not isinstance(snapshot, dict) or snapshot.get("schema_version") != DOCKER_INSPECTION_SCHEMA_VERSION:
+        raise ValueError("Unsupported Docker inspection snapshot schema")
+    required = {"schema_version", "observed_at", "duration_ms", "inspection_status", "readiness",
+                "host", "docker_cli", "engine", "compose", "storage", "permissions", "diagnostics"}
+    if set(snapshot) != required:
+        raise ValueError("Docker inspection snapshot has an invalid top-level contract")
+    if snapshot["inspection_status"] not in {"Successful", "Partial", "Failed", "Timed Out"}:
+        raise ValueError("Invalid Docker inspection status")
+    if snapshot["readiness"] not in {"Unknown", "Ready", "Degraded", "Not Ready"}:
+        raise ValueError("Invalid Docker readiness")
+    if not isinstance(snapshot["duration_ms"], int) or snapshot["duration_ms"] < 0:
+        raise ValueError("Invalid Docker inspection duration")
+    for key in ("host", "docker_cli", "engine", "compose", "storage", "permissions"):
+        if not isinstance(snapshot[key], dict):
+            raise ValueError(f"Invalid Docker inspection section: {key}")
+    if not isinstance(snapshot["diagnostics"], list):
+        raise ValueError("Invalid Docker inspection diagnostics")
+    return snapshot
+
+
+@frappe.whitelist()
+def inspect_docker_runtime(node_name):
+    """Run fixed, read-only Docker inspection and persist its latest snapshot."""
+    frappe.only_for("System Manager")
+    node = frappe.get_doc("Infrastructure Node", node_name)
+    node.check_permission("write")
+    state_before = node.state
+    started = now_datetime()
+    code, stdout, stderr = -1, "", ""
+    status, snapshot = "Failed", None
+    try:
+        code, stdout, stderr = run_remote_script(
+            node, _docker_ssh_config(node), "docker", "inspect_docker.sh", {},
+            "script_execution_log", {"execution": "inspect_docker.sh", "node": node.name},
+            use_sudo=False,
+        )
+        if code == 124:
+            status = "Timed Out"
+            snapshot = _docker_failure_snapshot(status, stderr or "Docker inspection timed out.")
+        elif code != 0:
+            status = "Failed"
+            snapshot = _docker_failure_snapshot(status, stderr or stdout or f"Inspection exited with {code}.")
+        else:
+            try:
+                snapshot = _validate_docker_snapshot(json.loads(stdout.strip()))
+                status = snapshot["inspection_status"]
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                status = "Failed"
+                snapshot = _docker_failure_snapshot(status, f"Invalid inspection payload: {exc}")
+    except Exception as exc:
+        status = "Failed"
+        stderr = (stderr + "\\n" + str(exc)).strip()
+        snapshot = _docker_failure_snapshot(status, str(exc))
+
+    finished = now_datetime()
+    snapshot["inspection_status"] = status
+    snapshot_json = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
+    # db.set_value intentionally bypasses the DocType's client-edit protection;
+    # only this authorized server method writes the four server-owned fields.
+    frappe.db.set_value("Infrastructure Node", node.name, {
+        "docker_inspection_status": status,
+        "docker_readiness": snapshot["readiness"],
+        "docker_inspected_on": finished,
+        "docker_inspection_snapshot": snapshot_json,
+    }, update_modified=True)
+    node.reload()
+    _log_node_action(
+        node=node,
+        action_name="Inspect Docker Runtime",
+        action_type="Docker Inspection",
+        state_before=state_before,
+        state_after=state_before,
+        result=status,
+        exit_code=code,
+        stdout=snapshot_json[:200000],
+        stderr=(stderr or "")[:200000],
+        started_at=started,
+        finished_at=finished,
+    )
+    return {"inspection_status": status, "readiness": snapshot["readiness"], "snapshot": snapshot}
