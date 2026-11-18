@@ -94,12 +94,44 @@ class ContractTests(unittest.TestCase):
         self.sites = self.modules["tenant_site_executor"]
         self.mail = self.modules["mail_server_executor"]
         self.nodes = self.modules["infrastructure_node"]
+        self.transport = importlib.import_module("dt_master.api.ssh_transport")
+        self.transport.frappe = self.frappe
 
     def schema(self, name):
         return json.loads((SCHEMAS / name / f"{name}.json").read_text())
 
     def choices(self, name, field):
         return set(next(f for f in self.schema(name)["fields"] if f["fieldname"] == field)["options"].splitlines())
+
+    def test_ssh_transport_builds_direct_and_gateway_commands_consistently(self):
+        direct = {"host": "203.0.113.10", "user": "deploy", "port": 2222}
+        self.assertEqual(self.transport.build_ssh_argv(direct, "printf ok"),
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-p", "2222", "deploy@203.0.113.10", "printf ok"])
+        self.assertEqual(self.transport.build_scp_argv(direct, "/local/scripts", "/opt/dtsaas/scripts"),
+            ["scp", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-P", "2222", "-r", "/local/scripts", "deploy@203.0.113.10:/opt/dtsaas/scripts"])
+        self.frappe.conf = {"dt_master_ssh_config": "/etc/dtsaas/ssh_config"}
+        gateway = {"host_alias": "ndf-node-prod"}
+        self.assertEqual(self.transport.build_ssh_argv(gateway, "printf ok"),
+            ["ssh", "-F", "/etc/dtsaas/ssh_config", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "ndf-node-prod", "printf ok"])
+        self.assertEqual(self.transport.build_scp_argv(gateway, "/local/scripts", "/opt/dtsaas/scripts"),
+            ["scp", "-F", "/etc/dtsaas/ssh_config", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-r", "/local/scripts", "ndf-node-prod:/opt/dtsaas/scripts"])
+
+    def test_ssh_transport_rejects_invalid_alias_and_config_path(self):
+        with self.assertRaises(ValueError):
+            self.transport.build_ssh_argv({"host_alias": "bad alias"}, "true")
+        self.frappe.conf = {"dt_master_ssh_config": "relative/config"}
+        with self.assertRaises(ValueError):
+            self.transport.build_scp_argv({"host_alias": "node-prod"}, "/tmp/scripts", "/tmp")
+
+    def test_ssh_transport_enforces_bounded_timeout(self):
+        with patch.object(self.transport.subprocess, "run", side_effect=subprocess.TimeoutExpired(["ssh"], 2)):
+            with self.assertRaises(TimeoutError):
+                self.transport.run_bounded(["ssh", "node"], timeout=2)
+
+    def test_infrastructure_node_schema_has_optional_ssh_host_alias(self):
+        fields = {field["fieldname"]: field for field in self.schema("infrastructure_node")["fields"]}
+        self.assertEqual(fields["ssh_host_alias"]["fieldtype"], "Data")
+        self.assertFalse(fields["ssh_host_alias"].get("reqd", 0))
 
     def test_demo_values_match_doctype_options(self):
         for key, doctype in (("node", "infrastructure_node"), ("tenant", "tenant_site"),
