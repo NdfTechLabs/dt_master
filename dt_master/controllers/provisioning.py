@@ -21,7 +21,7 @@ def _ensure_site_reachable(tenant):
 		if r.status_code >= 400:
 			raise Exception(f"Tenant site unreachable: {r.status_code}")
 	except Exception as e:
-		raise Exception(f"Tenant site not reachable: {str(e)}")
+		raise Exception(f"Tenant site not reachable: {e!r}")
 
 
 def _ensure_tenant_app_installed(tenant):
