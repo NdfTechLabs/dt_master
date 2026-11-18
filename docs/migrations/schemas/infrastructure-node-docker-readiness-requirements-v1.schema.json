@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/NdfTechLabs/dt_master/blob/develop/docs/migrations/schemas/infrastructure-node-docker-readiness-requirements-v1.schema.json",
   "title": "Infrastructure Node Docker Readiness Requirements",
-  "description": "Versioned policy input for deterministic Docker readiness evaluation. Values are configured by an approved policy owner; no thresholds are implied by this schema.",
+  "description": "Versioned requirements document stored directly in the Infrastructure Node docker_readiness_requirements field. Values are explicitly configured per Node; no thresholds are implied by this schema.",
   "type": "object",
   "additionalProperties": false,
   "required": [
