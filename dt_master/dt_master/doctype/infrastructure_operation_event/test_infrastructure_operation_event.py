@@ -7,6 +7,10 @@ import uuid
 import frappe
 from frappe.tests import IntegrationTestCase
 
+# Event tests create their own parent operation and do not need its linked
+# Infrastructure Node / Tenant Site / ERPNext fixture dependencies.
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Infrastructure Operation"]
+
 
 class IntegrationTestInfrastructureOperationEvent(IntegrationTestCase):
     def _insert_operation(self):
