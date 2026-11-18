@@ -168,6 +168,11 @@ add_to_apps_screen = [
 # 	],
 # }
 
+# Retry durable operations that were accepted but not confirmed as queued.
+scheduler_events = {
+	"all": ["dt_master.operations.coordinator.dispatch_pending_operations"]
+}
+
 # Testing
 # -------
 
