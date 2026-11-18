@@ -7,6 +7,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from dt_master.dt_master.doctype.infrastructure_node.infrastructure_node import InfrastructureNode
+from dt_master.api.infrastructure_node import _docker_failure_snapshot, _validate_docker_snapshot
 from dt_master.docker_readiness import evaluate_node_docker_readiness
 from frappe.utils import get_datetime
 
@@ -151,6 +152,79 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		current = Values(docker_engine_required=1, docker_min_cpu_cores=4)
 		self.assertTrue(InfrastructureNode._docker_requirements_changed(previous, current))
 		self.assertFalse(InfrastructureNode._docker_requirements_changed(previous, previous))
+
+	def test_docker_snapshot_validator_accepts_observation_without_readiness(self):
+		snapshot = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-18T08:00:00Z",
+			"duration_ms": 100,
+			"inspection_status": "Successful",
+			"host": {
+				"cpu": {"logical_cores": 6},
+				"memory": {"total_bytes": 12_000_000_000, "available_bytes": 5_000_000_000},
+			},
+			"docker_cli": {"installed": True, "path": "/usr/bin/docker", "client_version": "29.9.3"},
+			"engine": {
+				"availability": "Available",
+				"server_version": "29.9.3",
+				"api_version": "1.52",
+				"minimum_api_version": "1.44",
+			},
+			"compose": {"installed": True, "version": "5.7.0", "compatibility": "Compatible"},
+			"storage": {
+				"driver": "overlay2",
+				"data_root": "/var/lib/docker",
+				"filesystem": {
+					"mount_point": "/",
+					"total_bytes": 200_000_000_000,
+					"available_bytes": 100_000_000_000,
+					"used_bytes": 100_000_000_000,
+				},
+			},
+			"permissions": {"execution_identity": "frank", "inspection_access": "Allowed"},
+			"diagnostics": [],
+		}
+		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
+		self.assertNotIn("readiness", snapshot)
+
+	def test_docker_snapshot_validator_accepts_legacy_readiness_without_using_it(self):
+		snapshot = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-18T08:00:00Z",
+			"duration_ms": 100,
+			"inspection_status": "Successful",
+			"readiness": "Not Ready",
+			"host": {
+				"cpu": {"logical_cores": 6},
+				"memory": {"total_bytes": 12_000_000_000, "available_bytes": 5_000_000_000},
+			},
+			"docker_cli": {"installed": True, "path": "/usr/bin/docker", "client_version": "29.9.3"},
+			"engine": {
+				"availability": "Available",
+				"server_version": "29.9.3",
+				"api_version": "1.52",
+				"minimum_api_version": "1.44",
+			},
+			"compose": {"installed": True, "version": "5.7.0", "compatibility": "Compatible"},
+			"storage": {
+				"driver": "overlay2",
+				"data_root": "/var/lib/docker",
+				"filesystem": {
+					"mount_point": "/",
+					"total_bytes": 200_000_000_000,
+					"available_bytes": 100_000_000_000,
+					"used_bytes": 100_000_000_000,
+				},
+			},
+			"permissions": {"execution_identity": "frank", "inspection_access": "Allowed"},
+			"diagnostics": [],
+		}
+		self.assertEqual(_validate_docker_snapshot(snapshot)["readiness"], "Not Ready")
+
+	def test_docker_failure_snapshot_matches_observation_contract(self):
+		snapshot = _docker_failure_snapshot("Failed", "probe failed")
+		self.assertNotIn("readiness", snapshot)
+		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
 
 	def test_missing_snapshot_evaluates_to_unknown(self):
 		node = self._new_node()
