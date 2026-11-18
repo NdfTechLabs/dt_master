@@ -33,7 +33,7 @@ class TestOperationCoordinator(unittest.TestCase):
 
     def _start(self, get_doc_side_effect=None):
         with (
-            patch.object(frappe.session, "user", "operator@example.com"),
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
             patch.object(frappe, "only_for"),
             patch.object(coordinator, "_existing_operation", return_value=None),
             patch.object(coordinator, "dispatch_operation"),
@@ -65,7 +65,7 @@ class TestOperationCoordinator(unittest.TestCase):
         existing.business_state = "Accepted"
         existing.execution_state = "Queued"
         with (
-            patch.object(frappe.session, "user", "operator@example.com"),
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
             patch.object(frappe, "only_for"),
             patch.object(coordinator, "_existing_operation", return_value=existing),
             patch.object(coordinator.frappe, "get_doc", return_value=self.target),
@@ -82,7 +82,7 @@ class TestOperationCoordinator(unittest.TestCase):
         existing = MagicMock()
         existing.request_fingerprint = "different-fingerprint"
         with (
-            patch.object(frappe.session, "user", "operator@example.com"),
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
             patch.object(frappe, "only_for"),
             patch.object(coordinator, "_existing_operation", return_value=existing),
             patch.object(coordinator.frappe, "get_doc", return_value=self.target),
@@ -94,7 +94,7 @@ class TestOperationCoordinator(unittest.TestCase):
 
     def test_queue_failure_keeps_durable_pending_operation(self):
         with (
-            patch.object(frappe.session, "user", "operator@example.com"),
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
             patch.object(frappe, "only_for"),
             patch.object(coordinator, "_existing_operation", return_value=None),
             patch.object(coordinator, "dispatch_operation", side_effect=RuntimeError("queue offline")),
