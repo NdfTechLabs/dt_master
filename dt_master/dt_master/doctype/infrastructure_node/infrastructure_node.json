@@ -45,6 +45,7 @@
   "docker_min_compose_version",
   "docker_min_compose_version_severity",
   "docker_max_snapshot_age_seconds",
+  "docker_inspection_results_section",
   "docker_inspection_status",
   "docker_readiness",
   "docker_inspected_on",
@@ -498,6 +499,11 @@
    "fieldtype": "Int",
    "label": "Maximum Inspection Age (Seconds)",
    "description": "Optional maximum age for inspection evidence. Stale evidence produces Unknown."
+  },
+  {
+   "fieldname": "docker_inspection_results_section",
+   "fieldtype": "Section Break",
+   "label": "Latest Docker Inspection Results"
   }
  ],
  "grid_page_length": 50,
