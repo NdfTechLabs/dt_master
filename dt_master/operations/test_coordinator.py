@@ -120,11 +120,13 @@ class TestOperationWorkerClaim(unittest.TestCase):
         definition = get_operation("test.noop")
         handler = MagicMock()
         definition = replace(definition, handler=handler)
+        cursor = MagicMock()
+        cursor.rowcount = 0
         with (
             patch.object(worker.frappe, "get_doc", return_value=operation),
             patch.object(worker, "get_operation", return_value=definition),
             patch.object(worker.frappe.db, "sql"),
-            patch.object(worker.frappe.db, "affected_rows", return_value=0),
+            patch.object(worker.frappe.db, "_cursor", cursor),
             patch.object(worker.frappe.db, "commit"),
         ):
             worker.execute_operation("operation-test")
