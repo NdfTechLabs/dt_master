@@ -1159,7 +1159,7 @@ console.log('policy passed');"""
 	def test_stage_proof_requires_all_checks_across_node_reporters(self):
 		module = load_tool("stage_publish_remote")
 		lines = ["tests 32", "pass 32", "fail 0", "cancelled 0", "skipped 0"]
-		for prefix in ("# ", "ℹ ", "\x1b[34mℹ \x1b[39m"):
+		for prefix in ("# ", "\u2139 ", "\x1b[34m\u2139 \x1b[39m"):
 			self.assertTrue(module.synthetic_proof_passed("\n".join(prefix + line for line in lines)))
 		for output in (
 			"# tests 32\n# fail 0",
