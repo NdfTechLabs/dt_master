@@ -435,7 +435,7 @@
    "fieldtype": "Select",
    "label": "Severity",
    "options": "\nRequired\nRecommended",
-   "depends_on": "eval:doc.docker_min_total_memory_bytes",
+   "depends_on": "eval:doc.docker_min_total_memory_gib",
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
@@ -449,7 +449,7 @@
    "fieldtype": "Select",
    "label": "Severity",
    "options": "\nRequired\nRecommended",
-   "depends_on": "eval:doc.docker_min_available_memory_bytes",
+   "depends_on": "eval:doc.docker_min_available_memory_gib",
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
@@ -463,7 +463,7 @@
    "fieldtype": "Select",
    "label": "Severity",
    "options": "\nRequired\nRecommended",
-   "depends_on": "eval:doc.docker_min_available_storage_bytes",
+   "depends_on": "eval:doc.docker_min_available_storage_gib",
    "description": "Required failures produce Not Ready; recommended failures produce Degraded."
   },
   {
