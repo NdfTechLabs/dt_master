@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from frappe.utils import get_datetime
 
 # On IntegrationTestCase, the doctype test records and all
 # link-field test record dependencies are recursively loaded
@@ -98,6 +99,16 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.docker_inspection_status = "Successful"
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
+
+
+	def test_equivalent_inspection_datetime_representations_are_unchanged(self):
+		timestamp = "2026-11-18 11:00:00"
+		self.assertEqual(
+			frappe.get_doc("Infrastructure Node")._normalize_inspection_value(
+				"docker_inspected_on", timestamp
+			),
+			get_datetime(timestamp),
+		)
 
 	def test_new_node_rejects_client_supplied_inspection_timestamp(self):
 		node = self._new_node()
