@@ -21,7 +21,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 
 	def _new_node(self):
 		node = frappe.new_doc("Infrastructure Node")
-		node.node_name = "docker-readiness-test-node"
+		node.node_name = f"docker-readiness-test-{frappe.generate_hash(length=10)}"
 		node.os_type = "Ubuntu"
 		node.project_base_dir = "/opt/dtsaas"
 		node.project_logs_dir = "/var/log/dtsaas"
