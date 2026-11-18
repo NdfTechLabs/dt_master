@@ -79,7 +79,7 @@ def _validate_requirements(requirements: dict[str, Any]) -> list[dict[str, Any]]
         if not isinstance(check, dict) or set(check) != {"key", "severity", "expected"}:
             raise ReadinessContractError("Each check must contain exactly key, severity and expected")
         key, severity, expected = check["key"], check["severity"], check["expected"]
-        if key not in _REQUIREMENT_PATHS or key in seen:
+        if not isinstance(key, str) or key not in _REQUIREMENT_PATHS or key in seen:
             raise ReadinessContractError(f"Unknown or duplicate readiness requirement: {key}")
         if severity not in SEVERITIES:
             raise ReadinessContractError(f"Invalid severity for requirement: {key}")
