@@ -61,6 +61,13 @@ frappe.ui.form.on("Infrastructure Node", {
             }
         });
 
+        if (frappe.user_roles.includes("System Manager")) {
+            frm.add_custom_button(__("Inspect Docker Runtime"), () => {
+                frappe.confirm(__("Run a read-only Docker runtime inspection on this node?"),
+                    () => run_bench_operation(frm, "inspect_docker_runtime"));
+            }, __("Docker"));
+        }
+
         if (frappe.user_roles.includes("System Manager") && ["Initialized", "Healthy", "Running", "Stopped", "Error"].includes(state)) {
             for (const [method, label] of Object.entries({
                 backup_bench: "Backup Bench", update_bench: "Update Bench",
