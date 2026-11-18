@@ -99,7 +99,9 @@ class IntegrationTestInfrastructureOperation(IntegrationTestCase):
         duplicate = self._new_operation(idempotency_key=key)
         frappe.flags.infrastructure_operation_create = True
         try:
-            with self.assertRaises(frappe.DuplicateEntryError):
+            # Frappe wraps the database duplicate-key error as
+            # UniqueValidationError during Document.insert().
+            with self.assertRaises(frappe.UniqueValidationError):
                 duplicate.insert(ignore_permissions=True)
         finally:
             frappe.flags.infrastructure_operation_create = False
