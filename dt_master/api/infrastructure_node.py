@@ -96,14 +96,17 @@ def _get_ssh_config(node):
     if not node.access_verified:
         frappe.throw("Node access not verified")
 
-    if not node.ip_address or not node.ssh_user:
+    host_alias = getattr(node, "ssh_host_alias", None) or None
+    if not host_alias and (not node.ip_address or not node.ssh_user):
         frappe.throw("Incomplete SSH configuration")
+    if not host_alias and not node.ssh_user:
+        frappe.throw("SSH user is required for direct connections")
 
     return {
-        "host": node.ip_address.strip(),
+        "host": (node.ip_address or "").strip(),
         "user": node.ssh_user,
         "port": node.ssh_port or 22,
-        "host_alias": getattr(node, "ssh_host_alias", None) or None,
+        "host_alias": host_alias,
     }
 
 def _get_node_dependencies(node):
