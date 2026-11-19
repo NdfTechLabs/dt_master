@@ -13,6 +13,7 @@ class TestResourceLeases(unittest.TestCase):
     def test_first_acquisition_creates_fencing_token_one(self):
         cursor = MagicMock(rowcount=1)
         with (
+            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql") as sql,
             patch.object(leases.frappe.db, "_cursor", cursor),
             patch.object(leases, "now_datetime", return_value="2026-11-19 10:00:00"),
@@ -26,6 +27,8 @@ class TestResourceLeases(unittest.TestCase):
     def test_busy_unexpired_lease_is_not_stolen(self):
         cursor = MagicMock(rowcount=0)
         with (
+            patch.object(leases.frappe.db, "exists", return_value=True),
+            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql"),
             patch.object(leases.frappe.db, "_cursor", cursor),
             patch.object(leases, "now_datetime", return_value="2026-11-19 10:00:00"),
