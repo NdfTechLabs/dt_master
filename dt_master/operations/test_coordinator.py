@@ -218,6 +218,34 @@ class TestOperationWorkerClaim(unittest.TestCase):
             worker.execute_operation("operation-test")
         handler.assert_not_called()
 
+    def test_contract_mismatch_persists_failed_event_with_terminal_transition(self):
+        operation = MagicMock()
+        operation.operation_id = "operation-test"
+        operation.operation_type = "test.noop"
+        operation.contract_version = "0.9.0"
+        operation.execution_state = "Queued"
+        cursor = MagicMock()
+        cursor.rowcount = 1
+        with (
+            patch.object(worker.frappe, "get_doc", return_value=operation),
+            patch.object(worker, "get_operation", return_value=get_operation("test.noop")),
+            patch.object(worker.frappe.db, "sql"),
+            patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker, "record_operation_event") as record_event,
+            patch.object(worker.frappe.db, "commit") as commit,
+            patch.object(worker, "now_datetime", return_value="2026-11-19 12:00:00"),
+        ):
+            worker.execute_operation("operation-test")
+
+        record_event.assert_called_once_with(
+            "operation-test",
+            "failed",
+            phase="contract_validation",
+            message="Operation failed because its registered contract version is no longer supported.",
+            event_data={"error_code": "UNSUPPORTED_CONTRACT_VERSION"},
+        )
+        commit.assert_called_once()
+
     def test_terminal_operation_is_unchanged_by_stale_contract_delivery(self):
         operation = MagicMock()
         operation.operation_id = "operation-test"
