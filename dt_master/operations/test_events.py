@@ -25,6 +25,7 @@ class TestOperationEvents(unittest.TestCase):
         with (
             patch.object(events.frappe.db, "sql", side_effect=[self.lock_result, [{"last_sequence": 0}]]),
             patch.object(events.frappe, "get_doc", return_value=self.event_doc),
+            patch.object(events.frappe.db, "get_value", return_value="Running"),
             patch.object(events, "now_datetime", return_value="2026-11-19 10:00:00"),
         ):
             return events.record_operation_event(self.operation_id, event_type, **kwargs)
@@ -33,7 +34,8 @@ class TestOperationEvents(unittest.TestCase):
         result = self._record("accepted", message="Operation accepted")
         self.assertEqual(result["sequence"], 1)
         self.assertEqual(result["event_type"], "accepted")
-        self.assertEqual(result["schema_version"], "1.0.0")
+        self.assertEqual(result["schema_version"], "1.1.0")
+        self.assertEqual(result["execution_state"], "Running")
         self.event_doc.insert.assert_called_once_with(ignore_permissions=True)
 
     def test_next_event_sequence_increments_from_existing_history(self):
