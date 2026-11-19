@@ -17,7 +17,6 @@ EVENT_EXECUTION_STATES = {
     "failed": "Failed",
     "cancelled": "Cancelled",
     "recovery_required": "Recovery Required",
-    "reconciled": "Recovery Required",
 }
 
 
