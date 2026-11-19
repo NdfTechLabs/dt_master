@@ -34,6 +34,8 @@ class TestOperationCoordinator(unittest.TestCase):
         self.operation.max_attempts = 1
         self.operation.attempt_count = 0
         self.operation.max_attempts = 1
+        self.operation.attempt_count = 0
+        self.operation.max_attempts = 1
 
     def _start(self, get_doc_side_effect=None):
         with (
