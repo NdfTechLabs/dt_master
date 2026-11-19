@@ -75,7 +75,7 @@ def _next_sequence(operation_name):
         WHERE name = %s
         FOR UPDATE
         """,
-        operation_name,
+        (operation_name,),
         as_dict=True,
     )
     if not locked:
@@ -112,7 +112,7 @@ def record_operation_event(
     if not isinstance(operation_id, str) or not operation_id.strip():
         frappe.throw(_("A valid operation ID is required."), frappe.ValidationError)
 
-    if event_type not in SUPPORTED_EVENT_TYPES:
+    if not isinstance(event_type, str) or event_type not in SUPPORTED_EVENT_TYPES:
         frappe.throw(_("Unsupported operation event type."), frappe.ValidationError)
 
     if message is not None:
