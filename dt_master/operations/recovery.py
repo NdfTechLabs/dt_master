@@ -78,7 +78,6 @@ def _mark_recovery_required(operation, leases):
         """
         UPDATE `tabInfrastructure Operation`
         SET execution_state = 'Recovery Required',
-            business_state = 'Failed',
             recovery_required = 1,
             recovery_reason = %s,
             error_code = 'WORKER_HEARTBEAT_EXPIRED',
