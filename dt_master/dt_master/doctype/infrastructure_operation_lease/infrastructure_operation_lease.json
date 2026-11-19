@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "lock_key",
+  "operation",
+  "attempt",
+  "worker_token",
+  "fencing_token",
+  "acquired_on",
+  "expires_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "lock_key",
+   "fieldtype": "Data",
+   "label": "Resource Lock Key",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "operation",
+   "fieldtype": "Link",
+   "label": "Infrastructure Operation",
+   "options": "Infrastructure Operation",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "attempt",
+   "fieldtype": "Int",
+   "label": "Attempt",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "worker_token",
+   "fieldtype": "Data",
+   "label": "Worker Token",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "fencing_token",
+   "fieldtype": "Int",
+   "label": "Fencing Token",
+   "reqd": 1,
+   "default": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "acquired_on",
+   "fieldtype": "Datetime",
+   "label": "Acquired On",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Datetime",
+   "label": "Expires On",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "module": "Dt Master",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 0,
+ "name": "Infrastructure Operation Lease"
+}
