@@ -230,17 +230,38 @@ class TestOperationWorkerClaim(unittest.TestCase):
     def test_duplicate_delivery_does_not_invoke_handler(self):
         operation = MagicMock()
         operation.operation_id = "operation-test"
+        operation.correlation_id = "correlation-test"
         operation.operation_type = "test.noop"
         operation.contract_version = "1.0.0"
         operation.execution_state = "Queued"
+        operation.request_payload = "{}"
+        operation.target_doctype = "Infrastructure Node"
+        operation.target_name = "NODE-TEST"
+        operation.initiated_by = "operator@example.com"
+        operation.initiator_type = "Human"
+        operation.execution_identity = "frappe-worker"
+        operation.attempt_count = 0
+        operation.max_attempts = 1
+        target = MagicMock()
         definition = get_operation("test.noop")
         handler = MagicMock()
         definition = replace(definition, handler=handler)
         cursor = MagicMock()
         cursor.rowcount = 0
+        lease = {
+            "lock_key": "node:NODE-TEST",
+            "operation_id": "operation-test",
+            "attempt": 1,
+            "worker_token": "worker-test",
+            "fencing_token": 1,
+            "expires_on": "2026-11-19 16:01:00",
+        }
         with (
-            patch.object(worker.frappe, "get_doc", return_value=operation),
+            patch.object(worker.frappe, "get_doc", side_effect=[operation, target]),
             patch.object(worker, "get_operation", return_value=definition),
+            patch.object(worker, "as_execution_identity"),
+            patch.object(worker, "acquire_resource_leases", return_value=[lease]),
+            patch.object(worker, "_release_leases") as release,
             patch.object(worker.frappe.db, "sql"),
             patch.object(worker.frappe.db, "_cursor", cursor),
             patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
@@ -248,6 +269,7 @@ class TestOperationWorkerClaim(unittest.TestCase):
         ):
             worker.execute_operation("operation-test")
         handler.assert_not_called()
+        release.assert_called_once_with([lease])
 
     def test_contract_mismatch_persists_failed_event_with_terminal_transition(self):
         operation = MagicMock()
