@@ -3,6 +3,7 @@
 from abc import ABC
 from datetime import datetime, timezone
 
+from dt_master.operations.execution_context import WorkerExecutionContext
 from dt_master.runtime_adapters.contracts import (
     ADAPTER_CONTRACT_VERSION,
     MUTATING_METHODS,
@@ -66,7 +67,7 @@ class RuntimeAdapter(ABC):
     def _require_execution_context(request, context):
         required = ("operation_id", "correlation_id", "initiated_by", "execution_identity",
                     "target_doctype", "target_name", "assert_leases", "heartbeat")
-        if not isinstance(context, dict) or any(key not in context for key in required):
+        if not isinstance(context, WorkerExecutionContext) or any(key not in context for key in required):
             raise RuntimeAdapterError(
                 "COORDINATOR_CONTEXT_REQUIRED",
                 "Mutating adapter methods require the durable operation worker execution context.",
@@ -77,8 +78,8 @@ class RuntimeAdapter(ABC):
                 "Mutating adapter methods require active lease assertion and heartbeat callbacks.",
             )
         identity_fields = (
-            "operation_id", "correlation_id", "initiated_by", "execution_identity",
-            "target_doctype", "target_name",
+            "operation_id", "correlation_id", "initiator_type", "initiated_by",
+            "execution_identity", "idempotency_key", "target_doctype", "target_name",
         )
         if any(getattr(request, field) != context.get(field) for field in identity_fields):
             raise RuntimeAdapterError(
