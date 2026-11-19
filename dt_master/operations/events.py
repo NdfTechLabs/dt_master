@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from dt_master.operations.realtime import publish_operation_event
+
 EVENT_SCHEMA_VERSION = "1.0.0"
 MAX_EVENT_PAYLOAD_BYTES = 65536
 MAX_MESSAGE_LENGTH = 2000
@@ -105,7 +107,8 @@ def record_operation_event(
 ):
     """Persist one immutable operation event inside the caller's transaction.
 
-    This function deliberately does not commit, roll back, enqueue, or publish.
+    This function does not commit, roll back or enqueue. It schedules a best-effort
+    realtime publication for after the caller's transaction commits.
     Sequence allocation is serialized by locking the parent Infrastructure Operation row.
     """
     if not isinstance(operation_id, str) or not operation_id.strip():
@@ -155,7 +158,7 @@ def record_operation_event(
     finally:
         frappe.flags.infrastructure_operation_event_create = False
 
-    return {
+    result = {
         "name": event.name,
         "operation_id": operation_id,
         "sequence": sequence,
@@ -167,3 +170,5 @@ def record_operation_event(
         "message": message,
         "event_data": event_data_json,
     }
+    publish_operation_event(result)
+    return result

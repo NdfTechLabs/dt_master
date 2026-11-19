@@ -15,6 +15,11 @@ class TestOperationEvents(unittest.TestCase):
         self.lock_result = [{"name": self.operation_id}]
         self.event_doc = MagicMock()
         self.event_doc.name = "event-test"
+        self.publisher = patch.object(events, "publish_operation_event")
+        self.publisher_mock = self.publisher.start()
+
+    def tearDown(self):
+        self.publisher.stop()
 
     def _record(self, event_type="progress", **kwargs):
         with (
@@ -135,7 +140,11 @@ class TestOperationEvents(unittest.TestCase):
         with self.assertRaises(frappe.ValidationError):
             events.record_operation_event(self.operation_id, "progress", phase="x" * 141)
 
-    def test_service_does_not_commit_or_publish(self):
+    def test_service_schedules_realtime_publication_after_event_insert(self):
+        result = self._record("started", message="Worker started")
+        self.publisher_mock.assert_called_once_with(result)
+
+    def test_service_does_not_commit_or_publish_directly(self):
         with (
             patch.object(
                 events.frappe.db,
@@ -144,6 +153,7 @@ class TestOperationEvents(unittest.TestCase):
             ),
             patch.object(events.frappe, "get_doc", return_value=self.event_doc),
             patch.object(events.frappe.db, "commit") as commit,
+            patch.object(events, "publish_operation_event"),
             patch.object(events.frappe, "publish_realtime") as publish,
             patch.object(events, "now_datetime", return_value="2026-11-19 10:00:00"),
         ):
