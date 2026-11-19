@@ -6,6 +6,7 @@ import json
 import frappe
 from frappe.utils import now_datetime
 
+from dt_master.operations.events import record_operation_event
 from dt_master.operations.registry import get_operation
 
 
@@ -20,17 +21,11 @@ def _set_operation_fields(operation_id, values):
 def execute_operation(operation_id):
     """Claim and execute one registered operation exactly once per active attempt."""
     operation = frappe.get_doc("Infrastructure Operation", operation_id)
-
-    # A duplicate or stale queue delivery must never mutate an operation that
-    # has already left the dispatchable states, even if its registry entry or
-    # contract version has since changed.
     if operation.execution_state not in {"Pending Dispatch", "Queued"}:
         return
 
     definition = get_operation(operation.operation_type)
     if operation.contract_version != definition.contract_version:
-        # Keep the contract-mismatch transition conditional: another worker
-        # may have claimed the operation after our initial read.
         frappe.db.sql(
             """UPDATE `tabInfrastructure Operation`
                SET execution_state = 'Failed', business_state = 'Failed',
@@ -41,11 +36,17 @@ def execute_operation(operation_id):
                  AND execution_state IN ('Pending Dispatch', 'Queued')""",
             (now_datetime(), operation_id),
         )
+        if frappe.db._cursor.rowcount == 1:
+            record_operation_event(
+                operation_id,
+                "failed",
+                phase="contract_validation",
+                message="Operation failed because its registered contract version is no longer supported.",
+                event_data={"error_code": "UNSUPPORTED_CONTRACT_VERSION"},
+            )
         frappe.db.commit()
         return
 
-    # Conditional update is the worker-claim compare-and-set. Duplicate RQ
-    # deliveries cannot both transition this row into Running.
     claimed_at = now_datetime()
     frappe.db.sql(
         """UPDATE `tabInfrastructure Operation`
@@ -60,6 +61,15 @@ def execute_operation(operation_id):
     if frappe.db._cursor.rowcount != 1:
         frappe.db.commit()
         return
+
+    record_operation_event(
+        operation_id,
+        "started",
+        phase="execution",
+        message="Worker started operation execution.",
+        event_data={"attempt": int(operation.attempt_count or 0) + 1},
+    )
+    # The Running transition and started event are committed atomically.
     frappe.db.commit()
 
     operation.reload()
@@ -68,9 +78,6 @@ def execute_operation(operation_id):
         if not isinstance(payload, dict):
             raise ValueError("Persisted operation payload is not an object")
         target = frappe.get_doc(operation.target_doctype, operation.target_name)
-        # Re-check authorization immediately before handler execution. The
-        # original actor remains recorded; the worker's session is not used
-        # as a substitute for that actor.
         worker_user = frappe.session.user
         try:
             frappe.set_user(operation.initiated_by)
@@ -97,6 +104,7 @@ def execute_operation(operation_id):
         result_json = json.dumps(result, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         if len(result_json) > 65536:
             raise ValueError("Operation result exceeds the 64 KiB result limit")
+        completed_on = now_datetime()
         _set_operation_fields(
             operation_id,
             {
@@ -105,13 +113,22 @@ def execute_operation(operation_id):
                 "result_payload": result_json,
                 "error_code": None,
                 "error_summary": None,
-                "completed_on": now_datetime(),
-                "heartbeat_on": now_datetime(),
+                "completed_on": completed_on,
+                "heartbeat_on": completed_on,
             },
         )
+        record_operation_event(
+            operation_id,
+            "completed",
+            phase="completed",
+            message="Operation completed successfully.",
+            event_data={"result": result},
+        )
+        frappe.db.commit()
     except Exception:
         frappe.db.rollback()
         frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
+        completed_on = now_datetime()
         _set_operation_fields(
             operation_id,
             {
@@ -119,6 +136,14 @@ def execute_operation(operation_id):
                 "business_state": "Failed",
                 "error_code": "HANDLER_FAILED",
                 "error_summary": "The registered operation handler failed. See the restricted server error log.",
-                "completed_on": now_datetime(),
+                "completed_on": completed_on,
             },
         )
+        record_operation_event(
+            operation_id,
+            "failed",
+            phase="execution",
+            message="The registered operation handler failed.",
+            event_data={"error_code": "HANDLER_FAILED"},
+        )
+        frappe.db.commit()
