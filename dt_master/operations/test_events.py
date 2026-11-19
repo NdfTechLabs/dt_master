@@ -78,6 +78,20 @@ class TestOperationEvents(unittest.TestCase):
         self.assertIn("FOR UPDATE", sql.call_args_list[0].args[0])
         self.assertIn("MAX(sequence)", sql.call_args_list[1].args[0])
 
+    def test_sequence_lookup_uses_parameter_tuple(self):
+        with (
+            patch.object(
+                events.frappe.db,
+                "sql",
+                side_effect=[self.lock_result, [{"last_sequence": 2}]],
+            ) as sql,
+            patch.object(events.frappe, "get_doc", return_value=self.event_doc),
+            patch.object(events, "now_datetime", return_value="2026-11-19 10:00:00"),
+        ):
+            events.record_operation_event(self.operation_id, "started")
+
+        self.assertEqual(sql.call_args_list[1].args[1], (self.operation_id,))
+
     def test_missing_parent_operation_is_rejected(self):
         with patch.object(events.frappe.db, "sql", return_value=[]):
             with self.assertRaises(frappe.DoesNotExistError):

@@ -9,6 +9,7 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from dt_master.operations.events import record_operation_event
 from dt_master.operations.registry import get_operation
 
 SENSITIVE_KEY_PARTS = ("password", "token", "secret", "private_key", "credential")
@@ -77,11 +78,7 @@ def _operation_response(operation, reused=False):
 
 
 def start_operation(operation_type, target_doctype, target_name, payload, idempotency_key, correlation_id=None):
-    """Authorize, persist and dispatch a registered operation.
-
-    The operation row is committed before queue submission. A dispatch failure
-    therefore leaves a durable Pending Dispatch record for a later dispatcher.
-    """
+    """Authorize, persist and dispatch a registered operation."""
     if frappe.session.user == "Guest":
         frappe.throw(_("Authentication is required to start an operation."), frappe.PermissionError)
     if not isinstance(idempotency_key, str) or not idempotency_key.strip() or len(idempotency_key) > 140:
@@ -133,8 +130,6 @@ def start_operation(operation_type, target_doctype, target_name, payload, idempo
     try:
         operation.insert(ignore_permissions=True)
     except frappe.UniqueValidationError:
-        # The database unique constraint is the concurrency authority. A
-        # concurrent identical request may have won after our pre-check.
         existing = _existing_operation(actor, operation_type, target_doctype, target_name, idempotency_key)
         if existing and existing.request_fingerprint == fingerprint:
             return _operation_response(existing, reused=True)
@@ -144,12 +139,23 @@ def start_operation(operation_type, target_doctype, target_name, payload, idempo
     finally:
         frappe.flags.infrastructure_operation_create = False
 
-    # Commit before enqueue to close the accepted-but-not-durable window.
+    record_operation_event(
+        operation.operation_id,
+        "accepted",
+        phase="accepted",
+        message="Operation accepted.",
+        event_data={
+            "operation_type": definition.operation_type,
+            "target_doctype": target.doctype,
+            "target_name": target.name,
+        },
+    )
+
+    # The operation and its accepted event become durable together, before enqueue.
     frappe.db.commit()
     try:
         dispatch_operation(operation.name)
     except Exception:
-        # The durable Pending Dispatch row remains available for reconciliation.
         frappe.log_error(frappe.get_traceback(), "Infrastructure Operation dispatch failed")
     operation.reload()
     return _operation_response(operation)
@@ -178,8 +184,6 @@ def dispatch_operation(operation_id):
         operation_id=operation.operation_id,
     )
     job_id = getattr(job, "id", None)
-    # Do not overwrite Running if a fast worker claimed the Pending Dispatch
-    # row before this dispatcher recorded the enqueue acknowledgement.
     frappe.db.sql(
         """UPDATE `tabInfrastructure Operation`
            SET dispatch_state = 'Dispatched', queue_name = %s, job_id = %s
@@ -192,6 +196,14 @@ def dispatch_operation(operation_id):
            WHERE name = %s AND execution_state = 'Pending Dispatch'""",
         (operation.name,),
     )
+    if frappe.db._cursor.rowcount == 1:
+        record_operation_event(
+            operation.operation_id,
+            "queued",
+            phase="queued",
+            message="Operation queued for execution.",
+            event_data={"queue": definition.queue, "job_id": job_id},
+        )
     frappe.db.commit()
     return _operation_response(frappe.get_doc("Infrastructure Operation", operation.name))
 

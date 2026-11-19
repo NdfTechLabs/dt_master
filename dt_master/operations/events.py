@@ -87,7 +87,7 @@ def _next_sequence(operation_name):
         FROM `tabInfrastructure Operation Event`
         WHERE operation = %s
         """,
-        operation_name,
+        (operation_name,),
         as_dict=True,
     )
     last_sequence = result[0].get("last_sequence", 0) if result else 0
@@ -106,8 +106,7 @@ def record_operation_event(
     """Persist one immutable operation event inside the caller's transaction.
 
     This function deliberately does not commit, roll back, enqueue, or publish.
-    The caller owns transaction boundaries. Sequence allocation is serialized
-    by locking the parent Infrastructure Operation row.
+    Sequence allocation is serialized by locking the parent Infrastructure Operation row.
     """
     if not isinstance(operation_id, str) or not operation_id.strip():
         frappe.throw(_("A valid operation ID is required."), frappe.ValidationError)
