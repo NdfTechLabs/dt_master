@@ -20,6 +20,7 @@ class MutatingTestAdapter(RuntimeAdapter):
         return ("start",)
 
     def _start(self, request, execution_context=None):
+        self.last_request = request
         return self.result_for(
             request,
             outcome="succeeded",
@@ -62,7 +63,8 @@ def payload(**overrides):
 class TestRuntimeOperationBridge(unittest.TestCase):
     def setUp(self):
         clear_registry_for_tests()
-        register_adapter(MutatingTestAdapter())
+        self.adapter = MutatingTestAdapter()
+        register_adapter(self.adapter)
 
     def tearDown(self):
         clear_registry_for_tests()
@@ -101,13 +103,28 @@ class TestRuntimeOperationBridge(unittest.TestCase):
             validate_runtime_mutation_payload(payload())
         self.assertEqual(raised.exception.code, "UNSUPPORTED_CAPABILITY")
 
-    def test_request_identity_is_bound_to_target_and_idempotency(self):
-        with self.assertRaises(RuntimeAdapterError) as raised:
-            invoke_runtime_mutation(
-                context(idempotency_key="different-key"),
-                payload(),
-            )
-        self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_MISMATCH")
+    def test_request_identity_is_bound_to_worker_context(self):
+        worker_context = context(
+            idempotency_key="different-key",
+            target_name="NODE-0002",
+        )
+        invoke_runtime_mutation(worker_context, payload())
+
+        # Target and idempotency identity come exclusively from the trusted
+        # worker context, not from caller-controlled operation payload fields.
+        self.assertEqual(self.adapter.last_request.target_doctype, "Infrastructure Node")
+        self.assertEqual(self.adapter.last_request.target_name, "NODE-0002")
+        self.assertEqual(self.adapter.last_request.idempotency_key, "different-key")
+
+    def test_caller_cannot_override_target_or_idempotency_identity(self):
+        for field, value in (
+            ("target_doctype", "Bench Environment"),
+            ("target_name", "NODE-9999"),
+            ("idempotency_key", "forged-key"),
+        ):
+            with self.subTest(field=field):
+                with self.assertRaises(ValueError):
+                    validate_runtime_mutation_payload(payload(**{field: value}))
 
     def test_arbitrary_command_payload_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Caller-controlled"):
