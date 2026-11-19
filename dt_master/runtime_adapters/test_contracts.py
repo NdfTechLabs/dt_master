@@ -219,7 +219,7 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
             def capabilities(self):
                 return ("start",)
             def _start(self, request, execution_context=None):
-                self.fail("Handler must not run without coordinator context")
+                raise AssertionError("Handler must not run without coordinator context")
         with self.assertRaises(RuntimeAdapterError) as raised:
             MutatingAdapter().invoke("start", mutation_request())
         self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_REQUIRED")
@@ -229,7 +229,7 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
             def capabilities(self):
                 return ("start",)
             def _start(self, request, execution_context=None):
-                self.fail("Handler must not run when request identity differs")
+                raise AssertionError("Handler must not run when request identity differs")
         context = {
             "operation_id": "different-operation", "correlation_id": "correlation-123",
             "initiated_by": "operator@example.com", "execution_identity": "worker@example.com",
