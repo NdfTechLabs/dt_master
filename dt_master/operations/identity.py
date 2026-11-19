@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 
 FORBIDDEN_EXECUTION_USERS = {"Administrator", "Guest"}
+CONFIGURED_WORKER_IDENTITY = "frappe-worker"
+WORKER_USER_CONFIG_KEY = "dt_master_operation_execution_user"
 
 
 def validate_execution_identity(identity):
@@ -15,6 +17,13 @@ def validate_execution_identity(identity):
         frappe.throw(_("An execution identity is required."), frappe.ValidationError)
 
     identity = identity.strip()
+    if identity == CONFIGURED_WORKER_IDENTITY:
+        identity = frappe.conf.get(WORKER_USER_CONFIG_KEY)
+        if not identity:
+            frappe.throw(
+                _("The dedicated operation worker user is not configured ({0}).").format(WORKER_USER_CONFIG_KEY),
+                frappe.ValidationError,
+            )
     if identity in FORBIDDEN_EXECUTION_USERS:
         frappe.throw(_("Administrator and Guest cannot be operation execution identities."), frappe.PermissionError)
 
