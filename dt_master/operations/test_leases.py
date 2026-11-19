@@ -116,7 +116,7 @@ class TestResourceLeases(unittest.TestCase):
         ):
             self.assertTrue(leases.release_resource_lease(lease))
         self.assertIn("fencing_token = %s", sql.call_args.args[0])
-        self.assertIn("DELETE", sql.call_args.args[0].upper(), False)
+        self.assertNotIn("DELETE", sql.call_args.args[0].upper())
 
     def test_multiple_resource_locks_are_sorted_and_released_on_conflict(self):
         first = {"lock_key":"node:A","operation_id":"OP-1","attempt":1,
@@ -129,6 +129,20 @@ class TestResourceLeases(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual([call.args[0] for call in acquire.call_args_list], ["node:A", "node:B"])
         release.assert_called_once_with(first)
+
+    def test_multiple_resource_locks_return_all_fencing_identities(self):
+        first = {"lock_key":"node:A","operation_id":"OP-1","attempt":1,
+                 "worker_token":"w1","fencing_token":1}
+        second = {"lock_key":"node:B","operation_id":"OP-1","attempt":1,
+                  "worker_token":"w2","fencing_token":1}
+        with patch.object(leases, "acquire_resource_lease", side_effect=[first, second]) as acquire:
+            result = leases.acquire_resource_leases(["node:B", "node:A"], "OP-1", 1)
+        self.assertEqual(result, [first, second])
+        self.assertEqual([call.args[0] for call in acquire.call_args_list], ["node:A", "node:B"])
+
+    def test_duplicate_lock_keys_are_rejected(self):
+        with self.assertRaises(frappe.ValidationError):
+            leases.acquire_resource_leases(["node:A", "node:A"], "OP-1", 1)
 
     def test_invalid_lease_duration_is_rejected(self):
         with self.assertRaises(frappe.ValidationError):
