@@ -83,10 +83,23 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// The accepted/queued event can arrive before the list snapshot
-				// includes the new operation. Fetch the authorized record directly.
+				// Discover the operation from the first authorized socket event so it
+				// appears immediately, even before get_operation returns.
+				this.operations.set(operationId, {
+					operation_id: operationId,
+					correlation_id: event.correlation_id,
+					operation_type: __("Background operation"),
+					target_doctype: null,
+					target_name: null,
+					execution_state: event.execution_state || "Pending Dispatch",
+					creation: event.occurred_at || null,
+					modified: event.occurred_at || null,
+					event_history: [],
+				});
+				this.realtimeDiscovered.add(operationId);
+				this.lastSequences.set(operationId, 0);
+				this.render();
 				this.loadOperation(operationId);
-				return;
 			}
 
 			const sequence = Number(event.sequence);
