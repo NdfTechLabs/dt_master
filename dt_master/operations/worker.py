@@ -51,7 +51,14 @@ def _lease_checkpoint(operation_id, attempt, leases):
         if not renew_resource_lease(lease):
             frappe.throw(_("The operation lost its resource lease and must stop."), frappe.ValidationError)
         assert_resource_lease(lease)
-    _set_operation_fields(operation_id, {"heartbeat_on": now_datetime()})
+    frappe.db.sql(
+        """UPDATE `tabInfrastructure Operation`
+           SET heartbeat_on = %s, lock_expires_on = %s
+           WHERE name = %s AND execution_state = 'Running' AND attempt_count = %s""",
+        (now_datetime(), min(item["expires_on"] for item in leases), operation_id, attempt),
+    )
+    if frappe.db._cursor.rowcount != 1:
+        frappe.throw(_("The operation attempt is no longer current."), frappe.ValidationError)
     frappe.db.commit()
     return True
 
