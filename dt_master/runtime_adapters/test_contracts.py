@@ -348,5 +348,50 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
         self.assertEqual(calls, ["heartbeat", "assert", "assert", "heartbeat"])
 
 
+    def test_failed_initial_heartbeat_prevents_mutation_handler(self):
+        calls = []
+
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+
+            def _start(self, request, execution_context=None):
+                calls.append("handler")
+                return self.result_for(request, outcome="succeeded", observed_state="Running")
+
+        def fail_heartbeat():
+            calls.append("heartbeat")
+            raise RuntimeError("lease renewal failed")
+
+        context = worker_context(heartbeat=fail_heartbeat)
+        with self.assertRaisesRegex(RuntimeError, "lease renewal failed"):
+            MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
+        self.assertEqual(calls, ["heartbeat"])
+
+    def test_lease_loss_after_handler_prevents_successful_result(self):
+        calls = []
+
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+
+            def _start(self, request, execution_context=None):
+                calls.append("handler")
+                return self.result_for(request, outcome="succeeded", observed_state="Running")
+
+        def assert_lease():
+            calls.append("assert")
+            if calls.count("assert") == 2:
+                raise RuntimeError("resource lease lost")
+
+        context = worker_context(
+            heartbeat=lambda: calls.append("heartbeat"),
+            assert_leases=assert_lease,
+        )
+        with self.assertRaisesRegex(RuntimeError, "resource lease lost"):
+            MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
+        self.assertEqual(calls, ["heartbeat", "assert", "handler", "assert"])
+
+
 if __name__ == "__main__":
     unittest.main()
