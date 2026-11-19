@@ -2,7 +2,10 @@
 
 import hashlib
 import json
+from pathlib import Path
 import unittest
+
+from jsonschema import Draft202012Validator
 
 from dt_master.deployment_descriptors.ndf import (
     DeploymentDescriptorError,
@@ -14,6 +17,30 @@ from dt_master.deployment_descriptors.ndf import (
 
 
 class TestNdfDescriptorValidation(unittest.TestCase):
+    def test_pinned_ndf_schemas_are_valid_draft_2020_12_schemas(self):
+        fixture_dir = Path(__file__).parent / "tests" / "fixtures"
+        for filename in (
+            "product-deployment-descriptor-v1.schema.json",
+            "service-descriptor-v1.schema.json",
+        ):
+            with self.subTest(schema=filename):
+                schema = json.loads((fixture_dir / filename).read_text(encoding="utf-8"))
+                Draft202012Validator.check_schema(schema)
+
+    def test_actual_ndf_service_schema_rejects_mutable_container_image(self):
+        fixture = Path(__file__).parent / "tests" / "fixtures" / "service-descriptor-v1.schema.json"
+        schema = json.loads(fixture.read_text(encoding="utf-8"))
+        descriptor = {
+            "descriptor_version": "1.0.0",
+            "service_id": "redis",
+            "name": "Redis",
+            "service_kind": "container",
+            "artifact": {"image": "redis:latest"},
+        }
+        with self.assertRaisesRegex(DeploymentDescriptorError, "Schema validation failed"):
+            from dt_master.deployment_descriptors.ndf import _schema_validate
+            _schema_validate(descriptor, schema)
+
     def test_parser_rejects_duplicate_json_keys(self):
         with self.assertRaisesRegex(DeploymentDescriptorError, "Duplicate JSON object key"):
             parse_descriptor_json('{"service_id":"redis","service_id":"mysql"}')
