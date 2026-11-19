@@ -15,6 +15,9 @@ class TestOperationEvents(unittest.TestCase):
         self.lock_result = [{"name": self.operation_id}]
         self.event_doc = MagicMock()
         self.event_doc.name = "event-test"
+        self.execution_state_patch = patch.object(events.frappe.db, "get_value", return_value="Running")
+        self.execution_state_patch.start()
+        self.addCleanup(self.execution_state_patch.stop)
         self.publisher = patch.object(events, "publish_operation_event")
         self.publisher_mock = self.publisher.start()
 
