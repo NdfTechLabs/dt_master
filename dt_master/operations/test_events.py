@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import frappe
 
