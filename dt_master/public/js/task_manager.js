@@ -47,7 +47,17 @@
 			this.lastSequences = new Map();
 			this.replaying = new Set();
 			this.replayQueued = new Set();
-			this.handleOperationEvent = (event) => this.onOperationEvent(event);
+			this.realtimeEventCount = 0;
+			this.lastRealtimeEvent = null;
+			this.handleOperationEvent = (event) => {
+				this.realtimeEventCount += 1;
+				this.lastRealtimeEvent = event || null;
+				try {
+					this.onOperationEvent(event);
+				} catch (error) {
+					console.error("[dt_master] Task Manager failed to process an operation event.", error);
+				}
+			};
 			this.handleReconnect = () => this.reconcileAll();
 		}
 
@@ -64,12 +74,14 @@
 		}
 
 		bindRealtime() {
-			if (!frappe.realtime || this.realtimeBound) return;
-			this.realtimeBound = true;
+			if (this.realtimeBound) return true;
+			if (!frappe.realtime || typeof frappe.realtime.on !== "function") return false;
 			// The server publishes only to authorized user rooms; the browser
 			// never chooses or subscribes to operation rooms.
 			frappe.realtime.on("operation_event", this.handleOperationEvent);
 			frappe.realtime.on("connect", this.handleReconnect);
+			this.realtimeBound = true;
+			return true;
 		}
 
 		onOperationEvent(event) {
@@ -81,17 +93,17 @@
 				!Number.isInteger(Number(event.sequence)) ||
 				Number(event.sequence) < 1
 			) return;
-			const operationId = event.operation_id;
+			const operationId = String(event.operation_id);
 			if (!this.operations.has(operationId)) {
-				// Discover the operation from the first authorized socket event so it
-				// appears immediately, even before get_operation returns.
+				// Insert synchronously before any asynchronous request so the first
+				// authorized event immediately creates a visible task card.
 				this.operations.set(operationId, {
 					operation_id: operationId,
 					correlation_id: event.correlation_id,
 					operation_type: __("Background operation"),
 					target_doctype: null,
 					target_name: null,
-					execution_state: event.execution_state || "Pending Dispatch",
+					execution_state: "Pending Dispatch",
 					creation: event.occurred_at || null,
 					modified: event.occurred_at || null,
 					event_history: [],
@@ -101,22 +113,14 @@
 				this.render();
 				this.loadOperation(operationId);
 			}
-
 			const sequence = Number(event.sequence);
 			const cursor = this.lastSequences.get(operationId) || 0;
 			if (sequence <= cursor) return;
 			if (sequence !== cursor + 1) {
-				// A missed/out-of-order event requires durable replay; never skip a gap.
-				if (this.replaying.has(operationId)) {
-					this.replayQueued.add(operationId);
-				} else {
-					this.reconcileOperation(operationId);
-				}
+				if (this.replaying.has(operationId)) this.replayQueued.add(operationId);
+				else this.reconcileOperation(operationId);
 				return;
 			}
-
-			// Socket.IO is the live update path. Apply the sanitized envelope
-			// immediately; durable history remains the recovery path for gaps/reconnects.
 			this.applyEvent(operationId, event);
 		}
 
@@ -135,16 +139,20 @@
 				});
 				const operation = response.message;
 				if (!operation || !operation.operation_id) return;
+				const current = this.operations.get(operationId) || {};
+				const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 				this.operations.set(operationId, {
 					...operation,
-					creation: operation.creation || operation.started_on || null,
-					modified: operation.completed_on || operation.started_on || null,
-					event_history: this.operations.get(operationId)?.event_history || [],
+					...current,
+					operation_id: operationId,
+					creation: current.creation || operation.creation || operation.started_on || null,
+					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
+					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+					event_history: current.event_history || [],
 				});
 				this.realtimeDiscovered.add(operationId);
 				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
 				this.render();
-				await this.reconcileOperation(operationId);
 			} catch (error) {
 				// A later list refresh/reconnect can recover if the event raced
 				// record visibility or the caller is no longer authorized.
@@ -257,20 +265,21 @@
 				// A snapshot can have started before a realtime event announced a
 				// newly-created operation. Preserve those discoveries when the
 				// older snapshot resolves instead of overwriting the newer state.
+				for (const [operationId, operation] of next) {
+					const current = this.operations.get(operationId);
+					if (!current) continue;
+					const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
+					next.set(operationId, {
+						...operation,
+						...current,
+						operation_id: operationId,
+						execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+						event_history: current.event_history || [],
+					});
+				}
 				for (const operationId of this.realtimeDiscovered) {
 					if (!next.has(operationId) && this.operations.has(operationId)) {
 						next.set(operationId, this.operations.get(operationId));
-					} else if (next.has(operationId)) {
-						this.realtimeDiscovered.delete(operationId);
-					}
-				}
-				for (const [operationId, operation] of next) {
-					const current = this.operations.get(operationId);
-					if (current?.event_history?.length) {
-						operation.event_history = current.event_history;
-						operation.last_event_message = current.last_event_message;
-						operation.last_event_phase = current.last_event_phase;
-						operation.last_event_at = current.last_event_at;
 					}
 				}
 				this.operations = next;
