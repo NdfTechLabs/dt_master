@@ -72,7 +72,8 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
             "operation_id": "operation-test",
             "correlation_id": "correlation-test",
             "sequence": 4,
-            "event_type": "queued",
+            "event_type": "reconciled",
+            "execution_state": "Pending Dispatch",
             "occurred_at": "2026-11-19 12:00:00",
             "execution_state": "Queued",
             "phase": "queued",
@@ -94,8 +95,9 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
             "name": "event-queued",
             "operation_id": "operation-test",
             "sequence": 2,
-            "event_type": "queued",
-            "schema_version": "1.0.0",
+            "event_type": "reconciled",
+            "execution_state": "Pending Dispatch",
+            "schema_version": "1.1.0",
             "occurred_at": "2026-11-19 12:00:00",
         }
         self.operation.execution_state = "Running"
