@@ -1,0 +1,95 @@
+/* Global Desk Task Manager */
+.dt-task-manager {
+	position: fixed;
+	z-index: 1040;
+	right: 24px;
+	bottom: 18px;
+	width: min(390px, calc(100vw - 32px));
+	max-height: min(70vh, 620px);
+	display: flex;
+	flex-direction: column;
+	background: var(--card-bg, #fff);
+	color: var(--text-color, #1f272e);
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-radius: 10px;
+	box-shadow: 0 8px 28px rgba(0, 0, 0, .16);
+	font-size: var(--text-sm, 13px);
+	overflow: hidden;
+}
+.dt-task-manager.is-collapsed { width: auto; max-height: none; }
+.dt-task-manager__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 12px;
+	background: var(--control-bg, #f7f8f9);
+	border-bottom: 1px solid var(--border-color, #e2e6e9);
+}
+.dt-task-manager.is-collapsed .dt-task-manager__header { border-bottom: 0; }
+.dt-task-manager__title, .dt-task-manager__controls, .dt-task-manager__operation-line {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.dt-task-manager__count {
+	min-width: 21px;
+	padding: 1px 6px;
+	border-radius: 12px;
+	background: var(--blue-100, #e8f1fb);
+	color: var(--text-color, #1f272e);
+	text-align: center;
+	font-size: 11px;
+}
+.dt-task-manager__icon {
+	width: 27px;
+	height: 27px;
+	padding: 0;
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-radius: 6px;
+	background: var(--card-bg, #fff);
+	color: inherit;
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
+}
+.dt-task-manager__icon:hover { background: var(--bg-light-gray, #f0f2f4); }
+.dt-task-manager__body { overflow: auto; padding: 10px 12px 12px; }
+.dt-task-manager__section + .dt-task-manager__section { margin-top: 12px; }
+.dt-task-manager__section h4 {
+	margin: 0 0 7px;
+	color: var(--text-muted, #687780);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+.dt-task-manager__operation {
+	padding: 9px 0;
+	border-top: 1px solid var(--border-color, #edf0f2);
+}
+.dt-task-manager__operation:first-of-type { border-top: 0; }
+.dt-task-manager__operation-line { justify-content: space-between; gap: 8px; }
+.dt-task-manager__operation-line strong {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-weight: 600;
+}
+.dt-task-manager__state {
+	flex: 0 0 auto;
+	padding: 2px 7px;
+	border-radius: 10px;
+	background: var(--bg-light-gray, #f0f2f4);
+	font-size: 10px;
+}
+.dt-task-manager__state--success { background: var(--green-100, #e6f4ea); color: var(--green-700, #287d3c); }
+.dt-task-manager__state--danger { background: var(--red-100, #fce8e6); color: var(--red-700, #b42318); }
+.dt-task-manager__state--warning { background: var(--orange-100, #fff1db); color: var(--orange-700, #995c00); }
+.dt-task-manager__state--muted { color: var(--text-muted, #687780); }
+.dt-task-manager__target { margin-top: 3px; color: var(--text-muted, #687780); font-size: 11px; overflow-wrap: anywhere; }
+.dt-task-manager__time { display: block; margin-top: 4px; color: var(--text-light, #8d99a6); font-size: 10px; }
+.dt-task-manager__error { margin: 5px 0 0; color: var(--red-700, #b42318); overflow-wrap: anywhere; }
+.dt-task-manager__empty { margin: 8px 0 4px; color: var(--text-muted, #687780); text-align: center; }
+@media (max-width: 600px) {
+	.dt-task-manager { right: 12px; bottom: 12px; width: calc(100vw - 24px); }
+}
