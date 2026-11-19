@@ -18,6 +18,7 @@ PROTECTED_FIELDS = {
     "timeout_seconds", "request_payload", "result_payload", "error_code",
     "error_summary", "cancellation_requested_by", "cancellation_requested_on",
     "lock_key", "lock_owner", "lock_expires_on", "recovery_required", "recovery_reason",
+    "reconciliation_decision", "reconciled_by", "reconciled_on", "reconciliation_reason", "reconciliation_evidence",
 }
 EXECUTION_STATES = {
     "Pending Dispatch", "Queued", "Running", "Retry Waiting",
