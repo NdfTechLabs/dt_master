@@ -82,8 +82,10 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// A newly accepted operation may race the initial snapshot.
-				this.refresh();
+				// The accepted/queued event can arrive before the list snapshot
+				// includes the new operation. Fetch the authorized record directly
+				// instead of relying on a possibly in-flight list refresh.
+				this.loadOperation(operationId);
 				return;
 			}
 			this.reconcileOperation(operationId);
@@ -92,6 +94,30 @@
 		async reconcileAll() {
 			// refresh() also replays persisted history for every operation in the snapshot.
 			await this.refresh();
+		}
+
+		async loadOperation(operationId) {
+			try {
+				const response = await frappe.call({
+					method: "dt_master.api.operations.get_operation",
+					args: { operation_id: operationId },
+				});
+				const operation = response.message;
+				if (!operation || !operation.operation_id) return;
+				this.operations.set(operationId, {
+					...operation,
+					creation: operation.creation || operation.started_on || null,
+					modified: operation.completed_on || operation.started_on || null,
+				});
+				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
+				this.render();
+				await this.reconcileOperation(operationId);
+			} catch (error) {
+				// A later list refresh/reconnect can recover if the event raced
+				// record visibility or the caller is no longer authorized.
+				console.warn("[dt_master] Unable to load newly announced operation.");
+				this.refresh();
+			}
 		}
 
 		async reconcileOperation(operationId) {
