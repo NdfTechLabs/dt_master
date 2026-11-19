@@ -60,6 +60,12 @@
 			this.render();
 			this.bindRealtime();
 			this.refresh();
+			// Realtime delivery is best-effort. Periodically reconcile the durable
+			// operation snapshot so newly accepted work is still discovered if a
+			// socket event is missed or arrives before the initial snapshot settles.
+			this.pollTimer = window.setInterval(() => {
+				if (!document.hidden) this.refresh();
+			}, 5000);
 		}
 
 		bindRealtime() {
