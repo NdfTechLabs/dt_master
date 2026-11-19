@@ -32,7 +32,7 @@ def _authorized_recipients(operation):
     if system_managers:
         enabled_managers = frappe.get_all(
             "User",
-            filters={"name": ["in", list(set(system_managers))], "enabled": 1},
+            filters={"name": ["in", sorted(set(system_managers))], "enabled": 1},
             pluck="name",
         )
         recipients.update(enabled_managers)
