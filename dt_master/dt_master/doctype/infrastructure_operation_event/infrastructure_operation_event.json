@@ -42,7 +42,7 @@
    "fieldname": "event_type",
    "fieldtype": "Select",
    "label": "Event Type",
-   "options": "accepted\nqueued\nstarted\nprogress\nlog\nheartbeat\ncancellation_requested\ncompleted\nfailed\ncancelled\nrecovery_required",
+   "options": "accepted\nqueued\nstarted\nprogress\nlog\nheartbeat\ncancellation_requested\ncompleted\nfailed\ncancelled\nrecovery_required\nreconciled",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -50,7 +50,7 @@
    "fieldname": "execution_state",
    "fieldtype": "Select",
    "label": "Execution State at Event Time",
-   "options": "Pending Dispatch\\nQueued\\nRunning\\nRetry Waiting\\nCancellation Requested\\nSucceeded\\nFailed\\nCancelled\\nRecovery Required",
+   "options": "Pending Dispatch\nQueued\nRunning\nRetry Waiting\nCancellation Requested\nSucceeded\nFailed\nCancelled\nRecovery Required",
    "reqd": 1,
    "read_only": 1
   },
