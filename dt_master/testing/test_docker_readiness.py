@@ -262,5 +262,53 @@ class TestDockerReadiness(unittest.TestCase):
         self.assertEqual(result["readiness"], "Ready")
 
 
+    def test_insufficient_available_storage_fails_required_capacity(self):
+        data = snapshot()
+        data["storage"]["filesystem"]["available_bytes"] = 5_000_000_000
+        result = evaluate_docker_readiness(
+            policy([check("min_available_storage_bytes", 20_000_000_000)]),
+            data,
+        )
+        self.assertEqual(result["readiness"], "Not Ready")
+        self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_NOT_MET")
+
+    def test_insufficient_available_memory_fails_required_capacity(self):
+        data = snapshot()
+        data["host"]["memory"]["available_bytes"] = 512_000_000
+        result = evaluate_docker_readiness(
+            policy([check("min_available_memory_bytes", 2_000_000_000)]),
+            data,
+        )
+        self.assertEqual(result["readiness"], "Not Ready")
+        self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_NOT_MET")
+
+    def test_incompatible_compose_version_fails_minimum_version_requirement(self):
+        data = snapshot()
+        data["compose"]["version"] = "2.10.0"
+        result = evaluate_docker_readiness(
+            policy([check("min_compose_version", "2.20.0")]),
+            data,
+        )
+        self.assertEqual(result["readiness"], "Not Ready")
+        self.assertEqual(result["diagnostics"][0]["requirement"], "min_compose_version")
+
+    def test_unavailable_compose_probe_does_not_depend_on_daemon_availability(self):
+        data = snapshot(
+            engine={
+                "availability": "Unavailable",
+                "server_version": None,
+                "api_version": None,
+                "minimum_api_version": None,
+            },
+            compose={"installed": False, "version": None, "compatibility": "Unavailable"},
+        )
+        result = evaluate_docker_readiness(
+            policy([check("docker_compose_required", True)]),
+            data,
+        )
+        self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(result["diagnostics"][0]["requirement"], "docker_compose_required")
+
+
 if __name__ == "__main__":
     unittest.main()
