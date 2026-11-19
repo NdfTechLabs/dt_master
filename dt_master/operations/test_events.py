@@ -153,6 +153,7 @@ class TestOperationEvents(unittest.TestCase):
             ),
             patch.object(events.frappe, "get_doc", return_value=self.event_doc),
             patch.object(events.frappe.db, "commit") as commit,
+            patch.object(events, "publish_operation_event"),
             patch.object(events.frappe, "publish_realtime") as publish,
             patch.object(events, "now_datetime", return_value="2026-11-19 10:00:00"),
         ):
