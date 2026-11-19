@@ -55,6 +55,11 @@ def resolve_adapter(runtime_type, adapter_id=None):
 
         register_adapter(HostRuntimeAdapter())
         matches = [item for item in _ADAPTERS.values() if item.runtime_type == runtime_type]
+    if not matches and runtime_type == "docker":
+        from dt_master.runtime_adapters.docker import DockerRuntimeAdapter
+
+        register_adapter(DockerRuntimeAdapter())
+        matches = [item for item in _ADAPTERS.values() if item.runtime_type == runtime_type]
     if len(matches) != 1:
         code = "NO_ADAPTER_REGISTERED" if not matches else "AMBIGUOUS_ADAPTER"
         raise RuntimeAdapterError(code, f"Runtime type '{runtime_type}' does not resolve to exactly one registered adapter.")
