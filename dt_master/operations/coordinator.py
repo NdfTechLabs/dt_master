@@ -129,17 +129,6 @@ def start_operation(operation_type, target_doctype, target_name, payload, idempo
     frappe.flags.infrastructure_operation_create = True
     try:
         operation.insert(ignore_permissions=True)
-        record_operation_event(
-            operation.operation_id,
-            "accepted",
-            phase="accepted",
-            message="Operation accepted.",
-            event_data={
-                "operation_type": definition.operation_type,
-                "target_doctype": target.doctype,
-                "target_name": target.name,
-            },
-        )
     except frappe.UniqueValidationError:
         existing = _existing_operation(actor, operation_type, target_doctype, target_name, idempotency_key)
         if existing and existing.request_fingerprint == fingerprint:
@@ -149,6 +138,18 @@ def start_operation(operation_type, target_doctype, target_name, payload, idempo
         raise
     finally:
         frappe.flags.infrastructure_operation_create = False
+
+    record_operation_event(
+        operation.operation_id,
+        "accepted",
+        phase="accepted",
+        message="Operation accepted.",
+        event_data={
+            "operation_type": definition.operation_type,
+            "target_doctype": target.doctype,
+            "target_name": target.name,
+        },
+    )
 
     # The operation and its accepted event become durable together, before enqueue.
     frappe.db.commit()
