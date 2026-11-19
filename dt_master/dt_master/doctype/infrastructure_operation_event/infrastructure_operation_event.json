@@ -41,7 +41,7 @@
    "fieldname": "event_type",
    "fieldtype": "Select",
    "label": "Event Type",
-   "options": "queued\nstarted\nprogress\nlog\nheartbeat\ncancellation_requested\ncompleted\nfailed\ncancelled\nrecovery_required",
+   "options": "accepted\nqueued\nstarted\nprogress\nlog\nheartbeat\ncancellation_requested\ncompleted\nfailed\ncancelled\nrecovery_required",
    "reqd": 1,
    "in_list_view": 1
   },
