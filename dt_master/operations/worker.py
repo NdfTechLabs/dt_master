@@ -7,6 +7,7 @@ import frappe
 from frappe.utils import now_datetime
 
 from dt_master.operations.events import record_operation_event
+from dt_master.operations.identity import as_execution_identity
 from dt_master.operations.registry import get_operation
 
 
@@ -84,18 +85,21 @@ def execute_operation(operation_id):
             definition.authorize(target)
         finally:
             frappe.set_user(worker_user)
-        result = definition.handler(
-            {
-                "operation_id": operation.operation_id,
-                "correlation_id": operation.correlation_id,
-                "initiated_by": operation.initiated_by,
-                "initiator_type": operation.initiator_type,
-                "execution_identity": operation.execution_identity,
-                "target_doctype": operation.target_doctype,
-                "target_name": operation.target_name,
-            },
-            payload,
-        )
+        # The handler runs only under the registered, enabled System User.
+        # The initiating actor is used exclusively for the authorization recheck.
+        with as_execution_identity(operation.execution_identity):
+            result = definition.handler(
+                {
+                    "operation_id": operation.operation_id,
+                    "correlation_id": operation.correlation_id,
+                    "initiated_by": operation.initiated_by,
+                    "initiator_type": operation.initiator_type,
+                    "execution_identity": operation.execution_identity,
+                    "target_doctype": operation.target_doctype,
+                    "target_name": operation.target_name,
+                },
+                payload,
+            )
         if not isinstance(result, dict):
             raise ValueError("Operation handlers must return a JSON object")
         from dt_master.operations.coordinator import _reject_secret_values
