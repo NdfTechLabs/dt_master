@@ -107,6 +107,23 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
 
         self.assertEqual(publish.call_args.args[1]["execution_state"], "Queued")
 
+    def test_operation_lookup_failure_is_best_effort(self):
+        event = {
+            "name": "event-test",
+            "operation_id": "operation-test",
+            "sequence": 1,
+            "event_type": "accepted",
+            "schema_version": "1.0.0",
+            "occurred_at": "2026-11-19 12:00:00",
+        }
+        with (
+            patch.object(realtime.frappe, "get_doc", side_effect=RuntimeError("database unavailable")),
+            patch.object(realtime.frappe, "log_error") as log_error,
+        ):
+            realtime.publish_operation_event(event)
+
+        log_error.assert_called_once()
+
     def test_publication_failure_is_logged_and_does_not_escape(self):
         event = {
             "name": "event-test",
