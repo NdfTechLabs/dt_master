@@ -3,6 +3,7 @@
 from abc import ABC
 from datetime import datetime, timezone
 
+from dt_master.operations.execution_context import WorkerExecutionContext
 from dt_master.runtime_adapters.contracts import (
     ADAPTER_CONTRACT_VERSION,
     MUTATING_METHODS,
@@ -49,10 +50,12 @@ class RuntimeAdapter(ABC):
         if not callable(handler):
             raise RuntimeAdapterError("UNSUPPORTED_CAPABILITY", f"Adapter '{self.adapter_id}' has no implementation for '{method}'.")
         if method in MUTATING_METHODS:
-            execution_context["assert_leases"]()
+            execution_context.heartbeat()
+            execution_context.assert_leases()
         raw = handler(request, execution_context=execution_context)
         if method in MUTATING_METHODS:
-            execution_context["assert_leases"]()
+            execution_context.assert_leases()
+            execution_context.heartbeat()
         if not isinstance(raw, RuntimeAdapterResult):
             raise RuntimeAdapterError("INVALID_ADAPTER_RESULT", "Adapter implementation returned an invalid result type.")
         if raw.adapter_id != self.adapter_id or raw.runtime_type != self.runtime_type:
@@ -60,13 +63,19 @@ class RuntimeAdapter(ABC):
         result = validate_result(raw)
         if result.method != method or result.target_doctype != request.target_doctype or result.target_name != request.target_name:
             raise RuntimeAdapterError("RESULT_TARGET_MISMATCH", "Adapter result does not match the requested target or method.")
+        if result.operation_id != request.operation_id or result.correlation_id != request.correlation_id:
+            raise RuntimeAdapterError(
+                "RESULT_OPERATION_MISMATCH",
+                "Adapter result does not match the durable operation and correlation identity.",
+            )
         return result
 
     @staticmethod
     def _require_execution_context(request, context):
-        required = ("operation_id", "correlation_id", "initiated_by", "execution_identity",
-                    "target_doctype", "target_name", "assert_leases", "heartbeat")
-        if not isinstance(context, dict) or any(key not in context for key in required):
+        required = ("operation_id", "correlation_id", "initiator_type", "initiated_by",
+                    "execution_identity", "idempotency_key", "target_doctype", "target_name",
+                    "assert_leases", "heartbeat")
+        if not isinstance(context, WorkerExecutionContext) or any(key not in context for key in required):
             raise RuntimeAdapterError(
                 "COORDINATOR_CONTEXT_REQUIRED",
                 "Mutating adapter methods require the durable operation worker execution context.",
@@ -77,8 +86,8 @@ class RuntimeAdapter(ABC):
                 "Mutating adapter methods require active lease assertion and heartbeat callbacks.",
             )
         identity_fields = (
-            "operation_id", "correlation_id", "initiated_by", "execution_identity",
-            "target_doctype", "target_name",
+            "operation_id", "correlation_id", "initiator_type", "initiated_by",
+            "execution_identity", "idempotency_key", "target_doctype", "target_name",
         )
         if any(getattr(request, field) != context.get(field) for field in identity_fields):
             raise RuntimeAdapterError(

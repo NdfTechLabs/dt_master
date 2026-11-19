@@ -57,14 +57,32 @@ def _validate_payload_safety(value: Any, path: str = "payload") -> None:
     if isinstance(value, dict):
         for key, item in value.items():
             normalized = key.lower()
-            if any(part in normalized for part in _SECRET_KEY_PARTS) and not normalized.endswith("_ref"):
-                raise ValueError(f"Secret material is not permitted in adapter requests ({path}.{key}); use a secret reference")
+            # A fencing token is monotonic concurrency metadata, not an
+            # authentication token or secret credential.
+            is_fencing_metadata = normalized == "fencing_token"
+            if (
+                any(part in normalized for part in _SECRET_KEY_PARTS)
+                and not normalized.endswith("_ref")
+                and not is_fencing_metadata
+            ):
+                raise ValueError(f"Secret material is not permitted in adapter payloads ({path}.{key}); use a secret reference")
             if normalized in _FORBIDDEN_INPUT_KEYS:
                 raise ValueError(f"Caller-controlled runtime instruction is not permitted ({path}.{key})")
             _validate_payload_safety(item, f"{path}.{key}")
     elif isinstance(value, list):
         for index, item in enumerate(value):
             _validate_payload_safety(item, f"{path}[{index}]")
+
+
+def validate_adapter_payload(payload: dict, *, path: str = "payload") -> dict:
+    """Validate an adapter-owned JSON payload before it crosses the boundary."""
+    if not isinstance(payload, dict) or not _is_json_value(payload):
+        raise ValueError("Adapter payload must be a JSON-compatible object")
+    _validate_payload_safety(payload, path)
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    if len(encoded.encode("utf-8")) > MAX_REQUEST_BYTES:
+        raise ValueError("Adapter payload exceeds the 64 KiB contract limit")
+    return payload
 
 
 @dataclass(frozen=True)
@@ -159,9 +177,7 @@ def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterReq
         raise ValueError("Invalid target name")
     if request.method not in ADAPTER_METHODS:
         raise ValueError("Unsupported adapter method")
-    if not isinstance(request.payload, dict) or not _is_json_value(request.payload):
-        raise ValueError("Adapter payload must be a JSON-compatible object")
-    _validate_payload_safety(request.payload)
+    validate_adapter_payload(request.payload)
     if request.method in MUTATING_METHODS:
         required = {
             "operation_id": request.operation_id,
@@ -227,7 +243,7 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
         raise ValueError("Invalid adapter capabilities")
     if not isinstance(result.data, dict) or not _is_json_value(result.data):
         raise ValueError("Adapter result data must be a JSON-compatible object")
-    _validate_payload_safety(result.data, "result")
+    validate_adapter_payload(result.data, path="result")
     encoded = json.dumps(result.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
     if len(encoded.encode("utf-8")) > MAX_RESULT_BYTES:
         raise ValueError("Adapter result exceeds the 64 KiB contract limit")

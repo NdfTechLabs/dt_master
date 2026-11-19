@@ -2,6 +2,7 @@
 
 import unittest
 
+from dt_master.operations.execution_context import WorkerExecutionContext
 from dt_master.runtime_adapters.base import RuntimeAdapter
 from dt_master.runtime_adapters.contracts import (
     ADAPTER_CONTRACT_VERSION,
@@ -51,6 +52,25 @@ def mutation_request(**overrides):
     values.update(overrides)
     return RuntimeAdapterRequest(**values)
 
+
+
+def worker_context(**overrides):
+    values = {
+        "operation_id": "operation-123",
+        "correlation_id": "correlation-123",
+        "initiator_type": "Human",
+        "initiated_by": "operator@example.com",
+        "execution_identity": "worker@example.com",
+        "idempotency_key": "start-bench-0001",
+        "target_doctype": "Bench Environment",
+        "target_name": "BENCH-0001",
+        "attempt": 1,
+        "resource_leases": ({"lock_key": "bench:BENCH-0001", "fencing_token": 1},),
+        "assert_leases": lambda: None,
+        "heartbeat": lambda: None,
+    }
+    values.update(overrides)
+    return WorkerExecutionContext(**values)
 
 class HostTestAdapter(RuntimeAdapter):
     adapter_id = "host-v1"
@@ -230,15 +250,41 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
                 return ("start",)
             def _start(self, request, execution_context=None):
                 raise AssertionError("Handler must not run when request identity differs")
-        context = {
-            "operation_id": "different-operation", "correlation_id": "correlation-123",
-            "initiated_by": "operator@example.com", "execution_identity": "worker@example.com",
-            "target_doctype": "Bench Environment", "target_name": "BENCH-0001",
-            "assert_leases": lambda: None, "heartbeat": lambda: None,
-        }
+        context = worker_context(operation_id="different-operation")
         with self.assertRaises(RuntimeAdapterError) as raised:
             MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
         self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_MISMATCH")
+
+
+    def test_mutation_rejects_plain_dictionary_context(self):
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+            def _start(self, request, execution_context=None):
+                raise AssertionError("Handler must not run with an untrusted mapping")
+        with self.assertRaises(RuntimeAdapterError) as raised:
+            MutatingAdapter().invoke("start", mutation_request(), execution_context={
+                "operation_id": "operation-123", "correlation_id": "correlation-123",
+                "initiator_type": "Human", "initiated_by": "operator@example.com",
+                "execution_identity": "worker@example.com", "idempotency_key": "start-bench-0001",
+                "target_doctype": "Bench Environment", "target_name": "BENCH-0001",
+                "assert_leases": lambda: None, "heartbeat": lambda: None,
+            })
+        self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_REQUIRED")
+
+    def test_mutation_checks_initiator_and_idempotency_identity(self):
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+            def _start(self, request, execution_context=None):
+                raise AssertionError("Handler must not run when identity differs")
+        for field, value in (("initiator_type", "System"), ("idempotency_key", "other-key")):
+            with self.subTest(field=field):
+                with self.assertRaises(RuntimeAdapterError) as raised:
+                    MutatingAdapter().invoke(
+                        "start", mutation_request(), execution_context=worker_context(**{field: value})
+                    )
+                self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_MISMATCH")
 
     def test_mutation_asserts_leases_before_and_after_handler(self):
         calls = []
@@ -247,16 +293,13 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
                 return ("start",)
             def _start(self, request, execution_context=None):
                 return self.result_for(request, outcome="succeeded", observed_state="Running")
-        context = {
-            "operation_id": "operation-123", "correlation_id": "correlation-123",
-            "initiated_by": "operator@example.com", "execution_identity": "worker@example.com",
-            "target_doctype": "Bench Environment", "target_name": "BENCH-0001",
-            "assert_leases": lambda: calls.append("assert"),
-            "heartbeat": lambda: calls.append("heartbeat"),
-        }
+        context = worker_context(
+            assert_leases=lambda: calls.append("assert"),
+            heartbeat=lambda: calls.append("heartbeat"),
+        )
         result = MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
         self.assertEqual(result.observed_state, "Running")
-        self.assertEqual(calls, ["assert", "assert"])
+        self.assertEqual(calls, ["heartbeat", "assert", "assert", "heartbeat"])
 
 
 if __name__ == "__main__":

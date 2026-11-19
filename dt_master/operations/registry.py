@@ -96,3 +96,35 @@ register_operation(
         execution_identity="frappe-worker",
     )
 )
+
+def _runtime_adapter_mutation_payload(payload):
+    from dt_master.runtime_adapters.operation_bridge import validate_runtime_mutation_payload
+
+    try:
+        return validate_runtime_mutation_payload(payload)
+    except Exception as exc:
+        frappe.throw(_(str(exc)), frappe.ValidationError)
+
+
+def _runtime_adapter_mutation_handler(context, payload):
+    from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
+
+    return invoke_runtime_mutation(context, payload)
+
+
+# This operation is registered centrally, but cannot be accepted until a
+# server-registered adapter advertises the requested mutating capability.
+# Current Host and Docker adapters remain read-only.
+register_operation(
+    OperationDefinition(
+        operation_type="runtime.adapter.mutate",
+        handler=_runtime_adapter_mutation_handler,
+        validate_payload=_runtime_adapter_mutation_payload,
+        authorize=authorize_system_manager,
+        queue="long",
+        timeout_seconds=1800,
+        max_attempts=1,
+        priority="Normal",
+        execution_identity="frappe-worker",
+    )
+)
