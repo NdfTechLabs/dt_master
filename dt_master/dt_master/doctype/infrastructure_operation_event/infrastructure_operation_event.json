@@ -9,6 +9,7 @@
   "sequence",
   "event_section",
   "event_type",
+  "execution_state",
   "schema_version",
   "occurred_at",
   "phase",
@@ -46,10 +47,18 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "execution_state",
+   "fieldtype": "Select",
+   "label": "Execution State at Event Time",
+   "options": "Pending Dispatch\\nQueued\\nRunning\\nRetry Waiting\\nCancellation Requested\\nSucceeded\\nFailed\\nCancelled\\nRecovery Required",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "schema_version",
    "fieldtype": "Data",
    "label": "Schema Version",
-   "default": "1.0.0",
+   "default": "1.1.0",
    "reqd": 1
   },
   {
