@@ -72,7 +72,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
                 code, __import__("json").dumps(snapshot), ""
             )) as remote,
-            patch("dt_master.docker_readiness.evaluate_node_docker_readiness", return_value={
+            patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
         ):
@@ -129,7 +129,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
                 0, __import__("json").dumps(self._snapshot()), ""
             )),
-            patch("dt_master.docker_readiness.evaluate_node_docker_readiness", return_value={
+            patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Unknown", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
         ):
@@ -143,7 +143,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
                 0, __import__("json").dumps(self._snapshot()), ""
             )),
-            patch("dt_master.docker_readiness.evaluate_node_docker_readiness", return_value={
+            patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Degraded", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
         ):
