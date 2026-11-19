@@ -24,10 +24,14 @@ class TestResourceLeases(unittest.TestCase):
         self.assertEqual(result["worker_token"], "worker-1")
         self.assertIn("INSERT IGNORE", sql.call_args.args[0])
 
+    def test_missing_operation_is_rejected(self):
+        with patch.object(leases.frappe.db, "exists", return_value=False):
+            with self.assertRaises(frappe.ValidationError):
+                leases.acquire_resource_lease("node:A", "MISSING", 1)
+
     def test_busy_unexpired_lease_is_not_stolen(self):
         cursor = MagicMock(rowcount=0)
         with (
-            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql"),
             patch.object(leases.frappe.db, "_cursor", cursor),
@@ -40,6 +44,7 @@ class TestResourceLeases(unittest.TestCase):
     def test_expired_lease_takeover_increments_fencing_token(self):
         cursor = MagicMock(rowcount=0)
         with (
+            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql"),
             patch.object(leases.frappe.db, "_cursor", cursor),
             patch.object(leases.frappe.db, "get_value", return_value=8),
@@ -52,6 +57,7 @@ class TestResourceLeases(unittest.TestCase):
     def test_expired_takeover_uses_conditional_update(self):
         cursor = MagicMock(rowcount=0)
         with (
+            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql") as sql,
             patch.object(leases.frappe.db, "_cursor", cursor),
             patch.object(leases.frappe.db, "get_value", return_value=2),
@@ -158,6 +164,7 @@ class TestResourceLeases(unittest.TestCase):
     def test_transaction_is_not_committed_by_lease_service(self):
         cursor = MagicMock(rowcount=1)
         with (
+            patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql"),
             patch.object(leases.frappe.db, "_cursor", cursor),
             patch.object(leases.frappe.db, "commit") as commit,
