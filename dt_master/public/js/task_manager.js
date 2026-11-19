@@ -144,6 +144,17 @@
 			operation.last_event_message = event.message || operation.last_event_message;
 			operation.last_event_phase = event.phase || operation.last_event_phase;
 			operation.last_event_at = event.occurred_at || operation.last_event_at;
+			operation.progress = event.progress || operation.progress;
+			operation.event_history = operation.event_history || [];
+			operation.event_history.push({
+				event_type: event.event_type,
+				execution_state: event.execution_state,
+				phase: event.phase,
+				progress: event.progress,
+				message: event.message,
+				occurred_at: event.occurred_at,
+			});
+			operation.event_history = operation.event_history.slice(-10);
 			operation.modified = event.occurred_at || operation.modified;
 			if (event.event_type === "completed" || event.event_type === "failed" || event.event_type === "cancelled") {
 				operation.completed_on = event.occurred_at || operation.completed_on;
@@ -176,9 +187,18 @@
 				});
 				const data = response.message || {};
 				const snapshot = [...(data.active || []), ...(data.recent || [])];
+				const previous = this.operations;
 				const next = new Map();
 				snapshot.forEach((operation) => {
 					if (operation && operation.operation_id) {
+						const prior = previous.get(operation.operation_id);
+						if (prior) {
+							operation.event_history = prior.event_history || [];
+							operation.last_event_message = prior.last_event_message;
+							operation.last_event_phase = prior.last_event_phase;
+							operation.last_event_at = prior.last_event_at;
+							operation.progress = prior.progress;
+						}
 						next.set(operation.operation_id, operation);
 					}
 				});
@@ -306,6 +326,47 @@
 				phase.className = "dt-task-manager__target";
 				phase.textContent = operation.last_event_phase;
 				card.appendChild(phase);
+			}
+			const progress = operation.progress;
+			if (progress && Number.isFinite(Number(progress.completed)) && Number.isFinite(Number(progress.total)) &&
+				Number(progress.total) > 0 && Number(progress.completed) >= 0 && Number(progress.completed) <= Number(progress.total)) {
+				const progressWrap = document.createElement("div");
+				progressWrap.className = "dt-task-manager__progress";
+				const progressBar = document.createElement("progress");
+				progressBar.max = Number(progress.total);
+				progressBar.value = Number(progress.completed);
+				progressBar.setAttribute("aria-label", __("Operation progress"));
+				const progressLabel = document.createElement("span");
+				progressLabel.textContent = `${progress.completed} / ${progress.total}${progress.unit ? ` ${progress.unit}` : ""}`;
+				progressWrap.append(progressBar, progressLabel);
+				card.appendChild(progressWrap);
+			}
+			const history = Array.isArray(operation.event_history) ? operation.event_history : [];
+			if (history.length) {
+				const details = document.createElement("details");
+				details.className = "dt-task-manager__history";
+				const summary = document.createElement("summary");
+				summary.textContent = `${__("Event history")} (${history.length})`;
+				const list = document.createElement("ol");
+				history.slice().reverse().forEach((item) => {
+					const entry = document.createElement("li");
+					const eventLabel = document.createElement("strong");
+					eventLabel.textContent = text(item.phase || item.event_type);
+					entry.appendChild(eventLabel);
+					if (item.message) {
+						const eventMessage = document.createElement("p");
+						eventMessage.textContent = item.message;
+						entry.appendChild(eventMessage);
+					}
+					if (item.occurred_at) {
+						const eventTime = document.createElement("time");
+						eventTime.textContent = formatDate(item.occurred_at);
+						entry.appendChild(eventTime);
+					}
+					list.appendChild(entry);
+				});
+				details.append(summary, list);
+				card.appendChild(details);
 			}
 			if (timestamp) {
 				const time = document.createElement("time");
