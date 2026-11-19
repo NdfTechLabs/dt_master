@@ -224,6 +224,22 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
             MutatingAdapter().invoke("start", mutation_request())
         self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_REQUIRED")
 
+    def test_mutation_rejects_request_identity_not_matching_worker_context(self):
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+            def _start(self, request, execution_context=None):
+                self.fail("Handler must not run when request identity differs")
+        context = {
+            "operation_id": "different-operation", "correlation_id": "correlation-123",
+            "initiated_by": "operator@example.com", "execution_identity": "worker@example.com",
+            "target_doctype": "Bench Environment", "target_name": "BENCH-0001",
+            "assert_leases": lambda: None, "heartbeat": lambda: None,
+        }
+        with self.assertRaises(RuntimeAdapterError) as raised:
+            MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
+        self.assertEqual(raised.exception.code, "COORDINATOR_CONTEXT_MISMATCH")
+
     def test_mutation_asserts_leases_before_and_after_handler(self):
         calls = []
         class MutatingAdapter(HostTestAdapter):
