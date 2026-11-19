@@ -47,6 +47,7 @@ class TestResourceLeases(unittest.TestCase):
             patch.object(leases.frappe.db, "exists", return_value=True),
             patch.object(leases.frappe.db, "sql"),
             patch.object(leases.frappe.db, "_cursor", cursor),
+            patch.object(leases, "_rowcount", side_effect=[0, 1]),
             patch.object(leases.frappe.db, "get_value", return_value=8),
             patch.object(leases, "now_datetime", return_value="2026-11-19 10:00:00"),
             patch.object(leases, "add_to_date", return_value="2026-11-19 10:01:00"),
@@ -111,7 +112,7 @@ class TestResourceLeases(unittest.TestCase):
             patch.object(leases.frappe.db, "exists", return_value=False),
             patch.object(leases, "now_datetime", return_value="2026-11-19 10:00:00"),
         ):
-            with self.assertRaises(frappe.ConflictError):
+            with self.assertRaises(frappe.ValidationError):
                 leases.assert_resource_lease(lease)
 
     def test_release_is_fenced_and_retains_record(self):
