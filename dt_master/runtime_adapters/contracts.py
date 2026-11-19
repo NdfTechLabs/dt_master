@@ -29,6 +29,12 @@ _FORBIDDEN_INPUT_KEYS = frozenset({
     "command", "shell_command", "script_path", "docker_host", "docker_context",
     "privilege_escalation", "use_sudo", "compose_yaml", "compose_file",
 })
+_SENSITIVE_MESSAGE_PATTERNS = (
+    re.compile(r"(?i)\b(?:password|passwd|pwd|token|secret|api[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;]+"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)https?://[^/@\s:]+:[^/@\s]+@"),
+    re.compile(r"(?is)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+)
 
 
 class RuntimeAdapterError(Exception):
@@ -41,6 +47,20 @@ class RuntimeAdapterError(Exception):
         self.code = code
         self.message = str(message)[:1000]
         self.details = details or {}
+
+
+def sanitize_diagnostic_message(message: str) -> str:
+    """Redact common credential formats before diagnostics are persisted or returned."""
+    if not isinstance(message, str):
+        raise ValueError("Diagnostic message must be a string")
+    sanitized = message
+    for pattern in _SENSITIVE_MESSAGE_PATTERNS:
+        sanitized = pattern.sub("[REDACTED]", sanitized)
+    return sanitized[:1000]
+
+
+def _contains_sensitive_message(message: str) -> bool:
+    return any(pattern.search(message) for pattern in _SENSITIVE_MESSAGE_PATTERNS)
 
 
 def _is_json_value(value: Any) -> bool:
@@ -57,8 +77,6 @@ def _validate_payload_safety(value: Any, path: str = "payload") -> None:
     if isinstance(value, dict):
         for key, item in value.items():
             normalized = key.lower()
-            # A fencing token is monotonic concurrency metadata, not an
-            # authentication token or secret credential.
             is_fencing_metadata = normalized == "fencing_token"
             if (
                 any(part in normalized for part in _SECRET_KEY_PARTS)
@@ -169,13 +187,13 @@ def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterReq
         raise ValueError("Unsupported runtime adapter contract version")
     if not isinstance(request.adapter_id, str) or not _ADAPTER_ID.fullmatch(request.adapter_id):
         raise ValueError("Invalid adapter ID")
-    if request.runtime_type not in RUNTIME_TYPES:
+    if not isinstance(request.runtime_type, str) or request.runtime_type not in RUNTIME_TYPES:
         raise ValueError("Unsupported runtime type")
     if not isinstance(request.target_doctype, str) or not request.target_doctype.strip():
         raise ValueError("Target DocType is required")
     if not isinstance(request.target_name, str) or not _ID.fullmatch(request.target_name):
         raise ValueError("Invalid target name")
-    if request.method not in ADAPTER_METHODS:
+    if not isinstance(request.method, str) or request.method not in ADAPTER_METHODS:
         raise ValueError("Unsupported adapter method")
     validate_adapter_payload(request.payload)
     if request.method in MUTATING_METHODS:
@@ -216,11 +234,13 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
         raise ValueError("Unsupported runtime adapter result version")
     if not isinstance(result.adapter_id, str) or not _ADAPTER_ID.fullmatch(result.adapter_id):
         raise ValueError("Invalid result adapter ID")
-    if result.runtime_type not in RUNTIME_TYPES or result.method not in ADAPTER_METHODS:
-        raise ValueError("Invalid result runtime type or method")
-    if not result.target_doctype or not isinstance(result.target_name, str) or not _ID.fullmatch(result.target_name):
+    if not isinstance(result.runtime_type, str) or result.runtime_type not in RUNTIME_TYPES:
+        raise ValueError("Invalid result runtime type")
+    if not isinstance(result.method, str) or result.method not in ADAPTER_METHODS:
+        raise ValueError("Invalid result method")
+    if not isinstance(result.target_doctype, str) or not result.target_doctype.strip() or not isinstance(result.target_name, str) or not _ID.fullmatch(result.target_name):
         raise ValueError("Invalid result target identity")
-    if result.outcome not in OUTCOMES:
+    if not isinstance(result.outcome, str) or result.outcome not in OUTCOMES:
         raise ValueError("Invalid adapter result outcome")
     if not isinstance(result.observed_state, str) or not result.observed_state or len(result.observed_state) > 100:
         raise ValueError("Invalid observed state")
@@ -228,19 +248,26 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
         raise ValueError("Invalid adapter duration")
     if result.observed_at is not None and (not isinstance(result.observed_at, str) or len(result.observed_at) > 40):
         raise ValueError("Invalid observation timestamp")
-    if len(result.diagnostics) > _MAX_DIAGNOSTICS:
-        raise ValueError("Too many adapter diagnostics")
+    if not isinstance(result.diagnostics, (tuple, list)) or len(result.diagnostics) > _MAX_DIAGNOSTICS:
+        raise ValueError("Invalid or excessive adapter diagnostics")
     for diagnostic in result.diagnostics:
         if not isinstance(diagnostic, dict) or set(diagnostic) != {"code", "severity", "message"}:
             raise ValueError("Each diagnostic must contain exactly code, severity and message")
         if not isinstance(diagnostic["code"], str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", diagnostic["code"]):
             raise ValueError("Invalid diagnostic code")
-        if diagnostic["severity"] not in DIAGNOSTIC_SEVERITIES:
+        if not isinstance(diagnostic["severity"], str) or diagnostic["severity"] not in DIAGNOSTIC_SEVERITIES:
             raise ValueError("Invalid diagnostic severity")
-        if not isinstance(diagnostic["message"], str) or not diagnostic["message"] or len(diagnostic["message"]) > 1000:
+        message = diagnostic["message"]
+        if not isinstance(message, str) or not message or len(message) > 1000:
             raise ValueError("Invalid diagnostic message")
-    if not isinstance(result.capabilities, (tuple, list)) or any(item not in ADAPTER_METHODS for item in result.capabilities):
+        if _contains_sensitive_message(message):
+            raise ValueError("Diagnostic message contains credential-like material")
+    if not isinstance(result.capabilities, (tuple, list)) or any(
+        not isinstance(item, str) or item not in ADAPTER_METHODS for item in result.capabilities
+    ):
         raise ValueError("Invalid adapter capabilities")
+    if len(set(result.capabilities)) != len(result.capabilities):
+        raise ValueError("Adapter capabilities contain duplicates")
     if not isinstance(result.data, dict) or not _is_json_value(result.data):
         raise ValueError("Adapter result data must be a JSON-compatible object")
     validate_adapter_payload(result.data, path="result")

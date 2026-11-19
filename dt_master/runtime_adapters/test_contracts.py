@@ -173,6 +173,52 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
             validate_result(result)
 
 
+    def test_result_rejects_credentials_embedded_in_diagnostic_messages(self):
+        for message in (
+            "connection failed password=hunter2",
+            "request rejected with Bearer abcdefghijklmnop",
+            "database endpoint https://service:supersecret@example.test/db",
+        ):
+            result = RuntimeAdapterResult(
+                adapter_id="host-v1", runtime_type="host",
+                target_doctype="Infrastructure Node", target_name="NODE-0001",
+                method="inspect", outcome="failed", observed_state="Unknown",
+                diagnostics=({"code": "REMOTE_FAILURE", "severity": "error", "message": message},),
+            )
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, "credential-like"):
+                validate_result(result)
+
+    def test_diagnostic_sanitizer_redacts_common_credential_formats(self):
+        from dt_master.runtime_adapters.contracts import sanitize_diagnostic_message
+
+        message = "password=hunter2; Authorization: Bearer abcdefghijklmnop"
+        sanitized = sanitize_diagnostic_message(message)
+        self.assertNotIn("hunter2", sanitized)
+        self.assertNotIn("abcdefghijklmnop", sanitized)
+        self.assertEqual(sanitized.count("[REDACTED]"), 2)
+
+    def test_malformed_runtime_method_and_result_fields_fail_with_value_error(self):
+        with self.assertRaisesRegex(ValueError, "runtime type"):
+            validate_request(observation_request(runtime_type=[]))
+        with self.assertRaisesRegex(ValueError, "method"):
+            validate_request(observation_request(method={}))
+        invalid_result = RuntimeAdapterResult(
+            adapter_id="host-v1", runtime_type=[], target_doctype="Infrastructure Node",
+            target_name="NODE-0001", method="inspect", outcome="failed", observed_state="Unknown",
+        )
+        with self.assertRaisesRegex(ValueError, "runtime type"):
+            validate_result(invalid_result)
+
+    def test_result_rejects_duplicate_or_untyped_capabilities(self):
+        result = RuntimeAdapterResult(
+            adapter_id="host-v1", runtime_type="host", target_doctype="Infrastructure Node",
+            target_name="NODE-0001", method="inspect", outcome="succeeded",
+            observed_state="Available", capabilities=("inspect", "inspect"),
+        )
+        with self.assertRaisesRegex(ValueError, "duplicates"):
+            validate_result(result)
+
+
 class TestRuntimeAdapterRegistry(unittest.TestCase):
     def setUp(self):
         clear_registry_for_tests()
@@ -300,6 +346,51 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
         result = MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
         self.assertEqual(result.observed_state, "Running")
         self.assertEqual(calls, ["heartbeat", "assert", "assert", "heartbeat"])
+
+
+    def test_failed_initial_heartbeat_prevents_mutation_handler(self):
+        calls = []
+
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+
+            def _start(self, request, execution_context=None):
+                calls.append("handler")
+                return self.result_for(request, outcome="succeeded", observed_state="Running")
+
+        def fail_heartbeat():
+            calls.append("heartbeat")
+            raise RuntimeError("lease renewal failed")
+
+        context = worker_context(heartbeat=fail_heartbeat)
+        with self.assertRaisesRegex(RuntimeError, "lease renewal failed"):
+            MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
+        self.assertEqual(calls, ["heartbeat"])
+
+    def test_lease_loss_after_handler_prevents_successful_result(self):
+        calls = []
+
+        class MutatingAdapter(HostTestAdapter):
+            def capabilities(self):
+                return ("start",)
+
+            def _start(self, request, execution_context=None):
+                calls.append("handler")
+                return self.result_for(request, outcome="succeeded", observed_state="Running")
+
+        def assert_lease():
+            calls.append("assert")
+            if calls.count("assert") == 2:
+                raise RuntimeError("resource lease lost")
+
+        context = worker_context(
+            heartbeat=lambda: calls.append("heartbeat"),
+            assert_leases=assert_lease,
+        )
+        with self.assertRaisesRegex(RuntimeError, "resource lease lost"):
+            MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
+        self.assertEqual(calls, ["heartbeat", "assert", "handler", "assert"])
 
 
 if __name__ == "__main__":

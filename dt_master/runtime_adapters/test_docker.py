@@ -163,6 +163,38 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             clear_registry_for_tests()
 
 
+    def test_snapshot_and_readiness_diagnostics_are_sanitized_everywhere(self):
+        snapshot = self._snapshot()
+        snapshot["diagnostics"] = [{
+            "code": "REMOTE_AUTH_FAILURE",
+            "severity": "Error",
+            "message": "remote rejected password=remote-password-value",
+        }]
+        evaluation = {
+            "readiness": "Degraded",
+            "diagnostics": [{
+                "code": "READINESS_AUTH_WARNING",
+                "severity": "Warning",
+                "message": "credential token=readiness-token-value was unavailable",
+            }],
+            "evaluator_version": "1.1.0",
+        }
+        with (
+            patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+            patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
+                0, __import__("json").dumps(snapshot), ""
+            )),
+            patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value=evaluation),
+        ):
+            result = self.adapter.invoke("inspect", request())
+
+        serialized = __import__("json").dumps(result.to_dict())
+        self.assertNotIn("remote-password-value", serialized)
+        self.assertNotIn("readiness-token-value", serialized)
+        self.assertIn("[REDACTED]", serialized)
+        self.assertEqual(len(result.diagnostics), 2)
+
+
 class TestDockerInspectionScriptContract(unittest.TestCase):
     def test_script_pins_system_socket_and_does_not_enable_compose_mutations(self):
         script = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
