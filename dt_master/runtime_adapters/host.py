@@ -12,6 +12,14 @@ from dt_master.api.script_contract import parse_output, path_environment, run_re
 from dt_master.runtime_adapters.base import RuntimeAdapter
 
 
+OS_SUPPORT_POLICY_VERSION = "1.0.0"
+SUPPORTED_OS_RELEASES = {
+    ("ubuntu", "22.04", "amd64"),
+    ("ubuntu", "24.04", "amd64"),
+    ("debian", "12", "amd64"),
+}
+
+
 class HostRuntimeAdapter(RuntimeAdapter):
     adapter_id = "host-v1"
     runtime_type = "host"
@@ -42,6 +50,17 @@ class HostRuntimeAdapter(RuntimeAdapter):
             "port": node.ssh_port or 22,
             "host_alias": alias,
         }
+
+    @staticmethod
+    def _os_support(values):
+        identity = (
+            values.get("os_id", "").lower(),
+            values.get("os_version_id", ""),
+            values.get("architecture", ""),
+        )
+        if any(value in {"", "unknown"} for value in identity):
+            return "Unknown"
+        return "Supported" if identity in SUPPORTED_OS_RELEASES else "Unsupported"
 
     def _inspect(self, request, execution_context=None):
         node = self._node_for_request(request)
@@ -76,8 +95,12 @@ class HostRuntimeAdapter(RuntimeAdapter):
             )
 
         values = parse_output(stdout)
-        required = ("hostname", "os", "architecture", "cpu_cores", "memory_bytes", "root_available_bytes")
-        missing = [key for key in required if key not in values]
+        required = (
+            "hostname", "os", "os_id", "os_version_id", "os_version_codename",
+            "raw_architecture", "architecture", "package_manager", "service_manager",
+            "cpu_cores", "memory_bytes", "root_available_bytes",
+        )
+        missing = [key for key in required if not values.get(key)]
         if missing:
             return self.result_for(
                 request,
@@ -116,11 +139,21 @@ class HostRuntimeAdapter(RuntimeAdapter):
                 duration_ms=elapsed,
             )
 
+        os_support_status = self._os_support(values)
         data = {
             "inspection_status": "Successful",
             "hostname": values["hostname"][:253],
-            "os": values["os"][:80],
-            "architecture": values["architecture"][:80],
+            "os": values["os"][:160],
+            "os_id": values["os_id"][:40].lower(),
+            "os_version_id": values["os_version_id"][:40],
+            "os_version_codename": values["os_version_codename"][:80],
+            "os_id_like": values.get("os_id_like", "unknown")[:160],
+            "raw_architecture": values["raw_architecture"][:40],
+            "architecture": values["architecture"][:40],
+            "package_manager": values["package_manager"][:40],
+            "service_manager": values["service_manager"][:40],
+            "os_support_policy_version": OS_SUPPORT_POLICY_VERSION,
+            "os_support_status": os_support_status,
             **measurements,
             "bench_available": values.get("bench_available") == "true",
         }
@@ -149,6 +182,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
         data = {
             "preflight_status": "Ready",
             "inspection_status": inspection.data["inspection_status"],
+            "os_support_policy_version": inspection.data["os_support_policy_version"],
+            "os_support_status": inspection.data["os_support_status"],
             "cpu_cores": inspection.data["cpu_cores"],
             "memory_bytes": inspection.data["memory_bytes"],
             "root_available_bytes": inspection.data["root_available_bytes"],
