@@ -26,9 +26,10 @@ class WorkerExecutionContext(Mapping):
     assert_leases: Callable[[], Any]
 
     def __getitem__(self, key: str) -> Any:
-        if key not in self:
-            raise KeyError(key)
-        return getattr(self, key)
+        try:
+            return object.__getattribute__(self, key)
+        except AttributeError as exc:
+            raise KeyError(key) from exc
 
     def __iter__(self) -> Iterator[str]:
         return iter((
