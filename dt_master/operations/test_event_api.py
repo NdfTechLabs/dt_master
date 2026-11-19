@@ -14,6 +14,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
     def setUp(self):
         self.operation = MagicMock()
         self.operation.initiated_by = "initiator@example.com"
+        self.operation.execution_state = "Succeeded"
 
     def test_initiator_can_read_paginated_event_history(self):
         rows = [
@@ -60,6 +61,29 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
             {"operation": "operation-test", "sequence": [">", 10]},
         )
         self.assertEqual(get_all.call_args.kwargs["limit_page_length"], 3)
+
+
+    def test_reconciled_event_uses_authoritative_operation_state(self):
+        row = SimpleNamespace(
+            name="event-reconciled",
+            sequence=4,
+            event_type="reconciled",
+            schema_version="1.0.0",
+            occurred_at="2026-11-19 12:05:00",
+            phase="operator_reconciliation",
+            progress=None,
+            message="An authorized operator reconciled the operation.",
+        )
+        self.operation.execution_state = "Pending Dispatch"
+        with (
+            patch.object(operations.frappe, "get_doc", return_value=self.operation),
+            patch.dict(frappe.session, {"user": "initiator@example.com"}),
+            patch.object(operations.frappe, "get_all", return_value=[row]),
+        ):
+            result = operations.get_operation_events("operation-test")
+
+        self.assertEqual(result["events"][0]["event_type"], "reconciled")
+        self.assertEqual(result["events"][0]["execution_state"], "Pending Dispatch")
 
     def test_system_manager_can_read_another_users_event_history(self):
         with (
