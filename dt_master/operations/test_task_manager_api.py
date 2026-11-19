@@ -112,6 +112,20 @@ class TestTaskManagerOperationListAPI(unittest.TestCase):
 
         self.assertEqual([row["operation_id"] for row in result["recent"]], ["operation-2"])
 
+    def test_single_operation_response_includes_creation_metadata(self):
+        operation = operation_row()
+        with (
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
+            patch.object(operations, "_get_authorized_operation", return_value=operation),
+        ):
+            result = operations.get_operation("operation-1")
+
+        self.assertEqual(result["operation_id"], "operation-1")
+        self.assertEqual(result["initiated_by"], "operator@example.com")
+        self.assertEqual(result["initiator_type"], "Human")
+        self.assertEqual(result["creation"], "2026-11-19 09:59:00")
+        self.assertEqual(result["modified"], "2026-11-19 10:00:00")
+
     def test_guest_is_denied(self):
         with patch.dict(frappe.session, {"user": "Guest"}):
             with self.assertRaises(frappe.PermissionError):
