@@ -305,8 +305,8 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.operation.initiator_type = "Human"
         self.operation.execution_identity = "frappe-worker"
 
-    def _run_worker(self, handler):
-        definition = replace(get_operation("test.noop"), handler=handler, authorize=MagicMock())
+    def _run_worker(self, handler, authorize=None):
+        definition = replace(get_operation("test.noop"), handler=handler, authorize=authorize or MagicMock())
         cursor = MagicMock()
         cursor.rowcount = 1
         target = MagicMock()
@@ -330,10 +330,17 @@ class TestOperationWorkerExecution(unittest.TestCase):
         return set_value, rollback, definition, record_event
 
     def test_worker_success_persists_structured_result(self):
-        handler = MagicMock(return_value={"status": "ok"})
-        set_value, rollback, _, record_event = self._run_worker(handler)
+        observed = {}
+        handler = MagicMock(
+            side_effect=lambda context, payload: (
+                observed.update(user=frappe.session.user) or {"status": "ok"}
+            )
+        )
+        authorization = MagicMock(side_effect=lambda target: observed.update(actor=frappe.session.user))
+        set_value, rollback, _, record_event = self._run_worker(handler, authorize=authorization)
         handler.assert_called_once()
         self.assertEqual(handler.call_args.args[0]["execution_identity"], "frappe-worker")
+        self.assertEqual(observed, {"actor": "operator@example.com", "user": "worker@example.com"})
         rollback.assert_not_called()
         saved_values = set_value.call_args.args[2]
         self.assertEqual(saved_values["execution_state"], "Succeeded")
