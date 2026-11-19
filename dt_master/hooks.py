@@ -170,7 +170,10 @@ app_include_js = "/assets/dt_master/js/task_manager.js"
 
 # Retry durable operations that were accepted but not confirmed as queued.
 scheduler_events = {
-	"all": ["dt_master.operations.coordinator.dispatch_pending_operations"]
+	"all": [
+		"dt_master.operations.coordinator.dispatch_pending_operations",
+		"dt_master.operations.recovery.supervise_stale_operations",
+	]
 }
 
 # Testing
