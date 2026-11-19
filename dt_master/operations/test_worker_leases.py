@@ -43,6 +43,7 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
             patch.object(worker.frappe.db, "_cursor", cursor),
             patch.object(worker.frappe.db, "commit") as commit,
             patch.object(worker.frappe, "set_user", side_effect=lambda user: setattr(worker.frappe.session, "user", user)),
+            patch.object(worker.frappe, "get_roles", return_value=["System Manager"]),
             patch.object(worker.frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
             patch.dict(worker.frappe.conf, {"dt_master_operation_execution_user": "worker@example.com"}),
             patch.dict(worker.frappe.session, {"user": "Administrator"}),
