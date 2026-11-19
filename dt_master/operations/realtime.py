@@ -67,7 +67,7 @@ def publish_operation_event(event):
             "sequence": event["sequence"],
             "event_type": event["event_type"],
             "occurred_at": str(event["occurred_at"]),
-            "execution_state": EVENT_EXECUTION_STATES.get(
+            "execution_state": event.get("execution_state") or EVENT_EXECUTION_STATES.get(
                 event["event_type"], operation.execution_state
             ),
             "phase": event.get("phase"),
