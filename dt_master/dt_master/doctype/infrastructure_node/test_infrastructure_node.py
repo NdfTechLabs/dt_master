@@ -226,6 +226,19 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertNotIn("readiness", snapshot)
 		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
 
+
+	def test_docker_snapshot_validator_rejects_malformed_capacity_measurement(self):
+		snapshot = _docker_failure_snapshot("Failed", "probe failed")
+		snapshot["storage"]["filesystem"]["available_bytes"] = "not-a-byte-count"
+		with self.assertRaises(ValueError):
+			_validate_docker_snapshot(snapshot)
+
+	def test_timeout_failure_snapshot_is_structured_and_not_ready(self):
+		snapshot = _docker_failure_snapshot("Timed Out", "inspection exceeded timeout", 30000)
+		self.assertEqual(snapshot["inspection_status"], "Timed Out")
+		self.assertEqual(snapshot["duration_ms"], 30000)
+		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
+
 	def test_missing_snapshot_evaluates_to_unknown(self):
 		node = self._new_node()
 		node.docker_engine_required = 1
