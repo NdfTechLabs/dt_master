@@ -59,14 +59,13 @@ def _lock_current_attempt_leases(operation_name, attempt):
     ) or []
 
 
-def _mark_recovery_required(operation):
+def _mark_recovery_required(operation, leases):
     operation_name = operation.name
     attempt = int(operation.attempt_count or 0)
     now = now_datetime()
 
-    # Locking lease rows serializes this decision with lease renewal. If a
-    # worker renewed before this lock, the unexpired lease prevents recovery.
-    leases = _lock_current_attempt_leases(operation_name, attempt)
+    # Lease rows were locked before the operation row, matching the worker's
+    # renewal/completion lock order and avoiding an operation↔lease deadlock.
     active_leases = [lease for lease in leases if lease.expires_on and lease.expires_on > now]
     if active_leases:
         return False
@@ -123,7 +122,7 @@ def supervise_stale_operations(batch_size=DEFAULT_BATCH_SIZE, stale_after_second
     cutoff = add_to_date(now, seconds=-stale_after_seconds)
     candidates = frappe.db.sql(
         """
-        SELECT name
+        SELECT name, attempt_count
         FROM `tabInfrastructure Operation`
         WHERE execution_state = 'Running'
           AND COALESCE(heartbeat_on, started_on) <= %s
@@ -137,14 +136,18 @@ def supervise_stale_operations(batch_size=DEFAULT_BATCH_SIZE, stale_after_second
     examined = 0
     recovered = 0
     for candidate in candidates:
+        # Match the worker lock order: lease rows first, then the operation.
+        # A concurrent heartbeat/completion therefore cannot deadlock by
+        # holding one side while waiting for the other in the reverse order.
+        leases = _lock_current_attempt_leases(candidate.name, int(candidate.attempt_count or 0))
         operation = _lock_running_operation(candidate.name)
-        if not operation:
+        if not operation or int(operation.attempt_count or 0) != int(candidate.attempt_count or 0):
             continue
         heartbeat = operation.heartbeat_on or operation.started_on
         if not heartbeat or heartbeat > cutoff:
             continue
         examined += 1
-        if _mark_recovery_required(operation):
+        if _mark_recovery_required(operation, leases):
             recovered += 1
 
     if recovered:
