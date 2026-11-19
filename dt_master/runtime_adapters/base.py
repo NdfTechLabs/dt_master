@@ -48,7 +48,6 @@ class RuntimeAdapter(ABC):
         handler = getattr(self, f"_{method}", None)
         if not callable(handler):
             raise RuntimeAdapterError("UNSUPPORTED_CAPABILITY", f"Adapter '{self.adapter_id}' has no implementation for '{method}'.")
-        started = datetime.now(timezone.utc)
         if method in MUTATING_METHODS:
             execution_context["assert_leases"]()
         raw = handler(request, execution_context=execution_context)
