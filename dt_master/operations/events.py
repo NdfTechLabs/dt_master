@@ -27,6 +27,7 @@ SUPPORTED_EVENT_TYPES = frozenset(
         "failed",
         "cancelled",
         "recovery_required",
+        "reconciled",
     }
 )
 

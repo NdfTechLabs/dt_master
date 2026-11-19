@@ -49,7 +49,13 @@
   "lock_owner",
   "lock_expires_on",
   "recovery_required",
-  "recovery_reason"
+  "recovery_reason",
+  "reconciliation_section",
+  "reconciliation_decision",
+  "reconciled_by",
+  "reconciled_on",
+  "reconciliation_reason",
+  "reconciliation_evidence"
  ],
  "fields": [
   {
@@ -350,6 +356,42 @@
    "fieldname": "recovery_reason",
    "fieldtype": "Small Text",
    "label": "Recovery Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "Reconciliation"
+  },
+  {
+   "fieldname": "reconciliation_decision",
+   "fieldtype": "Select",
+   "label": "Last Reconciliation Decision",
+   "options": "Completed\nFailed\nRetry Authorized",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_by",
+   "fieldtype": "Data",
+   "label": "Reconciled By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_on",
+   "fieldtype": "Datetime",
+   "label": "Reconciled On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_reason",
+   "fieldtype": "Small Text",
+   "label": "Reconciliation Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_evidence",
+   "fieldtype": "Small Text",
+   "label": "Reconciliation Evidence",
    "read_only": 1
   }
  ],

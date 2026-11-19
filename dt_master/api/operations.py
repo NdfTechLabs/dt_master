@@ -223,3 +223,24 @@ def get_operations(active_limit=50, recent_limit=20):
         "recent": [_operation_summary(row) for row in recent_rows],
     }
 
+
+
+@frappe.whitelist(methods=["POST"])
+def reconcile(operation_id, decision, reason, evidence, target_state=None, result=None):
+    """Reconcile an ambiguous operation as a platform System Manager."""
+    if frappe.session.user == "Guest" or "System Manager" not in frappe.get_roles():
+        frappe.throw(_("Only platform System Managers may reconcile operations."), frappe.PermissionError)
+    if isinstance(result, str):
+        try:
+            result = frappe.parse_json(result)
+        except Exception:
+            frappe.throw(_("Result must be valid JSON."), frappe.ValidationError)
+    from dt_master.operations.reconciliation import reconcile_operation
+    return reconcile_operation(
+        operation_id=operation_id,
+        decision=decision,
+        reason=reason,
+        evidence=evidence,
+        target_state=target_state,
+        result=result,
+    )
