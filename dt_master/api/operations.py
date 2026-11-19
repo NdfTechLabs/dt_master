@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 
 from dt_master.operations.coordinator import start_operation
+from dt_master.operations.realtime import EVENT_EXECUTION_STATES
 
 
 def _get_authorized_operation(operation_id):
@@ -106,12 +107,12 @@ def get_operation_events(operation_id, after_sequence=0, limit=50):
             "operation_id": operation_id,
             "sequence": row.sequence,
             "event_type": row.event_type,
+            "execution_state": EVENT_EXECUTION_STATES.get(row.event_type),
             "schema_version": row.schema_version,
             "occurred_at": str(row.occurred_at),
             "phase": row.phase,
             "progress": _parse_event_json(row.progress),
             "message": row.message,
-            "event_data": _parse_event_json(row.event_data),
         }
         for row in page
     ]
