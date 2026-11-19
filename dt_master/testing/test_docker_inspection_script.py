@@ -62,7 +62,9 @@ esac
         self.docker.chmod(0o755)
         fake_df = self.bin_dir / "df"
         fake_df.write_text(
-            "#!/bin/sh\\nprintf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 100000000000 50000000000 50000000000 /'\\n"
+            """#!/bin/sh
+printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 100000000000 50000000000 50000000000 /'
+"""
         )
         fake_df.chmod(0o755)
 
