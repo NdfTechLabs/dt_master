@@ -57,24 +57,24 @@ def publish_operation_event(event):
     System Manager role assignments. No client or worker-supplied room is trusted.
     Socket delivery is best-effort; the persisted event remains authoritative.
     """
-    operation = frappe.get_doc("Infrastructure Operation", event["operation_id"])
-    envelope = {
-        "schema_version": event["schema_version"],
-        "event_id": event["name"],
-        "operation_id": event["operation_id"],
-        "correlation_id": operation.correlation_id,
-        "sequence": event["sequence"],
-        "event_type": event["event_type"],
-        "occurred_at": str(event["occurred_at"]),
-        "execution_state": EVENT_EXECUTION_STATES.get(
-            event["event_type"], operation.execution_state
-        ),
-        "phase": event.get("phase"),
-        "progress": _json_object(event.get("progress")),
-        "message": event.get("message"),
-    }
-
     try:
+        operation = frappe.get_doc("Infrastructure Operation", event["operation_id"])
+        envelope = {
+            "schema_version": event["schema_version"],
+            "event_id": event["name"],
+            "operation_id": event["operation_id"],
+            "correlation_id": operation.correlation_id,
+            "sequence": event["sequence"],
+            "event_type": event["event_type"],
+            "occurred_at": str(event["occurred_at"]),
+            "execution_state": EVENT_EXECUTION_STATES.get(
+                event["event_type"], operation.execution_state
+            ),
+            "phase": event.get("phase"),
+            "progress": _json_object(event.get("progress")),
+            "message": event.get("message"),
+        }
+
         recipients = _authorized_recipients(operation)
         for user in recipients:
             frappe.publish_realtime(
@@ -87,5 +87,5 @@ def publish_operation_event(event):
         # A realtime outage must never roll back or fail the durable operation.
         frappe.log_error(
             frappe.get_traceback(),
-            f"Operation event publication scheduling failed: {event['operation_id']}",
+            f"Operation event publication scheduling failed: {event.get('operation_id', 'unknown')}",
         )
