@@ -72,7 +72,14 @@
 		}
 
 		onOperationEvent(event) {
-			if (!event || !event.operation_id || !Number.isInteger(Number(event.sequence))) return;
+			if (
+				!event ||
+				!event.operation_id ||
+				event.sequence === null ||
+				event.sequence === undefined ||
+				!Number.isInteger(Number(event.sequence)) ||
+				Number(event.sequence) < 1
+			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
 				// A newly accepted operation may race the initial snapshot.
