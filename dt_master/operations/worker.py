@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import now_datetime
 
 from dt_master.operations.events import record_operation_event
+from dt_master.operations.execution_context import create_worker_execution_context
 from dt_master.operations.identity import as_execution_identity
 from dt_master.operations.leases import (
     acquire_resource_leases,
@@ -170,22 +171,13 @@ def execute_operation(operation_id):
             frappe.db.commit()
 
             operation.reload()
-            execution_context = {
-                "operation_id": operation.operation_id,
-                "correlation_id": operation.correlation_id,
-                "initiated_by": operation.initiated_by,
-                "initiator_type": operation.initiator_type,
-                "execution_identity": operation.execution_identity,
-                "target_doctype": operation.target_doctype,
-                "target_name": operation.target_name,
-                "attempt": attempt,
-                "resource_leases": [
-                    {"lock_key": item["lock_key"], "fencing_token": item["fencing_token"]}
-                    for item in leases
-                ],
-                "heartbeat": lambda: _lease_checkpoint(operation_id, attempt, leases),
-                "assert_leases": lambda: _assert_leases(leases),
-            }
+            execution_context = create_worker_execution_context(
+                operation=operation,
+                attempt=attempt,
+                leases=leases,
+                heartbeat=lambda: _lease_checkpoint(operation_id, attempt, leases),
+                assert_leases=lambda: _assert_leases(leases),
+            )
             execution_context["assert_leases"]()
             result = definition.handler(execution_context, payload)
             execution_context["assert_leases"]()
