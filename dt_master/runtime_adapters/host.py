@@ -141,6 +141,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 
         os_support_status = self._os_support(values)
         data = {
+            "schema_version": "1.0.0",
             "inspection_status": "Successful",
             "hostname": values["hostname"][:253],
             "os": values["os"][:160],
