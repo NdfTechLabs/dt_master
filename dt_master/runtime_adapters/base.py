@@ -61,6 +61,11 @@ class RuntimeAdapter(ABC):
         result = validate_result(raw)
         if result.method != method or result.target_doctype != request.target_doctype or result.target_name != request.target_name:
             raise RuntimeAdapterError("RESULT_TARGET_MISMATCH", "Adapter result does not match the requested target or method.")
+        if result.operation_id != request.operation_id or result.correlation_id != request.correlation_id:
+            raise RuntimeAdapterError(
+                "RESULT_OPERATION_MISMATCH",
+                "Adapter result does not match the durable operation and correlation identity.",
+            )
         return result
 
     @staticmethod
