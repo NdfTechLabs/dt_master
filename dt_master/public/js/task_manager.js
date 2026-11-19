@@ -90,9 +90,8 @@
 		}
 
 		async reconcileAll() {
+			// refresh() also replays persisted history for every operation in the snapshot.
 			await this.refresh();
-			const ids = [...this.operations.keys()];
-			await Promise.all(ids.map((operationId) => this.reconcileOperation(operationId)));
 		}
 
 		async reconcileOperation(operationId) {
