@@ -357,12 +357,12 @@ The following is the authoritative M4 milestone structure. M4.0–M4.2 are compl
 
 M4.3 — Docker Orchestration Engine is underway on `develop`. The approved workplan remains the detailed source for package scope and acceptance criteria.
 
-- **M4.3.1 — Runtime Foundation and Readiness: Complete (2026-11-17).** The source-level review mapped the existing Infrastructure Node/related DocTypes, Host-native lifecycle implementation and accepted runtime contracts. It established that Docker orchestration/readiness is not yet implemented in DT Master.
-- **M4.3.2 — Infrastructure Node Docker Readiness: Active package.** This is an application implementation task focused on Infrastructure Node and its related DocTypes, APIs, remote-execution path, scripts, UI and tests. It is not a manual physical-server inspection exercise.
-- **M4.3.2.1 — Existing implementation review and design: Complete (2026-11-18).** The source review is complete. Accepted decisions require a constrained root-owned, allowlisted read-only inspection helper; latest Docker observation on Infrastructure Node; inspection history in Node Action Log; separate observed and declared capacity; and Docker readiness independent of Host-native Node lifecycle state.
-- **M4.3.2.2 — Node schema and state representation: Next.** The next step is to translate the accepted design into the Infrastructure Node schema and persisted snapshot representation.
-- **M4.3.2.1–M4.3.2.6:** These are execution steps nested within M4.3.2, not separate M4.3 work packages.
-- **M4.3.3–M4.3.10:** Remain subsequent, separately scoped work packages in the approved sequence. In particular, mutating runtime operations remain gated on M4.3.3's durable operation foundation and the later adapter/orchestration packages.
+- **M4.3.1 — Runtime Foundation and Readiness: Complete.**
+- **M4.3.2 — Infrastructure Node Docker Readiness: Complete.** Node-scoped read-only Docker inspection, readiness evaluation, UI integration and automated acceptance are merged. It does not provision workloads.
+- **M4.3.3 — Durable Operation Foundation: Complete.** Durable operation state, coordinator/worker dispatch, events, leases, execution identity, heartbeat/recovery and authorized reconciliation are implemented.
+- **M4.3.4 — Runtime Adapter Foundation: Complete.** Contract, registry, Host/Docker read-only adapters, durable mutation bridge and contract acceptance/regression are merged. The platform owner reported 53 passing tests for M4.3.4.6. Built-in adapters remain read-only.
+- **M4.3.5.1 — Docker Orchestration Contract and Implementation Readiness: Review prepared; platform-owner acceptance pending.** The source review identified the NDF typed service/runtime contract gap and the M4.3.6 Bench ownership/target/locking dependency. See `M4.3.5.1_DOCKER_ORCHESTRATION_CONTRACT_AND_READINESS.md`.
+- **M4.3.5.2 onward:** Descriptor consumer/validation, deployment plan, Compose execution, durable lifecycle and safe teardown follow the approved M4.3.5 work package. No production Compose mutation may be enabled until the NDF runtime contract is complete and M4.3.6 provides the Bench Environment target/ownership model and coordinator lock policy. NDF artifact trust remains part of the M4.4 handoff.
 - Host-native Node and Bench functionality must remain operational throughout M4.3.
 
 The M4.3.1 local review snapshot was `develop` at `73f0378` (clean working tree), with Frappe 16.53.0, ERPNext 16.52.1 and Python 3.14.3. This is historical baseline evidence for that review, not a live-node verification result or a claim about the current remote HEAD.
