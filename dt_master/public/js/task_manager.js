@@ -8,6 +8,8 @@
 	if (!window.frappe || !frappe.boot || !frappe.session || frappe.session.user === "Guest") return;
 
 	const API = "dt_master.api.operations.get_operations";
+	const EVENTS_API = "dt_master.api.operations.get_operation_events";
+	const EVENT_BATCH_SIZE = 100;
 	const STORAGE_KEY = "dt_master_task_manager_collapsed";
 	const ACTIVE_STATES = new Set([
 		"Pending Dispatch",
@@ -41,6 +43,11 @@
 			this.root = null;
 			this.refreshing = false;
 			this.refreshQueued = false;
+			this.lastSequences = new Map();
+			this.replaying = new Set();
+			this.replayQueued = new Set();
+			this.handleOperationEvent = (event) => this.onOperationEvent(event);
+			this.handleReconnect = () => this.reconcileAll();
 		}
 
 		mount() {
@@ -51,7 +58,92 @@
 			this.root.setAttribute("aria-label", __("Background operations"));
 			document.body.appendChild(this.root);
 			this.render();
+			this.bindRealtime();
 			this.refresh();
+		}
+
+		bindRealtime() {
+			if (!frappe.realtime || this.realtimeBound) return;
+			this.realtimeBound = true;
+			// The server publishes only to authorized user rooms; the browser
+			// never chooses or subscribes to operation rooms.
+			frappe.realtime.on("operation_event", this.handleOperationEvent);
+			frappe.realtime.on("connect", this.handleReconnect);
+		}
+
+		onOperationEvent(event) {
+			if (!event || !event.operation_id || !Number.isInteger(Number(event.sequence))) return;
+			const operationId = event.operation_id;
+			if (!this.operations.has(operationId)) {
+				// A newly accepted operation may race the initial snapshot.
+				this.refresh();
+				return;
+			}
+			this.reconcileOperation(operationId);
+		}
+
+		async reconcileAll() {
+			await this.refresh();
+			const ids = [...this.operations.keys()];
+			await Promise.all(ids.map((operationId) => this.reconcileOperation(operationId)));
+		}
+
+		async reconcileOperation(operationId) {
+			if (this.replaying.has(operationId)) {
+				this.replayQueued.add(operationId);
+				return;
+			}
+			this.replaying.add(operationId);
+			try {
+				let cursor = this.lastSequences.get(operationId) || 0;
+				let hasMore = true;
+				while (hasMore) {
+					const response = await frappe.call({
+						method: EVENTS_API,
+						args: { operation_id: operationId, after_sequence: cursor, limit: EVENT_BATCH_SIZE },
+					});
+					const page = response.message || {};
+					const events = Array.isArray(page.events) ? page.events : [];
+					for (const event of events) {
+						const sequence = Number(event.sequence);
+						if (!Number.isInteger(sequence) || sequence <= cursor) continue;
+						if (sequence !== cursor + 1) {
+							// Do not skip a durable event if the history page has a gap.
+							throw new Error("Non-contiguous operation event history");
+						}
+						this.applyEvent(operationId, event);
+						cursor = sequence;
+						this.lastSequences.set(operationId, cursor);
+					}
+					hasMore = Boolean(page.has_more);
+					if (!events.length) hasMore = false;
+				}
+			} catch (error) {
+				// Snapshot remains usable; the next socket reconnect or refresh retries replay.
+				console.warn("[dt_master] Unable to reconcile operation event history.");
+			} finally {
+				this.replaying.delete(operationId);
+				if (this.replayQueued.delete(operationId)) {
+					this.reconcileOperation(operationId);
+				}
+			}
+		}
+
+		applyEvent(operationId, event) {
+			const operation = this.operations.get(operationId);
+			if (!operation) return;
+			const sequence = Number(event.sequence);
+			if (sequence <= (this.lastSequences.get(operationId) || 0)) return;
+			operation.execution_state = event.execution_state || operation.execution_state;
+			operation.last_event_message = event.message || operation.last_event_message;
+			operation.last_event_phase = event.phase || operation.last_event_phase;
+			operation.last_event_at = event.occurred_at || operation.last_event_at;
+			operation.modified = event.occurred_at || operation.modified;
+			if (event.event_type === "completed" || event.event_type === "failed" || event.event_type === "cancelled") {
+				operation.completed_on = event.occurred_at || operation.completed_on;
+			}
+			this.lastSequences.set(operationId, sequence);
+			this.render();
 		}
 
 		setCollapsed(collapsed) {
@@ -85,7 +177,14 @@
 					}
 				});
 				this.operations = next;
+				for (const operationId of next.keys()) {
+					if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
+				}
+				for (const operationId of [...this.lastSequences.keys()]) {
+					if (!next.has(operationId)) this.lastSequences.delete(operationId);
+				}
 				this.render();
+				await Promise.all([...next.keys()].map((operationId) => this.reconcileOperation(operationId)));
 			} catch (error) {
 				// Keep the panel usable; do not expose server diagnostics in Desk.
 				console.warn("[dt_master] Unable to refresh Task Manager snapshot.");
@@ -190,6 +289,18 @@
 				card.appendChild(error);
 			}
 			const timestamp = operation.completed_on || operation.modified || operation.creation;
+			if (operation.last_event_message) {
+				const message = document.createElement("p");
+				message.className = "dt-task-manager__event-message";
+				message.textContent = operation.last_event_message;
+				card.appendChild(message);
+			}
+			if (operation.last_event_phase) {
+				const phase = document.createElement("div");
+				phase.className = "dt-task-manager__target";
+				phase.textContent = operation.last_event_phase;
+				card.appendChild(phase);
+			}
 			if (timestamp) {
 				const time = document.createElement("time");
 				time.className = "dt-task-manager__time";
