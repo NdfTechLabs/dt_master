@@ -94,7 +94,6 @@ def get_operation_events(operation_id, after_sequence=0, limit=50):
             "phase",
             "progress",
             "message",
-            "event_data",
         ],
         order_by="sequence asc",
         limit_page_length=limit + 1,
