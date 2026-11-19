@@ -45,6 +45,9 @@ def acquire_resource_lease(lock_key, operation_id, attempt, *, lease_seconds=DEF
     if not operation_id or isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         frappe.throw(_("A valid operation and positive attempt number are required."))
 
+    if not frappe.db.exists("Infrastructure Operation", operation_id):
+        frappe.throw(_("The Infrastructure Operation does not exist."))
+
     now = now_datetime()
     expires = add_to_date(now, seconds=lease_seconds)
     worker_token = worker_token or str(uuid.uuid4())
