@@ -8,6 +8,7 @@
 	if (!window.frappe || !frappe.boot || !frappe.session || frappe.session.user === "Guest") return;
 
 	const API = "dt_master.api.operations.get_operations";
+	const START_API = "dt_master.api.operations.start";
 	const EVENTS_API = "dt_master.api.operations.get_operation_events";
 	const EVENT_BATCH_SIZE = 100;
 	const STORAGE_KEY = "dt_master_task_manager_collapsed";
@@ -96,6 +97,12 @@
 		async reconcileAll() {
 			// refresh() also replays persisted history for every operation in the snapshot.
 			await this.refresh();
+		}
+
+		async trackOperation(operationId) {
+			if (!operationId) return null;
+			this.realtimeDiscovered.add(operationId);
+			return this.loadOperation(operationId);
 		}
 
 		async loadOperation(operationId) {
@@ -423,6 +430,13 @@
 		if (window.__dtMasterTaskManager) return;
 		const manager = new TaskManager();
 		window.__dtMasterTaskManager = manager;
+		frappe.dt_master = frappe.dt_master || {};
+		frappe.dt_master.startOperation = async (args) => {
+			const response = await frappe.call({ method: START_API, args });
+			const operation = response.message;
+			if (operation && operation.operation_id) await manager.trackOperation(operation.operation_id);
+			return operation;
+		};
 		manager.mount();
 	};
 
