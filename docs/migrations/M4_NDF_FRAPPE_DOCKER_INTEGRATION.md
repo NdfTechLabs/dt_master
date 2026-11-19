@@ -1,4 +1,4 @@
-**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** (2026-11-09); M4.2 — Runtime Infrastructure Enhancements **Complete** within its accepted NDF scope (2026-11-17); M4.3 — Docker Orchestration Engine **In progress** (2026-11-18): M4.3.1 complete and M4.3.2 next. M4.4–M4.7 remain pending.  
+**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** (2026-11-09); M4.2 — Runtime Infrastructure Enhancements **Complete** within its accepted NDF scope (2026-11-17); M4.3 — Docker Orchestration Engine **In progress**: M4.3.1 complete, M4.3.3 Durable Operation Foundation accepted (2026-11-20), M4.3.2.6 remains separately tracked for formal readiness-package closure, and M4.3.4 is the next implementation package. M4.4–M4.7 remain pending.  
 
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
