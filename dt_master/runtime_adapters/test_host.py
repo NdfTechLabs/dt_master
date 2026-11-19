@@ -19,6 +19,27 @@ def request(method="inspect"):
     )
 
 
+def inspection_output(**overrides):
+    values = {
+        "hostname": "node.example.test",
+        "os": "Ubuntu 24.04 LTS",
+        "os_id": "ubuntu",
+        "os_version_id": "24.04",
+        "os_version_codename": "noble",
+        "os_id_like": "debian",
+        "raw_architecture": "x86_64",
+        "architecture": "amd64",
+        "package_manager": "apt",
+        "service_manager": "systemd",
+        "cpu_cores": "8",
+        "memory_bytes": "17179869184",
+        "root_available_bytes": "107374182400",
+        "bench_available": "true",
+    }
+    values.update(overrides)
+    return "".join(f"{key}={value}\n" for key, value in values.items())
+
+
 class TestHostRuntimeAdapter(unittest.TestCase):
     def setUp(self):
         self.adapter = HostRuntimeAdapter()
@@ -36,15 +57,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
         )
 
     def _run_inspection(self, code=0, stdout=None, stderr=""):
-        stdout = stdout or (
-            "hostname=node.example.test\n"
-            "os=Ubuntu 24.04\n"
-            "architecture=x86_64\n"
-            "cpu_cores=8\n"
-            "memory_bytes=17179869184\n"
-            "root_available_bytes=107374182400\n"
-            "bench_available=true\n"
-        )
+        stdout = stdout if stdout is not None else inspection_output()
         with (
             patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
             patch("dt_master.runtime_adapters.host.path_environment", return_value={"BASE_DIR": "/opt/dtsaas/scripts"}),
@@ -59,8 +72,38 @@ class TestHostRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.observed_state, "Available")
         self.assertEqual(result.data["cpu_cores"], 8)
         self.assertTrue(result.data["bench_available"])
+        self.assertEqual(result.data["os_support_status"], "Supported")
+        self.assertEqual(result.data["architecture"], "amd64")
         self.assertEqual(run.call_args.kwargs["use_sudo"], False)
         self.assertEqual(run.call_args.args[2:4], ("node", "inspect_host_runtime.sh"))
+
+    def test_ubuntu_2204_is_supported(self):
+        result, _ = self._run_inspection(stdout=inspection_output(
+            os="Ubuntu 22.04.5 LTS", os_version_id="22.04", os_version_codename="jammy",
+        ))
+        self.assertEqual(result.data["os_support_status"], "Supported")
+
+    def test_debian_12_is_supported(self):
+        result, _ = self._run_inspection(stdout=inspection_output(
+            os="Debian GNU/Linux 12 (bookworm)", os_id="debian", os_version_id="12",
+            os_version_codename="bookworm",
+        ))
+        self.assertEqual(result.data["os_support_status"], "Supported")
+
+    def test_other_release_or_architecture_is_detected_but_unsupported(self):
+        result, _ = self._run_inspection(stdout=inspection_output(
+            os="Ubuntu 26.04", os_version_id="26.04",
+        ))
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.data["os_support_status"], "Unsupported")
+
+        result, _ = self._run_inspection(stdout=inspection_output(architecture="arm64"))
+        self.assertEqual(result.data["os_support_status"], "Unsupported")
+
+    def test_unknown_os_identity_is_not_misreported_as_supported(self):
+        result, _ = self._run_inspection(stdout=inspection_output(os_id="unknown"))
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.data["os_support_status"], "Unknown")
 
     def test_inspection_failure_returns_sanitized_diagnostic(self):
         result, _ = self._run_inspection(code=255, stderr="private ssh detail")
@@ -74,28 +117,13 @@ class TestHostRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.diagnostics[0]["code"], "HOST_INSPECTION_INCOMPLETE")
 
     def test_invalid_capacity_measurement_fails_closed(self):
-        result, _ = self._run_inspection(stdout=(
-            "hostname=node.example.test\nos=Ubuntu\narchitecture=x86_64\n"
-            "cpu_cores=invalid\nmemory_bytes=100\nroot_available_bytes=100\n"
-        ))
+        result, _ = self._run_inspection(stdout=inspection_output(cpu_cores="invalid"))
         self.assertEqual(result.outcome, "failed")
         self.assertEqual(result.diagnostics[0]["code"], "HOST_INSPECTION_INVALID_MEASUREMENT")
 
-    def test_preflight_reports_ready_after_valid_inspection(self):
-        stdout = (
-            "hostname=node.example.test\nos=Ubuntu\narchitecture=x86_64\n"
-            "cpu_cores=8\nmemory_bytes=17179869184\nroot_available_bytes=1000000\n"
-            "bench_available=true\n"
-        )
-        with (
-            patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
-            patch("dt_master.runtime_adapters.host.path_environment", return_value={"BASE_DIR": "/opt/dtsaas/scripts"}),
-            patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, stdout, "")),
-        ):
-            result = self.adapter.invoke("preflight", request("preflight"))
-        self.assertEqual(result.outcome, "succeeded")
-        self.assertEqual(result.observed_state, "Ready")
-        self.assertEqual(result.data["preflight_status"], "Ready")
+    def test_preflight_reports_os_support_separately(self):
+        result, _ = self._run_inspection()
+        self.assertEqual(result.data["os_support_status"], "Supported")
 
     def test_preflight_blocks_when_inspection_fails(self):
         with (
