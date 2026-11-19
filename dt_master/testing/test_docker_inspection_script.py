@@ -14,7 +14,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
 
-TOOLS = ("bash", "date", "getconf", "awk", "id", "df", "tail", "python3", "grep")
+TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "python3", "grep")
 
 
 class DockerInspectionScriptAcceptance(unittest.TestCase):
