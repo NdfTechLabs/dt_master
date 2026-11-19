@@ -30,9 +30,9 @@ _FORBIDDEN_INPUT_KEYS = frozenset({
     "privilege_escalation", "use_sudo", "compose_yaml", "compose_file",
 })
 _SENSITIVE_MESSAGE_PATTERNS = (
-    re.compile(r"(?i)\\b(?:password|passwd|pwd|token|secret|api[_-]?key|client[_-]?secret)\\s*[:=]\\s*[^\\s,;]+"),
-    re.compile(r"(?i)\\bBearer\\s+[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)https?://[^/@\\s:]+:[^/@\\s]+@"),
+    re.compile(r"(?i)\b(?:password|passwd|pwd|token|secret|api[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;]+"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)https?://[^/@\s:]+:[^/@\s]+@"),
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 )
 
