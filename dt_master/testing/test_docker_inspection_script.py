@@ -93,7 +93,19 @@ printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 10000
             timeout=15,
             check=False,
         )
-        self.assertEqual(completed.returncode, 0, completed.stderr)
+        if completed.returncode != 0:
+            traced = subprocess.run(
+                ["/usr/bin/env", "bash", "-x", str(SCRIPT)],
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=15,
+                check=False,
+            )
+            self.fail(
+                "Inspection script exited with "
+                f"{completed.returncode}. Shell trace:\\n{traced.stderr}"
+            )
         return json.loads(completed.stdout)
 
     def test_healthy_engine_reports_versions_and_data_root_filesystem(self):
