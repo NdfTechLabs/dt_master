@@ -32,6 +32,8 @@ class TestOperationCoordinator(unittest.TestCase):
         self.operation.execution_identity = "frappe-worker"
         self.operation.attempt_count = 0
         self.operation.max_attempts = 1
+        self.operation.attempt_count = 0
+        self.operation.max_attempts = 1
 
     def _start(self, get_doc_side_effect=None):
         with (
@@ -325,6 +327,10 @@ class TestOperationWorkerExecution(unittest.TestCase):
             patch.object(worker.frappe.db, "rollback") as rollback,
             patch.object(worker.frappe.db, "set_value") as set_value,
             patch.object(worker, "record_operation_event") as record_event,
+            patch.object(worker, "acquire_resource_leases", return_value=[{"lock_key":"node:NODE-TEST","operation_id":"operation-test","attempt":1,"worker_token":"w1","fencing_token":1,"expires_on":"2026-11-18 00:01:00"}]),
+            patch.object(worker, "assert_resource_lease"),
+            patch.object(worker, "renew_resource_lease", return_value=True),
+            patch.object(worker, "release_resource_lease", return_value=True),
             patch.object(worker.frappe, "log_error"),
             patch.dict(worker.frappe.conf, {"dt_master_operation_execution_user": "worker@example.com"}),
             patch.object(worker.frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
