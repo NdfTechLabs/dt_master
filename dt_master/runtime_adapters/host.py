@@ -9,7 +9,6 @@ from time import monotonic
 import frappe
 
 from dt_master.api.script_contract import parse_output, path_environment, run_remote_script
-from dt_master.api.ssh_transport import build_ssh_argv
 from dt_master.runtime_adapters.base import RuntimeAdapter
 
 
