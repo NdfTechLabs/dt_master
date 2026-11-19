@@ -19,7 +19,6 @@
 		"Cancellation Requested",
 		"Recovery Required",
 	]);
-	const TERMINAL_STATES = new Set(["Succeeded", "Failed", "Cancelled"]);
 	const stateClass = (state) => {
 		if (state === "Succeeded") return "success";
 		if (state === "Failed") return "danger";
@@ -84,13 +83,41 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// The accepted/queued event can arrive before the list snapshot
-				// includes the new operation. Fetch the authorized record directly
-				// instead of relying on a possibly in-flight list refresh.
+				// Discover the operation from the first authorized socket event so it
+				// appears immediately, even before get_operation returns.
+				this.operations.set(operationId, {
+					operation_id: operationId,
+					correlation_id: event.correlation_id,
+					operation_type: __("Background operation"),
+					target_doctype: null,
+					target_name: null,
+					execution_state: event.execution_state || "Pending Dispatch",
+					creation: event.occurred_at || null,
+					modified: event.occurred_at || null,
+					event_history: [],
+				});
+				this.realtimeDiscovered.add(operationId);
+				this.lastSequences.set(operationId, 0);
+				this.render();
 				this.loadOperation(operationId);
+			}
+
+			const sequence = Number(event.sequence);
+			const cursor = this.lastSequences.get(operationId) || 0;
+			if (sequence <= cursor) return;
+			if (sequence !== cursor + 1) {
+				// A missed/out-of-order event requires durable replay; never skip a gap.
+				if (this.replaying.has(operationId)) {
+					this.replayQueued.add(operationId);
+				} else {
+					this.reconcileOperation(operationId);
+				}
 				return;
 			}
-			this.reconcileOperation(operationId);
+
+			// Socket.IO is the live update path. Apply the sanitized envelope
+			// immediately; durable history remains the recovery path for gaps/reconnects.
+			this.applyEvent(operationId, event);
 		}
 
 		async reconcileAll() {
@@ -271,9 +298,16 @@
 			if (!this.root) return;
 			const operations = [...this.operations.values()];
 			const active = operations.filter((item) => ACTIVE_STATES.has(item.execution_state));
-			const recent = operations
-				.filter((item) => TERMINAL_STATES.has(item.execution_state))
-				.sort((a, b) => String(b.modified || "").localeCompare(String(a.modified || "")));
+			const byNewest = (a, b) => String(b.modified || b.creation || "")
+				.localeCompare(String(a.modified || a.creation || ""));
+			const groups = [
+				{ label: __("Queued"), states: ["Pending Dispatch", "Queued", "Retry Waiting"] },
+				{ label: __("Recovery Required"), states: ["Recovery Required"] },
+				{ label: __("Running"), states: ["Running", "Cancellation Requested"] },
+				{ label: __("Failed"), states: ["Failed"] },
+				{ label: __("Succeeded"), states: ["Succeeded"] },
+				{ label: __("Cancelled"), states: ["Cancelled"] },
+			];
 			this.root.replaceChildren();
 
 			const header = document.createElement("div");
@@ -310,13 +344,22 @@
 
 			const body = document.createElement("div");
 			body.className = "dt-task-manager__body";
-			if (active.length) {
-				body.appendChild(this.section(__("In progress"), active));
+			let visibleCount = 0;
+			for (const group of groups) {
+				const items = operations
+					.filter((item) => group.states.includes(item.execution_state))
+					.sort(byNewest);
+				if (!items.length) continue;
+				visibleCount += items.length;
+				body.appendChild(this.section(group.label, items));
 			}
-			if (recent.length) {
-				body.appendChild(this.section(__("Recent"), recent.slice(0, 10)));
+			const knownStates = new Set(groups.flatMap((group) => group.states));
+			const other = operations.filter((item) => !knownStates.has(item.execution_state)).sort(byNewest);
+			if (other.length) {
+				visibleCount += other.length;
+				body.appendChild(this.section(__("Other"), other));
 			}
-			if (!active.length && !recent.length) {
+			if (!visibleCount) {
 				const empty = document.createElement("p");
 				empty.className = "dt-task-manager__empty";
 				empty.textContent = __("No background tasks yet.");
