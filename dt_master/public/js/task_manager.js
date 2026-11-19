@@ -84,10 +84,11 @@
 			// bound to a subscription that was never registered.
 			if (!realtime.socket) {
 				if (!realtime.__dtMasterTaskManagerInitHooked && typeof realtime.init === "function") {
+					const taskManager = this;
 					const originalInit = realtime.init;
 					realtime.init = function (...args) {
 						const result = originalInit.apply(this, args);
-						if (this.socket) manager.bindRealtime();
+						if (this.socket) taskManager.bindRealtime();
 						return result;
 					};
 					realtime.__dtMasterTaskManagerInitHooked = true;
