@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from dt_master.operations.realtime import publish_operation_event
+
 EVENT_SCHEMA_VERSION = "1.0.0"
 MAX_EVENT_PAYLOAD_BYTES = 65536
 MAX_MESSAGE_LENGTH = 2000
@@ -155,7 +157,7 @@ def record_operation_event(
     finally:
         frappe.flags.infrastructure_operation_event_create = False
 
-    return {
+    result = {
         "name": event.name,
         "operation_id": operation_id,
         "sequence": sequence,
