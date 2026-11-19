@@ -84,13 +84,34 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// The accepted/queued event can arrive before the list snapshot
-				// includes the new operation. Fetch the authorized record directly
-				// instead of relying on a possibly in-flight list refresh.
+				// Create a provisional card synchronously; do not wait for HTTP.
+				this.operations.set(operationId, {
+					operation_id: operationId,
+					correlation_id: event.correlation_id,
+					operation_type: __("Background operation"),
+					target_doctype: null,
+					target_name: null,
+					execution_state: "Pending Dispatch",
+					creation: event.occurred_at || null,
+					modified: event.occurred_at || null,
+					event_history: [],
+				});
+				this.realtimeDiscovered.add(operationId);
+				this.lastSequences.set(operationId, 0);
+				this.render();
+				// Metadata lookup is deliberately asynchronous and merge-only.
 				this.loadOperation(operationId);
+			}
+
+			const sequence = Number(event.sequence);
+			const cursor = this.lastSequences.get(operationId) || 0;
+			if (sequence <= cursor) return;
+			if (sequence !== cursor + 1) {
+				this.replayQueued.add(operationId);
+				this.reconcileOperation(operationId);
 				return;
 			}
-			this.reconcileOperation(operationId);
+			this.applyEvent(operationId, event);
 		}
 
 		async reconcileAll() {
@@ -108,16 +129,22 @@
 				});
 				const operation = response.message;
 				if (!operation || !operation.operation_id) return;
+				const current = this.operations.get(operationId) || {};
+				const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 				this.operations.set(operationId, {
 					...operation,
-					creation: operation.creation || operation.started_on || null,
-					modified: operation.completed_on || operation.started_on || null,
-					event_history: this.operations.get(operationId)?.event_history || [],
+					...current,
+					operation_id: operationId,
+					creation: current.creation || operation.creation || operation.started_on || null,
+					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
+					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+					event_history: current.event_history || [],
 				});
 				this.realtimeDiscovered.add(operationId);
 				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
 				this.render();
-				await this.reconcileOperation(operationId);
+				// Reconcile only after metadata is merged; events received meanwhile
+				// have already advanced the cursor and are not overwritten.
 			} catch (error) {
 				// A later list refresh/reconnect can recover if the event raced
 				// record visibility or the caller is no longer authorized.
@@ -239,11 +266,21 @@
 				}
 				for (const [operationId, operation] of next) {
 					const current = this.operations.get(operationId);
-					if (current?.event_history?.length) {
-						operation.event_history = current.event_history;
-						operation.last_event_message = current.last_event_message;
-						operation.last_event_phase = current.last_event_phase;
-						operation.last_event_at = current.last_event_at;
+					if (!current) continue;
+					const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
+					next.set(operationId, {
+						...operation,
+						...current,
+						operation_id: operationId,
+						execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+						event_history: current.event_history || [],
+					});
+				}
+				// Preserve socket-discovered cards omitted by a snapshot that raced
+				// their creation, including already completed short-lived tasks.
+				for (const operationId of this.realtimeDiscovered) {
+					if (!next.has(operationId) && this.operations.has(operationId)) {
+						next.set(operationId, this.operations.get(operationId));
 					}
 				}
 				this.operations = next;
