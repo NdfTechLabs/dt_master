@@ -9,7 +9,7 @@ from frappe.utils import now_datetime
 
 from dt_master.operations.realtime import publish_operation_event
 
-EVENT_SCHEMA_VERSION = "1.0.0"
+EVENT_SCHEMA_VERSION = "1.1.0"
 MAX_EVENT_PAYLOAD_BYTES = 65536
 MAX_MESSAGE_LENGTH = 2000
 MAX_PHASE_LENGTH = 140
@@ -136,6 +136,9 @@ def record_operation_event(
     event_data_json = _canonical_object(event_data, "event_data")
 
     sequence = _next_sequence(operation_id)
+    execution_state = frappe.db.get_value("Infrastructure Operation", operation_id, "execution_state")
+    if not execution_state:
+        frappe.throw(_("The referenced operation has no execution state."), frappe.ValidationError)
     occurred_at = now_datetime()
 
     event = frappe.get_doc(
@@ -144,6 +147,7 @@ def record_operation_event(
             "operation": operation_id,
             "sequence": sequence,
             "event_type": event_type,
+            "execution_state": execution_state,
             "schema_version": EVENT_SCHEMA_VERSION,
             "occurred_at": occurred_at,
             "phase": phase,
@@ -164,6 +168,7 @@ def record_operation_event(
         "operation_id": operation_id,
         "sequence": sequence,
         "event_type": event_type,
+        "execution_state": execution_state,
         "schema_version": EVENT_SCHEMA_VERSION,
         "occurred_at": occurred_at,
         "phase": phase,

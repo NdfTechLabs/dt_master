@@ -22,6 +22,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
                 name="event-11",
                 sequence=11,
                 event_type="progress",
+                execution_state="Running",
                 schema_version="1.0.0",
                 occurred_at="2026-11-19 12:00:00",
                 phase="inspection",
@@ -33,6 +34,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
                 name="event-12",
                 sequence=12,
                 event_type="completed",
+                execution_state="Succeeded",
                 schema_version="1.0.0",
                 occurred_at="2026-11-19 12:01:00",
                 phase="completed",
@@ -63,18 +65,19 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
         self.assertEqual(get_all.call_args.kwargs["limit_page_length"], 3)
 
 
-    def test_reconciled_event_uses_authoritative_operation_state(self):
+    def test_reconciled_event_uses_persisted_historical_execution_state(self):
         row = SimpleNamespace(
             name="event-reconciled",
             sequence=4,
             event_type="reconciled",
+            execution_state="Pending Dispatch",
             schema_version="1.0.0",
             occurred_at="2026-11-19 12:05:00",
             phase="operator_reconciliation",
             progress=None,
             message="An authorized operator reconciled the operation.",
         )
-        self.operation.execution_state = "Pending Dispatch"
+        self.operation.execution_state = "Succeeded"
         with (
             patch.object(operations.frappe, "get_doc", return_value=self.operation),
             patch.dict(frappe.session, {"user": "initiator@example.com"}),

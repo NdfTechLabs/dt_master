@@ -51,7 +51,8 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
             "operation_id": "operation-test",
             "sequence": 4,
             "event_type": "queued",
-            "schema_version": "1.0.0",
+            "execution_state": "Queued",
+            "schema_version": "1.1.0",
             "occurred_at": "2026-11-19 12:00:00",
             "phase": "queued",
             "progress": '{"completed":1,"total":2}',
@@ -66,7 +67,7 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
             realtime.publish_operation_event(event)
 
         expected = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "event_id": "event-test",
             "operation_id": "operation-test",
             "correlation_id": "correlation-test",
@@ -93,8 +94,9 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
             "name": "event-queued",
             "operation_id": "operation-test",
             "sequence": 2,
-            "event_type": "queued",
-            "schema_version": "1.0.0",
+            "event_type": "reconciled",
+            "execution_state": "Pending Dispatch",
+            "schema_version": "1.1.0",
             "occurred_at": "2026-11-19 12:00:00",
         }
         self.operation.execution_state = "Running"
@@ -105,7 +107,7 @@ class TestOperationRealtimeDelivery(unittest.TestCase):
         ):
             realtime.publish_operation_event(event)
 
-        self.assertEqual(publish.call_args.args[1]["execution_state"], "Queued")
+        self.assertEqual(publish.call_args.args[1]["execution_state"], "Pending Dispatch")
 
     def test_operation_lookup_failure_is_best_effort(self):
         event = {
