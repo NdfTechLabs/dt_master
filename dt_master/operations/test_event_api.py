@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import frappe
@@ -16,7 +17,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
 
     def test_initiator_can_read_paginated_event_history(self):
         rows = [
-            MagicMock(
+            SimpleNamespace(
                 name="event-11",
                 sequence=11,
                 event_type="progress",
@@ -38,7 +39,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
                 message="Operation completed.",
                 event_data=None,
             ),
-            MagicMock(name="event-13"),
+            SimpleNamespace(name="event-13"),
         ]
         with (
             patch.object(operations.frappe, "get_doc", return_value=self.operation),
