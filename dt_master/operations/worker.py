@@ -68,6 +68,20 @@ def _assert_leases(leases):
         assert_resource_lease(lease)
 
 
+def _lock_and_verify_lease_row(lease, operation_id, attempt):
+    """Lock the exact current lease row and return whether it still exists."""
+    rows = frappe.db.sql(
+        """SELECT name FROM `tabInfrastructure Operation Lease`
+           WHERE lock_key = %s AND operation = %s AND attempt = %s
+             AND worker_token = %s AND fencing_token = %s AND expires_on > %s
+           FOR UPDATE""",
+        (lease["lock_key"], operation_id, attempt, lease["worker_token"],
+         lease["fencing_token"], now_datetime()),
+        as_dict=True,
+    )
+    return bool(rows)
+
+
 def execute_operation(operation_id):
     """Claim and execute one operation while holding every declared resource lease."""
     operation = frappe.get_doc("Infrastructure Operation", operation_id)
@@ -187,15 +201,7 @@ def execute_operation(operation_id):
             # Lock every lease row before the terminal write. This prevents an
             # expired lease takeover from racing the fenced completion transaction.
             for lease in leases:
-                frappe.db.sql(
-                    """SELECT name FROM `tabInfrastructure Operation Lease`
-                       WHERE lock_key = %s AND operation = %s AND attempt = %s
-                         AND worker_token = %s AND fencing_token = %s AND expires_on > %s
-                       FOR UPDATE""",
-                    (lease["lock_key"], operation_id, attempt, lease["worker_token"],
-                     lease["fencing_token"], now_datetime()),
-                )
-                if not frappe.db._cursor.fetchone():
+                if not _lock_and_verify_lease_row(lease, operation_id, attempt):
                     frappe.throw(_("The operation lost its resource lease before completion."), frappe.ValidationError)
 
             completed_on = now_datetime()

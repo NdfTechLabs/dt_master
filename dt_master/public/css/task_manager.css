@@ -100,3 +100,29 @@
 	font-size: 11px;
 	overflow-wrap: anywhere;
 }
+
+
+.dt-task-manager__history {
+	margin-top: 7px;
+	padding-top: 6px;
+	border-top: 1px solid var(--border-color, #edf0f2);
+}
+.dt-task-manager__history summary {
+	color: var(--text-muted, #687780);
+	font-size: 11px;
+	cursor: pointer;
+	user-select: none;
+}
+.dt-task-manager__history-list {
+	margin: 6px 0 0;
+	padding-left: 18px;
+}
+.dt-task-manager__history-list li {
+	padding: 4px 0;
+	color: var(--text-color, #1f272e);
+	overflow-wrap: anywhere;
+}
+.dt-task-manager__history-list li strong {
+	font-size: 11px;
+	font-weight: 500;
+}

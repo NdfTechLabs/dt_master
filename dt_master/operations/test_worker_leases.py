@@ -78,6 +78,36 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
         with self.assertRaises(frappe.ValidationError):
             worker._resource_lock_keys(definition, MagicMock(), operation)
 
+    def test_completion_lease_check_uses_frappe_query_results(self):
+        lease = {
+            "lock_key": "node:NODE-TEST", "worker_token": "worker-1",
+            "fencing_token": 4,
+        }
+        cursor = MagicMock()
+        with (
+            patch.object(worker.frappe.db, "sql", return_value=[{"name": "lease-row"}]) as sql,
+            patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker, "now_datetime", return_value="2026-11-19 16:00:00"),
+        ):
+            self.assertTrue(worker._lock_and_verify_lease_row(lease, "operation-test", 1))
+
+        self.assertTrue(sql.call_args.kwargs["as_dict"])
+        self.assertIn("FOR UPDATE", sql.call_args.args[0])
+        cursor.fetchone.assert_not_called()
+
+    def test_completion_lease_check_rejects_missing_locked_row(self):
+        lease = {
+            "lock_key": "node:NODE-TEST", "worker_token": "worker-1",
+            "fencing_token": 4,
+        }
+        with (
+            patch.object(worker.frappe.db, "sql", return_value=[]) as sql,
+            patch.object(worker, "now_datetime", return_value="2026-11-19 16:00:00"),
+        ):
+            self.assertFalse(worker._lock_and_verify_lease_row(lease, "operation-test", 1))
+
+        self.assertTrue(sql.call_args.kwargs["as_dict"])
+
     def test_heartbeat_is_fenced_to_running_attempt(self):
         lease = {
             "lock_key": "node:NODE-TEST", "operation_id": "operation-test",

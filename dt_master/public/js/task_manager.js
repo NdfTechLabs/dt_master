@@ -39,6 +39,8 @@
 	class TaskManager {
 		constructor() {
 			this.operations = new Map();
+			this.realtimeDiscovered = new Set();
+			this.loadingOperations = new Set();
 			this.collapsed = localStorage.getItem(STORAGE_KEY) === "1";
 			this.root = null;
 			this.refreshing = false;
@@ -82,8 +84,10 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// A newly accepted operation may race the initial snapshot.
-				this.refresh();
+				// The accepted/queued event can arrive before the list snapshot
+				// includes the new operation. Fetch the authorized record directly
+				// instead of relying on a possibly in-flight list refresh.
+				this.loadOperation(operationId);
 				return;
 			}
 			this.reconcileOperation(operationId);
@@ -92,6 +96,36 @@
 		async reconcileAll() {
 			// refresh() also replays persisted history for every operation in the snapshot.
 			await this.refresh();
+		}
+
+		async loadOperation(operationId) {
+			if (this.loadingOperations.has(operationId)) return;
+			this.loadingOperations.add(operationId);
+			try {
+				const response = await frappe.call({
+					method: "dt_master.api.operations.get_operation",
+					args: { operation_id: operationId },
+				});
+				const operation = response.message;
+				if (!operation || !operation.operation_id) return;
+				this.operations.set(operationId, {
+					...operation,
+					creation: operation.creation || operation.started_on || null,
+					modified: operation.completed_on || operation.started_on || null,
+					event_history: this.operations.get(operationId)?.event_history || [],
+				});
+				this.realtimeDiscovered.add(operationId);
+				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
+				this.render();
+				await this.reconcileOperation(operationId);
+			} catch (error) {
+				// A later list refresh/reconnect can recover if the event raced
+				// record visibility or the caller is no longer authorized.
+				console.warn("[dt_master] Unable to load newly announced operation.");
+				this.refresh();
+			} finally {
+				this.loadingOperations.delete(operationId);
+			}
 		}
 
 		async reconcileOperation(operationId) {
@@ -143,6 +177,17 @@
 			operation.execution_state = event.execution_state || operation.execution_state;
 			operation.last_event_message = event.message || operation.last_event_message;
 			operation.last_event_phase = event.phase || operation.last_event_phase;
+			operation.event_history = operation.event_history || [];
+			operation.event_history.push({
+				sequence,
+				event_type: event.event_type,
+				execution_state: event.execution_state,
+				occurred_at: event.occurred_at,
+				phase: event.phase,
+				message: event.message,
+				progress: event.progress || null,
+			});
+			operation.event_history = operation.event_history.slice(-10);
 			operation.last_event_at = event.occurred_at || operation.last_event_at;
 			operation.modified = event.occurred_at || operation.modified;
 			if (event.event_type === "completed" || event.event_type === "failed" || event.event_type === "cancelled") {
@@ -182,6 +227,25 @@
 						next.set(operation.operation_id, operation);
 					}
 				});
+				// A snapshot can have started before a realtime event announced a
+				// newly-created operation. Preserve those discoveries when the
+				// older snapshot resolves instead of overwriting the newer state.
+				for (const operationId of this.realtimeDiscovered) {
+					if (!next.has(operationId) && this.operations.has(operationId)) {
+						next.set(operationId, this.operations.get(operationId));
+					} else if (next.has(operationId)) {
+						this.realtimeDiscovered.delete(operationId);
+					}
+				}
+				for (const [operationId, operation] of next) {
+					const current = this.operations.get(operationId);
+					if (current?.event_history?.length) {
+						operation.event_history = current.event_history;
+						operation.last_event_message = current.last_event_message;
+						operation.last_event_phase = current.last_event_phase;
+						operation.last_event_at = current.last_event_at;
+					}
+				}
 				this.operations = next;
 				for (const operationId of next.keys()) {
 					if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
@@ -306,6 +370,44 @@
 				phase.className = "dt-task-manager__target";
 				phase.textContent = operation.last_event_phase;
 				card.appendChild(phase);
+			}
+			if (operation.event_history?.length) {
+				const history = document.createElement("details");
+				history.className = "dt-task-manager__history";
+				const summary = document.createElement("summary");
+				summary.textContent = __(
+					"Event history ({0})",
+					[operation.event_history.length]
+				);
+				history.appendChild(summary);
+				const list = document.createElement("ol");
+				list.className = "dt-task-manager__history-list";
+				[...operation.event_history].reverse().forEach((event) => {
+					const item = document.createElement("li");
+					const heading = document.createElement("strong");
+					heading.textContent = text(event.message || event.event_type);
+					item.appendChild(heading);
+					const metadata = document.createElement("div");
+					metadata.className = "dt-task-manager__target";
+					metadata.textContent = [
+						event.phase,
+						event.execution_state,
+						formatDate(event.occurred_at),
+					].filter(Boolean).join(" · ");
+					item.appendChild(metadata);
+					if (event.progress && Number.isFinite(Number(event.progress.completed)) &&
+						Number.isFinite(Number(event.progress.total)) && Number(event.progress.total) > 0) {
+						const progress = document.createElement("div");
+						progress.className = "dt-task-manager__target";
+						progress.textContent = __("Progress: {0} / {1}", [
+							Number(event.progress.completed), Number(event.progress.total),
+						]);
+						item.appendChild(progress);
+					}
+					list.appendChild(item);
+				});
+				history.appendChild(list);
+				card.appendChild(history);
 			}
 			if (timestamp) {
 				const time = document.createElement("time");
