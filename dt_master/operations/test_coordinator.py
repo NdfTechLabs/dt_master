@@ -37,6 +37,7 @@ class TestOperationCoordinator(unittest.TestCase):
             patch.object(frappe, "only_for"),
             patch.object(coordinator, "_existing_operation", return_value=None),
             patch.object(coordinator, "dispatch_operation"),
+            patch.object(coordinator, "record_operation_event"),
             patch.object(coordinator.frappe.db, "commit"),
             patch.object(coordinator.frappe, "get_doc", side_effect=get_doc_side_effect or [self.target, self.operation]),
         ):
@@ -54,6 +55,21 @@ class TestOperationCoordinator(unittest.TestCase):
         self.operation.reload.assert_called_once()
         self.assertEqual(result["operation_id"], "operation-test")
         self.assertEqual(result["execution_state"], "Pending Dispatch")
+
+    def test_acceptance_records_accepted_event_before_commit(self):
+        calls = []
+        with (
+            patch.dict(frappe.session, {"user": "operator@example.com"}),
+            patch.object(frappe, "only_for"),
+            patch.object(coordinator, "_existing_operation", return_value=None),
+            patch.object(coordinator, "dispatch_operation"),
+            patch.object(coordinator, "record_operation_event", side_effect=lambda *a, **k: calls.append("event")),
+            patch.object(coordinator.frappe.db, "commit", side_effect=lambda: calls.append("commit")),
+            patch.object(coordinator.frappe, "get_doc", side_effect=[self.target, self.operation]),
+        ):
+            coordinator.start_operation("test.noop", "Infrastructure Node", "NODE-TEST", {}, "request-accepted")
+
+        self.assertEqual(calls[:2], ["event", "commit"])
 
     def test_same_idempotency_request_reuses_existing_operation(self):
         definition = get_operation("test.noop")
@@ -100,6 +116,7 @@ class TestOperationCoordinator(unittest.TestCase):
             patch.object(coordinator, "dispatch_operation", side_effect=RuntimeError("queue offline")),
             patch.object(coordinator.frappe.db, "commit") as commit,
             patch.object(coordinator.frappe, "log_error"),
+            patch.object(coordinator, "record_operation_event"),
             patch.object(coordinator.frappe, "get_doc", side_effect=[self.target, self.operation]),
         ):
             result = coordinator.start_operation(
@@ -155,11 +172,20 @@ class TestOperationCoordinator(unittest.TestCase):
             patch.object(coordinator.frappe, "get_doc", side_effect=[queued_operation, queued_operation]),
             patch.object(coordinator.frappe.db, "set_value"),
             patch.object(coordinator.frappe.db, "sql"),
+            patch.object(coordinator.frappe.db, "_cursor", MagicMock(rowcount=1)),
+            patch.object(coordinator, "record_operation_event") as record_event,
             patch.object(coordinator.frappe.db, "commit"),
             patch.object(coordinator.frappe, "enqueue", return_value=job) as enqueue,
             patch.object(coordinator, "now_datetime", return_value="2026-11-18 00:00:00"),
         ):
             coordinator.dispatch_operation("operation-test")
+        record_event.assert_called_once_with(
+            "operation-test",
+            "queued",
+            phase="queued",
+            message="Operation queued for execution.",
+            event_data={"queue": "short", "job_id": "rq-job-123"},
+        )
         enqueue.assert_called_once_with(
             "dt_master.operations.worker.execute_operation",
             queue="short",
@@ -239,27 +265,35 @@ class TestOperationWorkerExecution(unittest.TestCase):
             patch.object(worker.frappe.db, "commit"),
             patch.object(worker.frappe.db, "rollback") as rollback,
             patch.object(worker.frappe.db, "set_value") as set_value,
+            patch.object(worker, "record_operation_event") as record_event,
             patch.object(worker.frappe, "log_error"),
             patch.object(worker.frappe, "set_user"),
             patch.dict(worker.frappe.session, {"user": "Administrator"}),
             patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
         ):
             worker.execute_operation("operation-test")
-        return set_value, rollback, definition
+        return set_value, rollback, definition, record_event
 
     def test_worker_success_persists_structured_result(self):
         handler = MagicMock(return_value={"status": "ok"})
-        set_value, rollback, _ = self._run_worker(handler)
+        set_value, rollback, _, record_event = self._run_worker(handler)
         handler.assert_called_once()
         rollback.assert_not_called()
         saved_values = set_value.call_args.args[2]
         self.assertEqual(saved_values["execution_state"], "Succeeded")
         self.assertEqual(saved_values["business_state"], "Completed")
         self.assertEqual(saved_values["result_payload"], '{"status":"ok"}')
+        record_event.assert_called_once_with(
+            "operation-test",
+            "completed",
+            phase="completed",
+            message="Operation completed successfully.",
+            event_data={"result": {"status": "ok"}},
+        )
 
     def test_worker_failure_persists_sanitized_failure(self):
         handler = MagicMock(side_effect=RuntimeError("sensitive internal detail"))
-        set_value, rollback, _ = self._run_worker(handler)
+        set_value, rollback, _, record_event = self._run_worker(handler)
         handler.assert_called_once()
         rollback.assert_called_once()
         saved_values = set_value.call_args.args[2]
@@ -267,6 +301,13 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.assertEqual(saved_values["business_state"], "Failed")
         self.assertEqual(saved_values["error_code"], "HANDLER_FAILED")
         self.assertNotIn("sensitive internal detail", saved_values["error_summary"])
+        record_event.assert_called_once_with(
+            "operation-test",
+            "failed",
+            phase="execution",
+            message="The registered operation handler failed.",
+            event_data={"error_code": "HANDLER_FAILED"},
+        )
 
 
 class TestPendingOperationDispatch(unittest.TestCase):
