@@ -260,6 +260,7 @@ class TestOperationWorkerClaim(unittest.TestCase):
             patch.object(worker.frappe, "get_doc", side_effect=[operation, target]),
             patch.object(worker, "get_operation", return_value=definition),
             patch.object(worker, "as_execution_identity"),
+            patch.object(worker.frappe, "get_roles", return_value=["System Manager"]),
             patch.object(worker, "acquire_resource_leases", return_value=[lease]),
             patch.object(worker, "_release_leases") as release,
             patch.object(worker.frappe.db, "sql"),
