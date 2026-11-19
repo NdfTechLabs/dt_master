@@ -144,7 +144,7 @@ def assert_resource_lease(lease):
         },
     )
     if not exists:
-        frappe.throw(_("The operation no longer owns a valid resource lease."), frappe.ConflictError)
+        frappe.throw(_("The operation no longer owns a valid resource lease."))
     return True
 
 
