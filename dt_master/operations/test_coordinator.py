@@ -320,7 +320,8 @@ class TestOperationWorkerExecution(unittest.TestCase):
             patch.object(worker.frappe.db, "set_value") as set_value,
             patch.object(worker, "record_operation_event") as record_event,
             patch.object(worker.frappe, "log_error"),
-            patch.object(worker.frappe, "set_user"),
+            patch.object(worker.frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
+            patch.object(worker.frappe, "set_user", side_effect=lambda user: setattr(worker.frappe.session, "user", user)),
             patch.dict(worker.frappe.session, {"user": "Administrator"}),
             patch.object(worker, "now_datetime", return_value="2026-11-18 00:00:00"),
         ):
@@ -331,6 +332,7 @@ class TestOperationWorkerExecution(unittest.TestCase):
         handler = MagicMock(return_value={"status": "ok"})
         set_value, rollback, _, record_event = self._run_worker(handler)
         handler.assert_called_once()
+        self.assertEqual(handler.call_args.args[0]["execution_identity"], "frappe-worker")
         rollback.assert_not_called()
         saved_values = set_value.call_args.args[2]
         self.assertEqual(saved_values["execution_state"], "Succeeded")
