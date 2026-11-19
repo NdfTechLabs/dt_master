@@ -8,6 +8,7 @@
 	if (!window.frappe || !frappe.boot || !frappe.session || frappe.session.user === "Guest") return;
 
 	const API = "dt_master.api.operations.get_operations";
+	const START_API = "dt_master.api.operations.start";
 	const EVENTS_API = "dt_master.api.operations.get_operation_events";
 	const EVENT_BATCH_SIZE = 100;
 	const STORAGE_KEY = "dt_master_task_manager_collapsed";
@@ -39,6 +40,8 @@
 	class TaskManager {
 		constructor() {
 			this.operations = new Map();
+			this.locallyTracked = new Set();
+			this.loadingOperations = new Set();
 			this.collapsed = localStorage.getItem(STORAGE_KEY) === "1";
 			this.root = null;
 			this.refreshing = false;
@@ -82,16 +85,55 @@
 			) return;
 			const operationId = event.operation_id;
 			if (!this.operations.has(operationId)) {
-				// A newly accepted operation may race the initial snapshot.
-				this.refresh();
+				// Socket discovery is a fallback for operations created by another
+				// authorized client or server-side workflow.
+				this.loadOperation(operationId);
 				return;
 			}
 			this.reconcileOperation(operationId);
 		}
 
 		async reconcileAll() {
-			// refresh() also replays persisted history for every operation in the snapshot.
+			// Refresh is explicit (startup, reconnect, or user action), never a poll.
 			await this.refresh();
+		}
+
+		async trackOperation(operationId) {
+			if (!operationId) return null;
+			this.locallyTracked.add(operationId);
+			return this.loadOperation(operationId);
+		}
+
+		async loadOperation(operationId) {
+			if (!operationId || this.loadingOperations.has(operationId)) {
+				return this.operations.get(operationId) || null;
+			}
+			this.loadingOperations.add(operationId);
+			try {
+				const response = await frappe.call({
+					method: "dt_master.api.operations.get_operation",
+					args: { operation_id: operationId },
+				});
+				const operation = response.message;
+				if (!operation || !operation.operation_id) return null;
+				const current = this.operations.get(operationId) || {};
+				this.operations.set(operationId, {
+					...current,
+					...operation,
+					creation: operation.creation || current.creation || operation.started_on || null,
+					modified: operation.modified || operation.completed_on || operation.started_on || current.modified || null,
+					event_history: current.event_history || [],
+				});
+				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
+				this.render();
+				await this.reconcileOperation(operationId);
+				return this.operations.get(operationId);
+			} catch (error) {
+				console.warn("[dt_master] Unable to load announced operation.");
+				return null;
+			} finally {
+				this.loadingOperations.delete(operationId);
+			}
 		}
 
 		async reconcileOperation(operationId) {
@@ -182,6 +224,24 @@
 						next.set(operation.operation_id, operation);
 					}
 				});
+				// Preserve operations handed directly from a successful start response
+				// when this snapshot began before they were committed/visible.
+				for (const operationId of this.locallyTracked) {
+					if (!next.has(operationId) && this.operations.has(operationId)) {
+						next.set(operationId, this.operations.get(operationId));
+					} else if (next.has(operationId)) {
+						this.locallyTracked.delete(operationId);
+					}
+				}
+				for (const [operationId, operation] of next) {
+					const current = this.operations.get(operationId);
+					if (current?.event_history?.length) {
+						operation.event_history = current.event_history;
+						operation.last_event_message = current.last_event_message;
+						operation.last_event_phase = current.last_event_phase;
+						operation.last_event_at = current.last_event_at;
+					}
+				}
 				this.operations = next;
 				for (const operationId of next.keys()) {
 					if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
@@ -321,6 +381,18 @@
 		if (window.__dtMasterTaskManager) return;
 		const manager = new TaskManager();
 		window.__dtMasterTaskManager = manager;
+		frappe.dt_master = frappe.dt_master || {};
+		frappe.dt_master.startOperation = async (args) => {
+			const response = await frappe.call({
+				method: START_API,
+				args,
+			});
+			const operation = response.message;
+			if (operation?.operation_id) {
+				await manager.trackOperation(operation.operation_id);
+			}
+			return operation;
+		};
 		manager.mount();
 	};
 
