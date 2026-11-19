@@ -27,10 +27,9 @@ class TestOperationRecovery(unittest.TestCase):
         lease = frappe._dict(expires_on="2026-11-19 13:02:00")
         with (
             patch.object(recovery, "now_datetime", return_value="2026-11-19 13:01:00"),
-            patch.object(recovery, "_lock_current_attempt_leases", return_value=[lease]),
             patch.object(recovery.frappe.db, "sql") as sql,
         ):
-            self.assertFalse(recovery._mark_recovery_required(operation))
+            self.assertFalse(recovery._mark_recovery_required(operation, [lease]))
         sql.assert_not_called()
 
     def test_expired_lease_marks_recovery_and_persists_event(self):
@@ -39,12 +38,11 @@ class TestOperationRecovery(unittest.TestCase):
         cursor = MagicMock(rowcount=1)
         with (
             patch.object(recovery, "now_datetime", return_value="2026-11-19 13:01:00"),
-            patch.object(recovery, "_lock_current_attempt_leases", return_value=[lease]),
             patch.object(recovery.frappe.db, "sql") as sql,
             patch.object(recovery.frappe.db, "_cursor", cursor),
             patch.object(recovery, "record_operation_event") as event,
         ):
-            self.assertTrue(recovery._mark_recovery_required(operation))
+            self.assertTrue(recovery._mark_recovery_required(operation, [lease]))
         self.assertIn("execution_state = 'Recovery Required'", sql.call_args.args[0])
         self.assertIn("attempt_count = %s", sql.call_args.args[0])
         event.assert_called_once()
@@ -55,16 +53,15 @@ class TestOperationRecovery(unittest.TestCase):
         cursor = MagicMock(rowcount=1)
         with (
             patch.object(recovery, "now_datetime", return_value="2026-11-19 13:01:00"),
-            patch.object(recovery, "_lock_current_attempt_leases", return_value=[]),
             patch.object(recovery.frappe.db, "sql") as sql,
             patch.object(recovery.frappe.db, "_cursor", cursor),
             patch.object(recovery, "record_operation_event"),
         ):
-            self.assertTrue(recovery._mark_recovery_required(operation))
+            self.assertTrue(recovery._mark_recovery_required(operation, []))
         self.assertIn("WORKER_HEARTBEAT_EXPIRED", sql.call_args.args[0])
 
     def test_supervisor_uses_bounded_candidate_query_and_rechecks_locked_row(self):
-        candidate = frappe._dict(name="OP-1")
+        candidate = frappe._dict(name="OP-1", attempt_count=1)
         operation = frappe._dict(
             name="OP-1", operation_id="OP-1", attempt_count=1,
             heartbeat_on="2026-11-19 12:00:00", started_on="2026-11-19 12:00:00",
@@ -73,6 +70,7 @@ class TestOperationRecovery(unittest.TestCase):
             patch.object(recovery, "now_datetime", return_value="2026-11-19 13:00:00"),
             patch.object(recovery, "add_to_date", return_value="2026-11-19 12:58:30"),
             patch.object(recovery.frappe.db, "sql", return_value=[candidate]) as sql,
+            patch.object(recovery, "_lock_current_attempt_leases", return_value=[]) as lock_leases,
             patch.object(recovery, "_lock_running_operation", return_value=operation),
             patch.object(recovery, "_mark_recovery_required", return_value=True) as mark,
             patch.object(recovery.frappe.db, "commit") as commit,
@@ -80,7 +78,8 @@ class TestOperationRecovery(unittest.TestCase):
             result = recovery.supervise_stale_operations(batch_size=10, stale_after_seconds=90)
         self.assertEqual(result, {"examined": 1, "recovery_required": 1})
         self.assertIn("LIMIT %s", sql.call_args.args[0])
-        mark.assert_called_once_with(operation)
+        lock_leases.assert_called_once_with("OP-1", 1)
+        mark.assert_called_once_with(operation, [])
         commit.assert_called_once()
 
     def test_supervisor_does_not_commit_when_no_operation_is_recovered(self):
