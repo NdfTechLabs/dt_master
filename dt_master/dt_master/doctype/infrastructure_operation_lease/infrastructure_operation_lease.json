@@ -76,5 +76,6 @@
  "permissions": [],
  "sort_field": "modified",
  "sort_order": "DESC",
- "track_changes": 0
+ "track_changes": 0,
+ "name": "Infrastructure Operation Lease"
 }
