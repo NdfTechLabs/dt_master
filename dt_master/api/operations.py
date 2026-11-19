@@ -121,3 +121,105 @@ def get_operation_events(operation_id, after_sequence=0, limit=50):
         "next_after_sequence": page[-1].sequence if page else after_sequence,
         "has_more": has_more,
     }
+
+def _operation_summary(row):
+    """Return the minimal safe snapshot consumed by the global Task Manager."""
+    return {
+        "operation_id": row.operation_id,
+        "correlation_id": row.correlation_id,
+        "operation_type": row.operation_type,
+        "target_doctype": row.target_doctype,
+        "target_name": row.target_name,
+        "initiated_by": row.initiated_by,
+        "initiator_type": row.initiator_type,
+        "business_state": row.business_state,
+        "execution_state": row.execution_state,
+        "attempt_count": row.attempt_count,
+        "started_on": str(row.started_on) if row.started_on else None,
+        "completed_on": str(row.completed_on) if row.completed_on else None,
+        "creation": str(row.creation) if row.creation else None,
+        "modified": str(row.modified) if row.modified else None,
+        "error_code": row.error_code,
+        "error_summary": row.error_summary,
+    }
+
+
+@frappe.whitelist()
+def get_operations(active_limit=50, recent_limit=20):
+    """List authorized active and recently completed operations for the Desk Task Manager.
+
+    Human users see their own operations. System Managers may see platform-wide
+    operations, matching the single-operation read authorization policy.
+    Request/result payloads, execution identity, lock metadata and internal
+    diagnostics are deliberately excluded.
+    """
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Authentication is required to view operations."), frappe.PermissionError)
+
+    try:
+        active_limit = int(active_limit)
+        recent_limit = int(recent_limit)
+    except (TypeError, ValueError):
+        frappe.throw(_("Operation limits must be integers."), frappe.ValidationError)
+
+    if not 1 <= active_limit <= 100 or not 0 <= recent_limit <= 50:
+        frappe.throw(_("Active limit must be 1–100 and recent limit must be 0–50."), frappe.ValidationError)
+
+    filters = {}
+    if "System Manager" not in frappe.get_roles():
+        filters["initiated_by"] = frappe.session.user
+
+    active_states = [
+        "Pending Dispatch",
+        "Queued",
+        "Running",
+        "Retry Waiting",
+        "Cancellation Requested",
+        "Recovery Required",
+    ]
+    fields = [
+        "operation_id",
+        "correlation_id",
+        "operation_type",
+        "target_doctype",
+        "target_name",
+        "initiated_by",
+        "initiator_type",
+        "business_state",
+        "execution_state",
+        "attempt_count",
+        "started_on",
+        "completed_on",
+        "creation",
+        "modified",
+        "error_code",
+        "error_summary",
+    ]
+
+    active_rows = frappe.get_all(
+        "Infrastructure Operation",
+        filters={**filters, "execution_state": ["in", active_states]},
+        fields=fields,
+        order_by="modified desc",
+        limit_page_length=active_limit,
+    )
+    recent_rows = []
+    if recent_limit:
+        terminal_rows = frappe.get_all(
+            "Infrastructure Operation",
+            filters={
+                **filters,
+                "execution_state": ["in", ["Succeeded", "Failed", "Cancelled"]],
+            },
+            fields=fields,
+            order_by="modified desc",
+            limit_page_length=recent_limit,
+        )
+        active_ids = {row.operation_id for row in active_rows}
+        recent_rows = [row for row in terminal_rows if row.operation_id not in active_ids]
+
+    return {
+        "active": [_operation_summary(row) for row in active_rows],
+        "recent": [_operation_summary(row) for row in recent_rows],
+    }
+
