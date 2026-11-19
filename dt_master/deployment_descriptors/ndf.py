@@ -327,7 +327,7 @@ def validate_service_descriptor(
     if expected_image_reference and image != expected_image_reference:
         raise DeploymentDescriptorError("Service image does not match the expected immutable image reference.")
     if descriptor["service_kind"] == "container" and (
-        not isinstance(image, str) or not re.fullmatch(r"[^@\\s]+@sha256:[a-f0-9]{64}", image)
+        not isinstance(image, str) or not re.fullmatch(r"[^@\s]+@sha256:[a-fA-F0-9]{64}", image)
     ):
         raise DeploymentDescriptorError("Container service image must be digest-pinned.")
     return {
