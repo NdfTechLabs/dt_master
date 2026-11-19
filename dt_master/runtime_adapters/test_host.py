@@ -126,6 +126,17 @@ class TestHostRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.data["preflight_status"], "Ready")
         self.assertEqual(result.data["os_support_status"], "Supported")
 
+    def test_preflight_blocks_unsupported_os_after_successful_inspection(self):
+        result, _ = self._run_inspection(
+            stdout=inspection_output(os="Ubuntu 26.04", os_version_id="26.04"),
+            method="preflight",
+        )
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.observed_state, "Blocked")
+        self.assertEqual(result.data["preflight_status"], "Blocked")
+        self.assertEqual(result.data["os_support_status"], "Unsupported")
+        self.assertEqual(result.diagnostics[0]["code"], "HOST_OS_UNSUPPORTED")
+
     def test_preflight_blocks_when_inspection_fails(self):
         with (
             patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
