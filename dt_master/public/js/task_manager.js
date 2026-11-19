@@ -94,8 +94,11 @@
 			if (sequence <= cursor) return;
 			if (sequence !== cursor + 1) {
 				// A missed/out-of-order event requires durable replay; never skip a gap.
-				this.replayQueued.add(operationId);
-				this.reconcileOperation(operationId);
+				if (this.replaying.has(operationId)) {
+					this.replayQueued.add(operationId);
+				} else {
+					this.reconcileOperation(operationId);
+				}
 				return;
 			}
 
