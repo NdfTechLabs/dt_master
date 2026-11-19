@@ -56,14 +56,14 @@ class TestHostRuntimeAdapter(unittest.TestCase):
             check_permission=lambda permission: self.assertEqual(permission, "read"),
         )
 
-    def _run_inspection(self, code=0, stdout=None, stderr=""):
+    def _run_inspection(self, code=0, stdout=None, stderr="", method="inspect"):
         stdout = stdout if stdout is not None else inspection_output()
         with (
             patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
             patch("dt_master.runtime_adapters.host.path_environment", return_value={"BASE_DIR": "/opt/dtsaas/scripts"}),
             patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)) as run,
         ):
-            result = self.adapter.invoke("inspect", request())
+            result = self.adapter.invoke(method, request(method))
         return result, run
 
     def test_inspection_uses_existing_ssh_script_contract_without_sudo(self):
@@ -122,7 +122,8 @@ class TestHostRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.diagnostics[0]["code"], "HOST_INSPECTION_INVALID_MEASUREMENT")
 
     def test_preflight_reports_os_support_separately(self):
-        result, _ = self._run_inspection()
+        result, _ = self._run_inspection(method="preflight")
+        self.assertEqual(result.data["preflight_status"], "Ready")
         self.assertEqual(result.data["os_support_status"], "Supported")
 
     def test_preflight_blocks_when_inspection_fails(self):
