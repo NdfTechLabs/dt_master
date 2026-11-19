@@ -28,7 +28,7 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
                 message="Two of four checks complete.",
                 event_data='{"check":"compose"}',
             ),
-            MagicMock(
+            SimpleNamespace(
                 name="event-12",
                 sequence=12,
                 event_type="completed",
