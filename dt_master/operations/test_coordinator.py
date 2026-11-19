@@ -283,12 +283,14 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.assertEqual(saved_values["execution_state"], "Succeeded")
         self.assertEqual(saved_values["business_state"], "Completed")
         self.assertEqual(saved_values["result_payload"], '{"status":"ok"}')
-        record_event.assert_called_once_with(
-            "operation-test",
-            "completed",
-            phase="completed",
-            message="Operation completed successfully.",
-            event_data={"result": {"status": "ok"}},
+        self.assertEqual([call.args[1] for call in record_event.call_args_list], ["started", "completed"])
+        self.assertEqual(
+            record_event.call_args_list[1].kwargs,
+            {
+                "phase": "completed",
+                "message": "Operation completed successfully.",
+                "event_data": {"result": {"status": "ok"}},
+            },
         )
 
     def test_worker_failure_persists_sanitized_failure(self):
@@ -301,12 +303,14 @@ class TestOperationWorkerExecution(unittest.TestCase):
         self.assertEqual(saved_values["business_state"], "Failed")
         self.assertEqual(saved_values["error_code"], "HANDLER_FAILED")
         self.assertNotIn("sensitive internal detail", saved_values["error_summary"])
-        record_event.assert_called_once_with(
-            "operation-test",
-            "failed",
-            phase="execution",
-            message="The registered operation handler failed.",
-            event_data={"error_code": "HANDLER_FAILED"},
+        self.assertEqual([call.args[1] for call in record_event.call_args_list], ["started", "failed"])
+        self.assertEqual(
+            record_event.call_args_list[1].kwargs,
+            {
+                "phase": "execution",
+                "message": "The registered operation handler failed.",
+                "event_data": {"error_code": "HANDLER_FAILED"},
+            },
         )
 
 
