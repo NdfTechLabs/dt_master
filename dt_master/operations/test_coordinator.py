@@ -195,6 +195,31 @@ class TestOperationCoordinator(unittest.TestCase):
             operation_id="operation-test",
         )
 
+    def test_dispatch_does_not_record_queued_when_worker_wins_claim_race(self):
+        queued_operation = MagicMock()
+        queued_operation.name = "operation-test"
+        queued_operation.operation_id = "operation-test"
+        queued_operation.execution_state = "Pending Dispatch"
+        queued_operation.operation_type = "test.noop"
+        queued_operation.contract_version = "1.0.0"
+        queued_operation.business_state = "Accepted"
+        job = MagicMock()
+        job.id = "rq-job-123"
+        with (
+            patch.object(coordinator.frappe, "get_doc", side_effect=[queued_operation, queued_operation]),
+            patch.object(coordinator.frappe.db, "set_value"),
+            patch.object(coordinator.frappe.db, "sql"),
+            patch.object(coordinator.frappe.db, "_cursor", MagicMock(rowcount=0)),
+            patch.object(coordinator, "record_operation_event") as record_event,
+            patch.object(coordinator.frappe.db, "commit"),
+            patch.object(coordinator.frappe, "enqueue", return_value=job),
+            patch.object(coordinator, "now_datetime", return_value="2026-11-18 00:00:00"),
+        ):
+            coordinator.dispatch_operation("operation-test")
+
+        record_event.assert_not_called()
+
+
 class TestOperationWorkerClaim(unittest.TestCase):
     def test_duplicate_delivery_does_not_invoke_handler(self):
         operation = MagicMock()
