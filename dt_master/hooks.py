@@ -31,8 +31,8 @@ add_to_apps_screen = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/dt_master/css/dt_master.css"
-# app_include_js = "/assets/dt_master/js/dt_master.js"
+app_include_css = "/assets/dt_master/css/task_manager.css"
+app_include_js = "/assets/dt_master/js/task_manager.js"
 
 
 # include js, css files in header of web template
