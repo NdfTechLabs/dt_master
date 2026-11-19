@@ -35,17 +35,30 @@ class TestExecutionIdentity(unittest.TestCase):
             with self.assertRaises(frappe.PermissionError):
                 validate_execution_identity("worker@example.com")
 
+    def test_symbolic_worker_identity_requires_site_configuration(self):
+        with patch.dict(frappe.conf, {}, clear=True):
+            with self.assertRaises(frappe.ValidationError):
+                validate_execution_identity("frappe-worker")
+
+    def test_symbolic_worker_identity_resolves_configured_user(self):
+        with (
+            patch.dict(frappe.conf, {"dt_master_operation_execution_user": "worker@example.com"}),
+            patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
+        ):
+            self.assertEqual(validate_execution_identity("frappe-worker"), "worker@example.com")
+
     def test_enabled_system_user_is_accepted(self):
         with patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")):
             self.assertEqual(validate_execution_identity("worker@example.com"), "worker@example.com")
 
     def test_execution_context_switches_and_restores_worker_user(self):
         with (
+            patch.dict(frappe.conf, {"dt_master_operation_execution_user": "worker@example.com"}),
             patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
             patch.object(frappe, "set_user", side_effect=lambda user: setattr(frappe.session, "user", user)) as set_user,
             patch.dict(frappe.session, {"user": "Administrator"}),
         ):
-            with as_execution_identity("worker@example.com"):
+            with as_execution_identity("frappe-worker"):
                 self.assertEqual(frappe.session.user, "worker@example.com")
             self.assertEqual(frappe.session.user, "Administrator")
         self.assertEqual([call.args[0] for call in set_user.call_args_list],
@@ -58,11 +71,12 @@ class TestExecutionIdentity(unittest.TestCase):
             frappe.session.user = user
 
         with (
+            patch.dict(frappe.conf, {"dt_master_operation_execution_user": "worker@example.com"}),
             patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, user_type="System User")),
             patch.object(frappe, "set_user", side_effect=switch),
             patch.dict(frappe.session, {"user": "Administrator"}),
         ):
             with self.assertRaises(RuntimeError):
-                with as_execution_identity("worker@example.com"):
+                with as_execution_identity("frappe-worker"):
                     self.fail("Handler must not run when identity switch fails")
             self.assertEqual(frappe.session.user, "Administrator")
