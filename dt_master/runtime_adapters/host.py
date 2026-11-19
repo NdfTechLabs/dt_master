@@ -11,7 +11,6 @@ import frappe
 from dt_master.api.script_contract import parse_output, path_environment, run_remote_script
 from dt_master.runtime_adapters.base import RuntimeAdapter
 
-
 OS_SUPPORT_POLICY_VERSION = "1.0.0"
 SUPPORTED_OS_RELEASES = {
 	("ubuntu", "22.04", "amd64"),
@@ -85,20 +84,31 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				outcome="failed",
 				observed_state="Unavailable",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_FAILED",
-					"severity": "error",
-					"message": "Read-only Host inspection could not be completed over the configured SSH transport.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_FAILED",
+						"severity": "error",
+						"message": "Read-only Host inspection could not be completed over the configured SSH transport.",
+					},
+				),
 				data={"inspection_status": "Failed"},
 				duration_ms=elapsed,
 			)
 
 		values = parse_output(stdout)
 		required = (
-			"hostname", "os", "os_id", "os_version_id", "os_version_codename",
-			"raw_architecture", "architecture", "package_manager", "service_manager",
-			"cpu_cores", "memory_bytes", "root_available_bytes",
+			"hostname",
+			"os",
+			"os_id",
+			"os_version_id",
+			"os_version_codename",
+			"raw_architecture",
+			"architecture",
+			"package_manager",
+			"service_manager",
+			"cpu_cores",
+			"memory_bytes",
+			"root_available_bytes",
 		)
 		missing = [key for key in required if not values.get(key)]
 		if missing:
@@ -107,11 +117,13 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				outcome="failed",
 				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INCOMPLETE",
-					"severity": "error",
-					"message": "Host inspection returned an incomplete observation.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INCOMPLETE",
+						"severity": "error",
+						"message": "Host inspection returned an incomplete observation.",
+					},
+				),
 				data={"inspection_status": "Invalid", "missing_fields": missing},
 				duration_ms=elapsed,
 			)
@@ -130,11 +142,13 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				outcome="failed",
 				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INVALID_MEASUREMENT",
-					"severity": "error",
-					"message": "Host inspection returned invalid capacity measurements.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INVALID_MEASUREMENT",
+						"severity": "error",
+						"message": "Host inspection returned invalid capacity measurements.",
+					},
+				),
 				data={"inspection_status": "Invalid"},
 				duration_ms=elapsed,
 			)
@@ -176,7 +190,10 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				observed_state="Blocked",
 				capabilities=self.capabilities(),
 				diagnostics=inspection.diagnostics,
-				data={"preflight_status": "Blocked", "inspection_status": inspection.data.get("inspection_status")},
+				data={
+					"preflight_status": "Blocked",
+					"inspection_status": inspection.data.get("inspection_status"),
+				},
 				duration_ms=inspection.duration_ms,
 			)
 
@@ -187,11 +204,15 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				outcome="succeeded",
 				observed_state="Blocked",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_OS_SUPPORT_UNKNOWN" if os_support_status == "Unknown" else "HOST_OS_UNSUPPORTED",
-					"severity": "warning",
-					"message": "Host OS identity is not covered by the approved baseline support matrix.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_OS_SUPPORT_UNKNOWN"
+						if os_support_status == "Unknown"
+						else "HOST_OS_UNSUPPORTED",
+						"severity": "warning",
+						"message": "Host OS identity is not covered by the approved baseline support matrix.",
+					},
+				),
 				data={
 					"preflight_status": "Blocked",
 					"inspection_status": inspection.data["inspection_status"],

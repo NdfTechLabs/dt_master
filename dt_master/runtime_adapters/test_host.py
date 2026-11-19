@@ -64,7 +64,9 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 				"dt_master.runtime_adapters.host.path_environment",
 				return_value={"BASE_DIR": "/opt/dtsaas/scripts"},
 			),
-			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)) as run,
+			patch(
+				"dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)
+			) as run,
 		):
 			result = self.adapter.invoke(method, request(method))
 		return result, run
@@ -81,22 +83,33 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(run.call_args.args[2:4], ("node", "inspect_host_runtime.sh"))
 
 	def test_ubuntu_2204_is_supported(self):
-		result, _ = self._run_inspection(stdout=inspection_output(
-			os="Ubuntu 22.04.5 LTS", os_version_id="22.04", os_version_codename="jammy",
-		))
+		result, _ = self._run_inspection(
+			stdout=inspection_output(
+				os="Ubuntu 22.04.5 LTS",
+				os_version_id="22.04",
+				os_version_codename="jammy",
+			)
+		)
 		self.assertEqual(result.data["os_support_status"], "Supported")
 
 	def test_debian_12_is_supported(self):
-		result, _ = self._run_inspection(stdout=inspection_output(
-			os="Debian GNU/Linux 12 (bookworm)", os_id="debian", os_version_id="12",
-			os_version_codename="bookworm",
-		))
+		result, _ = self._run_inspection(
+			stdout=inspection_output(
+				os="Debian GNU/Linux 12 (bookworm)",
+				os_id="debian",
+				os_version_id="12",
+				os_version_codename="bookworm",
+			)
+		)
 		self.assertEqual(result.data["os_support_status"], "Supported")
 
 	def test_other_release_or_architecture_is_detected_but_unsupported(self):
-		result, _ = self._run_inspection(stdout=inspection_output(
-			os="Ubuntu 26.04", os_version_id="26.04",
-		))
+		result, _ = self._run_inspection(
+			stdout=inspection_output(
+				os="Ubuntu 26.04",
+				os_version_id="26.04",
+			)
+		)
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.data["os_support_status"], "Unsupported")
 
@@ -165,9 +178,12 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 
 	def test_bench_target_is_rejected_until_bench_environment_exists(self):
 		bench_request = RuntimeAdapterRequest(
-			adapter_id="host-v1", runtime_type="host",
-			target_doctype="Bench Environment", target_name="BENCH-0001",
-			method="inspect", payload={},
+			adapter_id="host-v1",
+			runtime_type="host",
+			target_doctype="Bench Environment",
+			target_name="BENCH-0001",
+			method="inspect",
+			payload={},
 		)
 		with patch("dt_master.runtime_adapters.host.frappe.get_doc") as get_doc:
 			with self.assertRaises(ValueError):
