@@ -50,7 +50,8 @@ class TestOperationEventHistoryAPI(unittest.TestCase):
         self.assertEqual(len(result["events"]), 2)
         self.assertEqual(result["events"][0]["event_id"], "event-11")
         self.assertEqual(result["events"][0]["progress"], {"completed": 2, "total": 4})
-        self.assertEqual(result["events"][0]["event_data"], {"check": "compose"})
+        self.assertEqual(result["events"][0]["execution_state"], "Running")
+        self.assertNotIn("event_data", result["events"][0])
         self.assertEqual(result["next_after_sequence"], 12)
         self.assertTrue(result["has_more"])
         self.assertEqual(
