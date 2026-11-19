@@ -33,6 +33,7 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
     def test_resource_contention_returns_operation_to_pending_dispatch(self):
         operation = self._operation()
         target = MagicMock()
+        target.name = "NODE-TEST"
         definition = get_operation("test.noop")
         cursor = MagicMock(rowcount=1)
         with (
