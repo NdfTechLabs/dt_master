@@ -75,11 +75,30 @@
 
 		bindRealtime() {
 			if (this.realtimeBound) return true;
-			if (!frappe.realtime || typeof frappe.realtime.on !== "function") return false;
+			const realtime = frappe.realtime;
+			if (!realtime || typeof realtime.on !== "function") return false;
+
+			// Frappe's RealTimeClient.on() silently does nothing until init()
+			// has created its Socket.IO socket. Hook init once so this manager
+			// binds immediately after socket creation instead of marking itself
+			// bound to a subscription that was never registered.
+			if (!realtime.socket) {
+				if (!realtime.__dtMasterTaskManagerInitHooked && typeof realtime.init === "function") {
+					const originalInit = realtime.init;
+					realtime.init = function (...args) {
+						const result = originalInit.apply(this, args);
+						if (this.socket) manager.bindRealtime();
+						return result;
+					};
+					realtime.__dtMasterTaskManagerInitHooked = true;
+				}
+				return false;
+			}
+
 			// The server publishes only to authorized user rooms; the browser
 			// never chooses or subscribes to operation rooms.
-			frappe.realtime.on("operation_event", this.handleOperationEvent);
-			frappe.realtime.on("connect", this.handleReconnect);
+			realtime.on("operation_event", this.handleOperationEvent);
+			realtime.on("connect", this.handleReconnect);
 			this.realtimeBound = true;
 			return true;
 		}
