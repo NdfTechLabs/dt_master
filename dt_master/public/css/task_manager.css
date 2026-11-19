@@ -100,3 +100,13 @@
 	font-size: 11px;
 	overflow-wrap: anywhere;
 }
+
+.dt-task-manager__progress { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.dt-task-manager__progress progress { flex: 1; width: 100%; height: 7px; }
+.dt-task-manager__progress span { color: var(--text-muted, #687780); font-size: 10px; white-space: nowrap; }
+.dt-task-manager__history { margin-top: 7px; border-top: 1px solid var(--border-color, #edf0f2); padding-top: 5px; }
+.dt-task-manager__history summary { color: var(--text-muted, #687780); cursor: pointer; font-size: 11px; }
+.dt-task-manager__history ol { margin: 6px 0 0; padding-left: 18px; }
+.dt-task-manager__history li { margin: 0 0 7px; color: var(--text-muted, #687780); font-size: 11px; }
+.dt-task-manager__history li p { margin: 2px 0; overflow-wrap: anywhere; }
+.dt-task-manager__history li time { color: var(--text-light, #8d99a6); font-size: 10px; }
