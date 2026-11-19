@@ -6,6 +6,7 @@ M4.3.5 and are deliberately not exposed here.
 """
 
 import json
+from copy import deepcopy
 from time import monotonic
 
 import frappe
@@ -13,6 +14,7 @@ import frappe
 from dt_master.api.script_contract import run_remote_script
 from dt_master.docker_readiness import evaluate_node_docker_readiness
 from dt_master.runtime_adapters.base import RuntimeAdapter
+from dt_master.runtime_adapters.contracts import sanitize_diagnostic_message
 
 
 class DockerRuntimeAdapter(RuntimeAdapter):
@@ -47,19 +49,30 @@ class DockerRuntimeAdapter(RuntimeAdapter):
         }
 
     @staticmethod
+    def _sanitize_observation_diagnostics(snapshot, evaluation):
+        """Sanitize nested diagnostic copies as well as the top-level result list."""
+        safe_snapshot = deepcopy(snapshot)
+        safe_evaluation = deepcopy(evaluation)
+        for item in safe_snapshot.get("diagnostics", []):
+            item["message"] = sanitize_diagnostic_message(item["message"])
+        for item in safe_evaluation.get("diagnostics", []):
+            item["message"] = sanitize_diagnostic_message(item["message"])
+        return safe_snapshot, safe_evaluation
+
+    @staticmethod
     def _diagnostics(snapshot, evaluation):
         diagnostics = []
         for item in snapshot.get("diagnostics", []):
             diagnostics.append({
                 "code": item["code"],
                 "severity": item["severity"].lower(),
-                "message": item["message"][:1000],
+                "message": sanitize_diagnostic_message(item["message"]),
             })
         for item in evaluation.get("diagnostics", []):
             diagnostics.append({
                 "code": item["code"],
                 "severity": "error" if item["severity"] == "Error" else "warning",
-                "message": item["message"][:1000],
+                "message": sanitize_diagnostic_message(item["message"]),
             })
         return tuple(diagnostics[:100])
 
@@ -108,6 +121,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             )
 
         evaluation = evaluate_node_docker_readiness(node, snapshot)
+        snapshot, evaluation = self._sanitize_observation_diagnostics(snapshot, evaluation)
         status = snapshot["inspection_status"]
         outcome = "succeeded" if status == "Successful" else ("partial" if status == "Partial" else "failed")
         data = {
