@@ -52,8 +52,8 @@ if [[ -n "$docker_path" ]]; then
         compose_compatibility="Unavailable"
         add_diag "COMPOSE_UNAVAILABLE" "Warning" "Docker Compose v2 plugin is unavailable."
     fi
-    info=$(docker info --format '{{json .}}' 2>/dev/null || true)
-    if [[ -n "$info" ]]; then
+    info=$(docker info --format '{{json .}}' 2>&1 || true)
+    if python3 -c 'import json,sys; json.loads(sys.stdin.read())' <<< "$info" 2>/dev/null; then
         engine_availability="Available"
         inspection_access="Allowed"
         server_version=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("ServerVersion") or "")' "$info" 2>/dev/null || true)
@@ -66,7 +66,7 @@ if [[ -n "$docker_path" ]]; then
         fi
     else
         engine_availability="Unavailable"
-        if docker info 2>&1 | grep -qiE 'permission denied|permission.*socket'; then
+        if grep -qiE 'permission denied|permission.*socket' <<< "$info"; then
             inspection_access="Denied"
             add_diag "DOCKER_ACCESS_DENIED" "Error" "SSH identity cannot access the Docker Engine socket; no privilege escalation was attempted."
         else
