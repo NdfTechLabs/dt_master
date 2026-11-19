@@ -180,11 +180,32 @@ class HostRuntimeAdapter(RuntimeAdapter):
                 duration_ms=inspection.duration_ms,
             )
 
+        os_support_status = inspection.data["os_support_status"]
+        if os_support_status != "Supported":
+            return self.result_for(
+                request,
+                outcome="succeeded",
+                observed_state="Blocked",
+                capabilities=self.capabilities(),
+                diagnostics=({
+                    "code": "HOST_OS_SUPPORT_UNKNOWN" if os_support_status == "Unknown" else "HOST_OS_UNSUPPORTED",
+                    "severity": "warning",
+                    "message": "Host OS identity is not covered by the approved baseline support matrix.",
+                },),
+                data={
+                    "preflight_status": "Blocked",
+                    "inspection_status": inspection.data["inspection_status"],
+                    "os_support_policy_version": inspection.data["os_support_policy_version"],
+                    "os_support_status": os_support_status,
+                },
+                duration_ms=inspection.duration_ms,
+            )
+
         data = {
             "preflight_status": "Ready",
             "inspection_status": inspection.data["inspection_status"],
             "os_support_policy_version": inspection.data["os_support_policy_version"],
-            "os_support_status": inspection.data["os_support_status"],
+            "os_support_status": os_support_status,
             "cpu_cores": inspection.data["cpu_cores"],
             "memory_bytes": inspection.data["memory_bytes"],
             "root_available_bytes": inspection.data["root_available_bytes"],
