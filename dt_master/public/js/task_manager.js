@@ -112,7 +112,9 @@
 					...operation,
 					creation: operation.creation || operation.started_on || null,
 					modified: operation.completed_on || operation.started_on || null,
+					event_history: this.operations.get(operationId)?.event_history || [],
 				});
+				this.realtimeDiscovered.add(operationId);
 				if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
 				this.render();
 				await this.reconcileOperation(operationId);
