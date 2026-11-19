@@ -30,6 +30,8 @@ class TestOperationCoordinator(unittest.TestCase):
         self.operation.request_payload = "{}"
         self.operation.initiator_type = "Human"
         self.operation.execution_identity = "frappe-worker"
+        self.operation.attempt_count = 0
+        self.operation.max_attempts = 1
 
     def _start(self, get_doc_side_effect=None):
         with (
@@ -257,6 +259,10 @@ class TestOperationWorkerClaim(unittest.TestCase):
             patch.object(worker.frappe.db, "sql"),
             patch.object(worker.frappe.db, "_cursor", cursor),
             patch.object(worker, "record_operation_event") as record_event,
+            patch.object(worker, "acquire_resource_leases", return_value=[{"lock_key":"node:NODE-TEST","operation_id":"operation-test","attempt":1,"worker_token":"w1","fencing_token":1,"expires_on":"2026-11-18 00:01:00"}]),
+            patch.object(worker, "assert_resource_lease") as assert_lease,
+            patch.object(worker, "renew_resource_lease", return_value=True),
+            patch.object(worker, "release_resource_lease", return_value=True),
             patch.object(worker.frappe.db, "commit") as commit,
             patch.object(worker, "now_datetime", return_value="2026-11-19 12:00:00"),
         ):
@@ -340,6 +346,8 @@ class TestOperationWorkerExecution(unittest.TestCase):
         set_value, rollback, _, record_event = self._run_worker(handler, authorize=authorization)
         handler.assert_called_once()
         self.assertEqual(handler.call_args.args[0]["execution_identity"], "frappe-worker")
+        self.assertIn("heartbeat", handler.call_args.args[0])
+        self.assertIn("assert_leases", handler.call_args.args[0])
         self.assertEqual(observed, {"actor": "operator@example.com", "user": "worker@example.com"})
         rollback.assert_not_called()
         saved_values = set_value.call_args.args[2]
@@ -362,17 +370,17 @@ class TestOperationWorkerExecution(unittest.TestCase):
         handler.assert_called_once()
         rollback.assert_called_once()
         saved_values = set_value.call_args.args[2]
-        self.assertEqual(saved_values["execution_state"], "Failed")
+        self.assertEqual(saved_values["execution_state"], "Recovery Required")
         self.assertEqual(saved_values["business_state"], "Failed")
-        self.assertEqual(saved_values["error_code"], "HANDLER_FAILED")
+        self.assertEqual(saved_values["error_code"], "LEASE_OR_HANDLER_FAILED")
         self.assertNotIn("sensitive internal detail", saved_values["error_summary"])
-        self.assertEqual([call.args[1] for call in record_event.call_args_list], ["started", "failed"])
+        self.assertEqual([call.args[1] for call in record_event.call_args_list], ["started", "recovery_required"])
         self.assertEqual(
             record_event.call_args_list[1].kwargs,
             {
                 "phase": "execution",
-                "message": "The registered operation handler failed.",
-                "event_data": {"error_code": "HANDLER_FAILED"},
+                "message": "Operation requires reconciliation after a lease or execution failure.",
+                "event_data": {"error_code": "LEASE_OR_HANDLER_FAILED"},
             },
         )
 
