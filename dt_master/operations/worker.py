@@ -122,7 +122,7 @@ def execute_operation(operation_id):
             "completed",
             phase="completed",
             message="Operation completed successfully.",
-            event_data={"result_keys": sorted(result)},
+            event_data={"result_keys": sorted(str(key) for key in result)},
         )
         frappe.db.commit()
     except Exception:
