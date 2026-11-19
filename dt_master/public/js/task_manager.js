@@ -40,6 +40,7 @@
 		constructor() {
 			this.operations = new Map();
 			this.realtimeDiscovered = new Set();
+			this.loadingOperations = new Set();
 			this.collapsed = localStorage.getItem(STORAGE_KEY) === "1";
 			this.root = null;
 			this.refreshing = false;
@@ -98,6 +99,8 @@
 		}
 
 		async loadOperation(operationId) {
+			if (this.loadingOperations.has(operationId)) return;
+			this.loadingOperations.add(operationId);
 			try {
 				const response = await frappe.call({
 					method: "dt_master.api.operations.get_operation",
@@ -118,6 +121,8 @@
 				// record visibility or the caller is no longer authorized.
 				console.warn("[dt_master] Unable to load newly announced operation.");
 				this.refresh();
+			} finally {
+				this.loadingOperations.delete(operationId);
 			}
 		}
 
