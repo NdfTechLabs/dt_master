@@ -69,7 +69,7 @@ def get_operation(operation_id):
 @frappe.whitelist()
 def get_operation_events(operation_id, after_sequence=0, limit=50):
     """Return an authorized, sequence-ordered page of durable operation events."""
-    _get_authorized_operation(operation_id)
+    operation = _get_authorized_operation(operation_id)
 
     try:
         after_sequence = int(after_sequence)
@@ -106,7 +106,7 @@ def get_operation_events(operation_id, after_sequence=0, limit=50):
             "operation_id": operation_id,
             "sequence": row.sequence,
             "event_type": row.event_type,
-            "execution_state": EVENT_EXECUTION_STATES.get(row.event_type),
+            "execution_state": EVENT_EXECUTION_STATES.get(row.event_type, operation.execution_state),
             "schema_version": row.schema_version,
             "occurred_at": str(row.occurred_at),
             "phase": row.phase,
