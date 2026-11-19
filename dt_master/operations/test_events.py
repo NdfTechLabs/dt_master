@@ -144,7 +144,7 @@ class TestOperationEvents(unittest.TestCase):
         result = self._record("started", message="Worker started")
         self.publisher_mock.assert_called_once_with(result)
 
-    def test_service_does_not_commit_or_publish(self):
+    def test_service_does_not_commit_or_publish_directly(self):
         with (
             patch.object(
                 events.frappe.db,
