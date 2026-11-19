@@ -24,6 +24,22 @@ class TestOperationRegistryAndContracts(unittest.TestCase):
         self.assertEqual(types, tuple(sorted(types)))
         self.assertIn("test.noop", types)
 
+
+    def test_runtime_adapter_mutation_operation_is_registered(self):
+        definition = get_operation("runtime.adapter.mutate")
+        self.assertEqual(definition.queue, "long")
+        self.assertEqual(definition.max_attempts, 1)
+
+    def test_runtime_adapter_mutation_rejects_read_only_builtin_adapters(self):
+        definition = get_operation("runtime.adapter.mutate")
+        with self.assertRaises(frappe.ValidationError):
+            definition.validate_payload({
+                "adapter_id": "host-v1",
+                "runtime_type": "host",
+                "method": "start",
+                "payload": {},
+            })
+
     def test_unknown_operation_type_is_rejected(self):
         with self.assertRaises(frappe.ValidationError):
             get_operation("arbitrary.python.path")
