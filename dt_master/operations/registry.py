@@ -20,6 +20,7 @@ class OperationDefinition:
     priority: str = "Normal"
     execution_identity: str = "frappe-worker"
     contract_version: str = "1.0.0"
+    resource_lock_keys: Callable = None
 
 
 _REGISTRY = {}
