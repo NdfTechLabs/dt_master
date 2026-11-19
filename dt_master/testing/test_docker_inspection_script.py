@@ -31,7 +31,7 @@ class DockerInspectionScriptAcceptance(unittest.TestCase):
         # when invoked through bench), not whichever python3 pyenv exposes.
         python_wrapper = self.bin_dir / "python3"
         python_wrapper.write_text(
-            f"#!/bin/sh\\nexec {shlex.quote(sys.executable)} \"$@\"\\n"
+            f"#!/bin/sh\nexec {shlex.quote(sys.executable)} \"$@\"\n"
         )
         python_wrapper.chmod(0o755)
         self.log = self.bin_dir / "docker-commands.log"
