@@ -107,7 +107,8 @@ def record_operation_event(
 ):
     """Persist one immutable operation event inside the caller's transaction.
 
-    This function deliberately does not commit, roll back, enqueue, or publish.
+    This function does not commit, roll back or enqueue. It schedules a best-effort
+    realtime publication for after the caller's transaction commits.
     Sequence allocation is serialized by locking the parent Infrastructure Operation row.
     """
     if not isinstance(operation_id, str) or not operation_id.strip():
@@ -169,3 +170,5 @@ def record_operation_event(
         "message": message,
         "event_data": event_data_json,
     }
+    publish_operation_event(result)
+    return result
