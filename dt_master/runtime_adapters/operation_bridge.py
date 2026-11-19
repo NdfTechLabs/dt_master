@@ -11,6 +11,7 @@ from dt_master.runtime_adapters.contracts import (
     MUTATING_METHODS,
     RuntimeAdapterRequest,
     RuntimeAdapterError,
+    validate_adapter_payload,
     validate_request,
 )
 from dt_master.runtime_adapters.registry import resolve_adapter
@@ -27,8 +28,7 @@ def validate_runtime_mutation_payload(payload):
         raise ValueError("Durable runtime operation accepts mutating adapter methods only")
     if not isinstance(payload["runtime_type"], str) or not isinstance(payload["adapter_id"], str):
         raise ValueError("Runtime type and adapter ID must be strings")
-    if not isinstance(payload["payload"], dict):
-        raise ValueError("Runtime adapter payload must be an object")
+    validate_adapter_payload(payload["payload"])
     adapter = resolve_adapter(payload["runtime_type"], payload["adapter_id"])
     if not adapter.supports(payload["method"]):
         raise RuntimeAdapterError(
