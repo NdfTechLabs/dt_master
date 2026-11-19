@@ -5,7 +5,9 @@ Docker CLI. They do not require or contact a live Docker daemon.
 """
 import json
 import os
+import shlex
 import shutil
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -14,7 +16,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
 
-TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "python3", "grep")
+TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "grep")
 
 
 class DockerInspectionScriptAcceptance(unittest.TestCase):
@@ -25,6 +27,13 @@ class DockerInspectionScriptAcceptance(unittest.TestCase):
             source = shutil.which(name)
             if source:
                 (self.bin_dir / name).symlink_to(source)
+        # Use the exact interpreter running the test suite (Bench's venv
+        # when invoked through bench), not whichever python3 pyenv exposes.
+        python_wrapper = self.bin_dir / "python3"
+        python_wrapper.write_text(
+            f"#!/bin/sh\\nexec {shlex.quote(sys.executable)} \"$@\"\\n"
+        )
+        python_wrapper.chmod(0o755)
         self.log = self.bin_dir / "docker-commands.log"
         self.docker = self.bin_dir / "docker"
         self.docker.write_text(
