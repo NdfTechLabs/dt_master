@@ -289,7 +289,7 @@ class TestOperationWorkerExecution(unittest.TestCase):
             {
                 "phase": "completed",
                 "message": "Operation completed successfully.",
-                "event_data": {"result": {"status": "ok"}},
+                "event_data": {"result_keys": ["status"]},
             },
         )
 
