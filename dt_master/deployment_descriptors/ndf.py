@@ -34,8 +34,6 @@ EXPECTED_PDD_EVIDENCE = frozenset({
     "image_composition_verification",
 })
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
-_GIT_SHA = re.compile(r"^[a-f0-9]{40,64}$")
-_OCI_DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 
 def _reject_duplicate_keys(pairs):
@@ -232,9 +230,10 @@ def _validate_composition(descriptor: dict) -> None:
             requirement["descriptor_path"], requirement["descriptor_sha256"], requirement_id, "external"
         ))
 
+    service_item_ids = set(graph)
     for owner, dependencies in graph.items():
         for dependency in dependencies:
-            if dependency not in item_ids:
+            if dependency not in service_item_ids:
                 raise DeploymentDescriptorError(f"Undeclared dependency {dependency!r} referenced by {owner}.")
             if dependency == owner:
                 raise DeploymentDescriptorError(f"Composition item {owner} cannot depend on itself.")
@@ -327,7 +326,9 @@ def validate_service_descriptor(
     image = descriptor.get("artifact", {}).get("image")
     if expected_image_reference and image != expected_image_reference:
         raise DeploymentDescriptorError("Service image does not match the expected immutable image reference.")
-    if image and "@sha256:" not in image:
+    if descriptor["service_kind"] == "container" and (
+        not isinstance(image, str) or not re.fullmatch(r"[^@\\s]+@sha256:[a-f0-9]{64}", image)
+    ):
         raise DeploymentDescriptorError("Container service image must be digest-pinned.")
     return {
         "status": "validated",
