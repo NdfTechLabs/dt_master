@@ -299,7 +299,7 @@ class TestRuntimeAdapterInvocation(unittest.TestCase):
         )
         result = MutatingAdapter().invoke("start", mutation_request(), execution_context=context)
         self.assertEqual(result.observed_state, "Running")
-        self.assertEqual(calls, ["assert", "assert"])
+        self.assertEqual(calls, ["heartbeat", "assert", "assert", "heartbeat"])
 
 
 if __name__ == "__main__":
