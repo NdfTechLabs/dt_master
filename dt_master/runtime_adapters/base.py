@@ -50,10 +50,12 @@ class RuntimeAdapter(ABC):
         if not callable(handler):
             raise RuntimeAdapterError("UNSUPPORTED_CAPABILITY", f"Adapter '{self.adapter_id}' has no implementation for '{method}'.")
         if method in MUTATING_METHODS:
-            execution_context["assert_leases"]()
+            execution_context.heartbeat()
+            execution_context.assert_leases()
         raw = handler(request, execution_context=execution_context)
         if method in MUTATING_METHODS:
-            execution_context["assert_leases"]()
+            execution_context.assert_leases()
+            execution_context.heartbeat()
         if not isinstance(raw, RuntimeAdapterResult):
             raise RuntimeAdapterError("INVALID_ADAPTER_RESULT", "Adapter implementation returned an invalid result type.")
         if raw.adapter_id != self.adapter_id or raw.runtime_type != self.runtime_type:
@@ -70,8 +72,9 @@ class RuntimeAdapter(ABC):
 
     @staticmethod
     def _require_execution_context(request, context):
-        required = ("operation_id", "correlation_id", "initiated_by", "execution_identity",
-                    "target_doctype", "target_name", "assert_leases", "heartbeat")
+        required = ("operation_id", "correlation_id", "initiator_type", "initiated_by",
+                    "execution_identity", "idempotency_key", "target_doctype", "target_name",
+                    "assert_leases", "heartbeat")
         if not isinstance(context, WorkerExecutionContext) or any(key not in context for key in required):
             raise RuntimeAdapterError(
                 "COORDINATOR_CONTEXT_REQUIRED",
