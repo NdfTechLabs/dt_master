@@ -43,7 +43,7 @@ class RuntimeAdapter(ABC):
         if method not in self.capabilities():
             raise RuntimeAdapterError("UNSUPPORTED_CAPABILITY", f"Adapter '{self.adapter_id}' does not support '{method}'.")
         if method in MUTATING_METHODS:
-            self._require_execution_context(execution_context)
+            self._require_execution_context(request, execution_context)
 
         handler = getattr(self, f"_{method}", None)
         if not callable(handler):
@@ -64,7 +64,7 @@ class RuntimeAdapter(ABC):
         return result
 
     @staticmethod
-    def _require_execution_context(context):
+    def _require_execution_context(request, context):
         required = ("operation_id", "correlation_id", "initiated_by", "execution_identity",
                     "target_doctype", "target_name", "assert_leases", "heartbeat")
         if not isinstance(context, dict) or any(key not in context for key in required):
@@ -76,6 +76,15 @@ class RuntimeAdapter(ABC):
             raise RuntimeAdapterError(
                 "COORDINATOR_CONTEXT_REQUIRED",
                 "Mutating adapter methods require active lease assertion and heartbeat callbacks.",
+            )
+        identity_fields = (
+            "operation_id", "correlation_id", "initiated_by", "execution_identity",
+            "target_doctype", "target_name",
+        )
+        if any(getattr(request, field) != context.get(field) for field in identity_fields):
+            raise RuntimeAdapterError(
+                "COORDINATOR_CONTEXT_MISMATCH",
+                "Adapter request identity does not match the active durable operation context.",
             )
 
     @staticmethod
