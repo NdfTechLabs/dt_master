@@ -14,13 +14,6 @@
   "fqdn",
   "status",
   "automation_state",
-  "create_site",
-  "install_apps",
-  "verify_site",
-  "configure_proxy",
-  "suspend_site",
-  "resume_site",
-  "destroy_site",
   "ownership_and_subscription",
   "customer",
   "subscription",
@@ -231,52 +224,10 @@
    "label": "MSQL Root User Password"
   },
   {
-   "button_color": "Primary",
-   "fieldname": "create_site",
-   "fieldtype": "Button",
-   "label": "Create Site"
-  },
-  {
-   "button_color": "Info",
-   "fieldname": "install_apps",
-   "fieldtype": "Button",
-   "label": "Install Apps"
-  },
-  {
-   "button_color": "Success",
-   "fieldname": "verify_site",
-   "fieldtype": "Button",
-   "label": "Verify Site"
-  },
-  {
-   "button_color": "Warning",
-   "fieldname": "suspend_site",
-   "fieldtype": "Button",
-   "label": "Suspend Site"
-  },
-  {
-   "button_color": "Success",
-   "fieldname": "resume_site",
-   "fieldtype": "Button",
-   "label": "Resume Site"
-  },
-  {
-   "button_color": "Danger",
-   "fieldname": "destroy_site",
-   "fieldtype": "Button",
-   "label": "Destroy Site"
-  },
-  {
    "fieldname": "automation_logs",
    "fieldtype": "Table",
    "label": "Logs",
    "options": "Node Action Log"
-  },
-  {
-   "button_color": "Info",
-   "fieldname": "configure_proxy",
-   "fieldtype": "Button",
-   "label": "Configure Proxy"
   }
  ],
  "grid_page_length": 50,

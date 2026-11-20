@@ -6,59 +6,58 @@ frappe.ui.form.on("Infrastructure Node", {
 
 		const actions = {
 			install_dependencies: {
+				label: "Install Dependencies",
 				statuses: ["Provisioning", "Maintenance"],
 				states: ["SSH Ready", "Error"],
 				method: "dt_master.api.infrastructure_node.install_dependencies",
 			},
-
 			install_bench: {
+				label: "Install Bench",
 				statuses: ["Provisioning", "Maintenance"],
 				states: ["Deps Installed", "Error"],
 				method: "dt_master.api.infrastructure_node.install_bench",
 			},
-
 			initialize_project: {
+				label: "Initialize Project",
 				statuses: ["Provisioning", "Maintenance"],
 				states: ["Project Installed", "Error"],
 				method: "dt_master.api.infrastructure_node.init_project",
 			},
-
 			prepare_project: {
+				label: "Prepare Project",
 				statuses: ["Provisioning", "Maintenance"],
 				states: ["Initialized", "Error"],
 				method: "dt_master.api.infrastructure_node.prepare_production",
 			},
-
 			start_project: {
+				label: "Start Project",
 				statuses: ["Active", "Maintenance"],
 				states: ["Healthy", "Stopped"],
 				method: "dt_master.api.infrastructure_node.start_project",
 			},
-
 			stop_project: {
+				label: "Stop Project",
 				statuses: ["Active", "Maintenance"],
 				states: ["Running"],
 				method: "dt_master.api.infrastructure_node.stop_project",
 			},
-
 			check_system_status: {
+				label: "Check System Status",
 				statuses: ["Provisioning", "Active", "Maintenance"],
 				states: ["SSH Ready", "Healthy", "Running", "Stopped"],
 				method: "dt_master.api.infrastructure_node.verify_production",
 			},
 		};
 
-		Object.keys(actions).forEach((label) => hide_button(frm, label));
-
-		Object.entries(actions).forEach(([label, cfg]) => {
-			const status_ok = cfg.statuses.includes(status);
-			const state_ok = cfg.states.includes(state);
-
-			if (status_ok && state_ok) {
-				show_and_bind(frm, label, cfg.method);
+		Object.values(actions).forEach((cfg) => {
+			if (cfg.statuses.includes(status) && cfg.states.includes(state)) {
+				frm.add_custom_button(
+					__(cfg.label),
+					() => run_node_action(frm, cfg.label, cfg.method),
+					__("Node")
+				);
 			}
 		});
-
 		render_docker_readiness_summary(frm);
 
 		if (frappe.user_roles.includes("System Manager")) {
@@ -298,25 +297,19 @@ function create_log_dialog(title) {
 	return dialog;
 }
 
-function show_and_bind(frm, label, method) {
-	const btn = frm.get_field(label);
-	if (!btn) return;
-
-	btn.$wrapper.show();
-	btn.$wrapper.off("click").on("click", () => {
-		const dialog = create_log_dialog(label);
-		start_execution_log_stream(dialog, frm.doc.name);
-		frappe.call({
-			method,
-			args: { node_name: frm.doc.name },
-			callback() {
-				frm.reload_doc();
-			},
-			error() {
-				frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
-				frm.reload_doc();
-			},
-		});
+function run_node_action(frm, label, method) {
+	const dialog = create_log_dialog(label);
+	start_execution_log_stream(dialog, frm.doc.name);
+	frappe.call({
+		method,
+		args: { node_name: frm.doc.name },
+		callback() {
+			frm.reload_doc();
+		},
+		error() {
+			frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
+			frm.reload_doc();
+		},
 	});
 }
 
@@ -347,7 +340,3 @@ function start_execution_log_stream(dialog, node_name) {
 	});
 }
 
-function hide_button(frm, label) {
-	const btn = frm.get_field(label);
-	if (btn) btn.$wrapper.hide();
-}

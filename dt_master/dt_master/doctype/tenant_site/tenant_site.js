@@ -60,9 +60,17 @@ function setup_tenant_automation_buttons(frm) {
 		},
 	};
 
-	Object.keys(actions).forEach((label) => hide_button(frm, label));
+	const labels = {
+		create_site: "Create Site",
+		install_apps: "Install Apps",
+		verify_site: "Verify Site",
+		configure_proxy: "Configure Proxy",
+		suspend_site: "Suspend Site",
+		resume_site: "Resume Site",
+		destroy_site: "Destroy Site",
+	};
 
-	Object.entries(actions).forEach(([label, cfg]) => {
+	Object.entries(actions).forEach(([action, cfg]) => {
 		const status_ok = cfg.status.includes(status);
 		const state_ok = cfg.states.includes(automation_state);
 
@@ -72,7 +80,7 @@ function setup_tenant_automation_buttons(frm) {
 			cfg.status.includes("Provisioning");
 
 		if ((status_ok && state_ok) || recovery_ok) {
-			show_and_bind(frm, label, cfg.method);
+			add_tenant_action_button(frm, labels[action], cfg.method);
 		}
 	});
 }
@@ -297,25 +305,23 @@ frappe.ui.form.on("Tenant Installed App", {
 BUTTON HELPERS
 ----------------------------------------------------------- */
 
-function show_and_bind(frm, label, method) {
-	const btn = frm.get_field(label);
-	if (!btn || !btn.$wrapper) return;
+function add_tenant_action_button(frm, label, method) {
+	frm.add_custom_button(
+		__(label),
+		() => {
+			const dialog = create_tenant_log_dialog(label);
+			start_tenant_log_stream(dialog, frm.doc.name);
 
-	btn.$wrapper.show();
-
-	btn.$wrapper.off("click").on("click", () => {
-		const dialog = create_tenant_log_dialog(label);
-
-		start_tenant_log_stream(dialog, frm.doc.name);
-
-		frappe.call({
-			method,
-			args: { tenant_name: frm.doc.name },
-			callback() {
-				frm.reload_doc();
-			},
-		});
-	});
+			frappe.call({
+				method,
+				args: { tenant_name: frm.doc.name },
+				callback() {
+					frm.reload_doc();
+				},
+			});
+		},
+		__("Site")
+	);
 }
 
 function create_tenant_log_dialog(title) {
@@ -377,7 +383,3 @@ function start_tenant_log_stream(dialog, tenant_name) {
 	});
 }
 
-function hide_button(frm, label) {
-	const btn = frm.get_field(label);
-	if (btn && btn.$wrapper) btn.$wrapper.hide();
-}
