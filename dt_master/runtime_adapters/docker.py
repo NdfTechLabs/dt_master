@@ -351,12 +351,18 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             outcome, state = "partial", "Degraded"
         else:
             outcome, state = "succeeded", "Ready"
+        privilege_diagnostics = tuple({
+            "code": item["code"],
+            "severity": "error" if item["severity"] == "Error" else "warning",
+            "message": sanitize_diagnostic_message(item["message"]),
+        } for item in inspection.data["privilege_readiness"]["diagnostics"])
+        diagnostics = tuple(list(inspection.diagnostics) + list(privilege_diagnostics))[:100]
         return self.result_for(
             request,
             outcome=outcome,
             observed_state=state,
             capabilities=self.capabilities(),
-            diagnostics=inspection.diagnostics,
+            diagnostics=diagnostics,
             data={
                 "preflight_status": state,
                 "inspection_status": inspection.data["inspection_status"],
