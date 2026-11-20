@@ -95,17 +95,17 @@ if [[ "$engine_availability" == "Available" && "$storage_driver" == "null" ]]; t
     add_diag "DOCKER_STORAGE_INCOMPLETE" "Warning" "Docker storage metadata could not be collected."
 fi
 
-finished_ns=$(date +%s%N 2>/dev/null || echo "$started_ns")
-duration_ms=0
-if [[ "$started_ns" =~ ^[0-9]+$ && "$finished_ns" =~ ^[0-9]+$ ]]; then
-    duration_ms=$(( (finished_ns - started_ns) / 1000000 ))
-fi
-
 host_inventory_json=$(python3 "$(dirname "$0")/inspect_docker_host.py" 2>/dev/null || true)
 if ! python3 -c 'import json,sys; json.loads(sys.stdin.read())' <<< "$host_inventory_json" 2>/dev/null; then
     host_inventory_json='{"schema_version":"1.0.0","observed_at":null,"host_os":{"id":null,"id_like":null,"name":null,"version_id":null,"version_codename":null,"pretty_name":null,"architecture":null,"kernel_release":null},"package_manager":"Unknown","docker_packages":[],"services":{"manager":"Unknown","docker":"Unknown","containerd":"Unknown"},"workloads":{"available":false,"running_containers":null,"total_containers":null}}'
     add_diag "HOST_INVENTORY_UNAVAILABLE" "Warning" "The Docker host inventory probe did not return a valid payload."
     inspection_status="Partial"
+fi
+
+finished_ns=$(date +%s%N 2>/dev/null || echo "$started_ns")
+duration_ms=0
+if [[ "$started_ns" =~ ^[0-9]+$ && "$finished_ns" =~ ^[0-9]+$ ]]; then
+    duration_ms=$(( (finished_ns - started_ns) / 1000000 ))
 fi
 
 python3 - "$observed_at" "$duration_ms" "$inspection_status" "$cpu" "$mem_total" "$mem_available" "$docker_installed" "$docker_path" "$client_version" "$engine_availability" "$server_version" "$api_version" "$minimum_api_version" "$compose_installed" "$compose_version" "$compose_compatibility" "$storage_driver" "$data_root" "$mount_point" "$fs_total" "$fs_available" "$fs_used" "$execution_identity" "$inspection_access" "$diagnostics" "$host_inventory_json" <<'PY'
