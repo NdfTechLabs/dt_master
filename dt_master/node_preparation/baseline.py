@@ -156,10 +156,9 @@ def build_baseline_preparation_plan(
         _validate_safe_observation(docker_observation, "docker_observation")
 
     host = dict(host_observation)
-    docker = dict(docker_observation or {})
     support = _host_support(host)
     host_evidence = _host_evidence_status(host)
-    docker_evidence = _docker_evidence_status(docker)
+    docker_evidence = _docker_evidence_status(docker_observation)
 
     actions = [
         _action(
