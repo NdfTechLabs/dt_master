@@ -34,8 +34,6 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		node.check_permission("read")
 		if not node.access_verified:
 			raise ValueError("Infrastructure Node SSH access has not been verified")
-		if not node.scripts_base_dir or not node.project_base_dir or not node.project_logs_dir:
-			raise ValueError("Infrastructure Node script and project paths must be configured")
 		return node
 
 	@staticmethod
@@ -64,7 +62,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 	def _inspect(self, request, execution_context=None):
 		node = self._node_for_request(request)
 		started = monotonic()
-		env = path_environment(node)
+		env = {"BASE_DIR": node.scripts_base_dir}
 		code, stdout, stderr = run_remote_script(
 			node,
 			self._ssh_config(node),
@@ -171,6 +169,12 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			"os_support_status": os_support_status,
 			**measurements,
 			"bench_available": values.get("bench_available") == "true",
+			"host_stage": "Provisioned" if values.get("bench_available") == "true" else "Fresh",
+			"swap_total_bytes": int(values.get("swap_total_bytes") or 0),
+			"tools": {
+				key: values.get(f"{key}_available") == "true"
+				for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
+			},
 		}
 		return self.result_for(
 			request,
