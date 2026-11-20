@@ -1,5 +1,6 @@
 """Unit tests for the read-only Host runtime adapter."""
 
+import datetime
 import json
 import unittest
 from types import SimpleNamespace
@@ -126,6 +127,10 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.host.frappe.db.set_value") as set_value,
+			patch(
+				"dt_master.runtime_adapters.host.now_datetime",
+				return_value=datetime.datetime(2026, 11, 20, 18, 0, 0),
+			),
 			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, stdout, "")),
 		):
 			result = self.adapter.invoke("inspect", request())
