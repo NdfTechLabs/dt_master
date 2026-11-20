@@ -11,7 +11,11 @@ from time import monotonic
 
 import frappe
 
-from dt_master.api.script_contract import run_remote_script, run_trusted_helper
+from dt_master.api.script_contract import (
+    TrustedHelperExecutionError,
+    run_remote_script,
+    run_trusted_helper,
+)
 from dt_master.docker_readiness import evaluate_node_docker_readiness
 from dt_master.runtime_adapters.base import RuntimeAdapter
 from dt_master.runtime_adapters.contracts import sanitize_diagnostic_message
@@ -109,6 +113,15 @@ class DockerRuntimeAdapter(RuntimeAdapter):
         return payload
 
     @staticmethod
+    def _unique_json_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON response key")
+            result[key] = value
+        return result
+
+    @staticmethod
     def _validate_trusted_helper_self_test(payload):
         required = {
             "schema_version", "helper_version", "operation", "status",
@@ -149,7 +162,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
                 )
                 if helper_code != 0:
                     raise ValueError("Trusted helper transport self-test did not complete")
-                self._validate_trusted_helper_self_test(json.loads(helper_stdout.strip()))
+                try:
+                    helper_response = json.loads(
+                        helper_stdout.strip(), object_pairs_hook=self._unique_json_object
+                    )
+                    self._validate_trusted_helper_self_test(helper_response)
+                except (TypeError, ValueError) as exc:
+                    raise TrustedHelperExecutionError(
+                        "invalid_response",
+                        "Trusted helper returned an invalid response; remote execution outcome is uncertain.",
+                        may_have_executed=True,
+                    ) from exc
             return readiness
         except Exception:
             return {
