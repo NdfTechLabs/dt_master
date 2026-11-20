@@ -14,13 +14,6 @@
   "frappe_version",
   "status",
   "state",
-  "install_dependencies",
-  "install_bench",
-  "initialize_project",
-  "prepare_project",
-  "start_project",
-  "stop_project",
-  "check_system_status",
   "capacity_section",
   "cpu_cores",
   "ram_gb",
@@ -318,55 +311,6 @@
    "fieldtype": "Check",
    "label": "Access Verified",
    "reqd": 1
-  },
-  {
-   "button_color": "Primary",
-   "description": "SSH Ready → Deps Installed",
-   "fieldname": "install_dependencies",
-   "fieldtype": "Button",
-   "label": "Install Dependencies"
-  },
-  {
-   "button_color": "Primary",
-   "description": "Deps Installed → Project Installed",
-   "fieldname": "install_bench",
-   "fieldtype": "Button",
-   "label": "Install Bench"
-  },
-  {
-   "button_color": "Info",
-   "description": "Project Installed → Initialized",
-   "fieldname": "initialize_project",
-   "fieldtype": "Button",
-   "label": "Initialize Project"
-  },
-  {
-   "button_color": "Success",
-   "description": "Healthy / Stopped → Running",
-   "fieldname": "start_project",
-   "fieldtype": "Button",
-   "label": "Start Project"
-  },
-  {
-   "button_color": "Warning",
-   "description": "Running → Stopped",
-   "fieldname": "stop_project",
-   "fieldtype": "Button",
-   "label": "Stop Project"
-  },
-  {
-   "button_color": "Info",
-   "description": "Read-only",
-   "fieldname": "check_system_status",
-   "fieldtype": "Button",
-   "label": "Check System Status"
-  },
-  {
-   "button_color": "Info",
-   "description": "Initialized → Healthy",
-   "fieldname": "prepare_project",
-   "fieldtype": "Button",
-   "label": "Prepare Project"
   },
   {
    "fieldname": "frappe_version",
