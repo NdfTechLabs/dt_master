@@ -107,7 +107,7 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         self.assertEqual(request.idempotency_key, key)
 
     def test_idempotency_key_rejects_blank_control_and_oversize_values(self):
-        for key in ("   ", "host-inspect:NODE\\n0001", "k" * 141):
+        for key in ("   ", "host-inspect:NODE\n0001", "k" * 141):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "idempotency_key"):
                 validate_request(observation_request(idempotency_key=key))
 
