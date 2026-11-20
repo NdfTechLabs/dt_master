@@ -38,13 +38,17 @@ RPM_PACKAGES = (
 def _run(argv: list[str], timeout: int = 5) -> tuple[int, str]:
     """Run a fixed, read-only system query with bounded output."""
     try:
+        env = dict(os.environ)
+        for key in ("DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+            env.pop(key, None)
+        env.update({"DOCKER_HOST": "unix:///var/run/docker.sock", "LC_ALL": "C"})
         completed = subprocess.run(
             argv,
             check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
-            env={**os.environ, "LC_ALL": "C"},
+            env=env,
         )
     except (OSError, subprocess.TimeoutExpired):
         return 127, ""
