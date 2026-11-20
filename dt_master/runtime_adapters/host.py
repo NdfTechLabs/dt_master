@@ -21,6 +21,37 @@ SUPPORTED_OS_RELEASES = {
 }
 
 
+def _clean_inventory_text(value):
+	"""Return a bounded, non-empty text value suitable for Node inventory."""
+	if value is None:
+		return None
+	value = str(value).strip()
+	return value[:80] if value else None
+
+
+def _positive_inventory_int(value):
+	"""Convert a discovery measurement to a positive integer or None."""
+	try:
+		if isinstance(value, bool):
+			return None
+		parsed = int(value)
+	except (TypeError, ValueError, OverflowError):
+		return None
+	return parsed if parsed > 0 else None
+
+
+def _inventory_field_is_blank(field, current_value):
+	"""Treat empty strings and zero-valued capacity fields as unpopulated."""
+	if current_value in (None, ""):
+		return True
+	if field in {"cpu_cores", "ram_gb", "storage_gb"}:
+		try:
+			return int(current_value) <= 0
+		except (TypeError, ValueError, OverflowError):
+			return False
+	return False
+
+
 class HostRuntimeAdapter(RuntimeAdapter):
 	adapter_id = "host-v1"
 	runtime_type = "host"
@@ -218,17 +249,25 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		os_info = discovery.get("os") or {}
 		compute = discovery.get("compute") or {}
 		storage = discovery.get("storage") or {}
+		# These are the only discovery values that map to existing Node
+		# inventory fields. The full observation remains in the snapshot;
+		# host identity, network and runtime details are not Node properties.
+		memory_bytes = _positive_inventory_int(compute.get("memory_total_bytes"))
+		disk_bytes = _positive_inventory_int(storage.get("disk_total_bytes"))
 		prefill = {
-			"cpu_cores": compute.get("logical_cpu_cores"),
-			"ram_gb": int(compute.get("memory_total_bytes") or 0) // (1024 ** 3),
-			"storage_gb": int(storage.get("disk_total_bytes") or 0) // (1024 ** 3),
-			"os_version": os_info.get("version_id"),
+			"cpu_cores": _positive_inventory_int(compute.get("logical_cpu_cores")),
+			"ram_gb": memory_bytes // (1024 ** 3) if memory_bytes else None,
+			"storage_gb": disk_bytes // (1024 ** 3) if disk_bytes else None,
+			"os_version": _clean_inventory_text(os_info.get("version_id")),
 		}
-		os_type = {"ubuntu": "Ubuntu", "debian": "Debian"}.get(os_info.get("id", "").lower())
+		os_id = _clean_inventory_text(os_info.get("id"))
+		os_type = {"ubuntu": "Ubuntu", "debian": "Debian"}.get(os_id.lower() if os_id else "")
 		if os_type:
 			prefill["os_type"] = os_type
 		for field, value in prefill.items():
-			if value not in (None, "", 0) and not getattr(node, field, None):
+			if value in (None, "") or (isinstance(value, int) and value <= 0):
+				continue
+			if _inventory_field_is_blank(field, getattr(node, field, None)):
 				updates[field] = value
 		# Hostname is retained in the snapshot, not used to rename a managed Node.
 		# Network addresses are also not copied into ip_address: interfaces may
