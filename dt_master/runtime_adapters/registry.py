@@ -51,7 +51,7 @@ def resolve_adapter(runtime_type, adapter_id=None):
             # selected by an arbitrary caller-supplied module path.
             builtin_adapters = {
                 ("host", "host-v1"): ("dt_master.runtime_adapters.host", "HostRuntimeAdapter"),
-                ("docker", "docker-v1"): ("dt_master.runtime_adapters.docker", "DockerRuntimeAdapter"),
+                ("docker", "docker-compose-v1"): ("dt_master.runtime_adapters.docker", "DockerRuntimeAdapter"),
             }
             builtin = builtin_adapters.get((runtime_type, adapter_id))
             if builtin:
