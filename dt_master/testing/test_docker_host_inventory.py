@@ -65,7 +65,7 @@ class TestDockerHostInventory(unittest.TestCase):
             patch.object(inspect_docker_host, "_package_manager", return_value="dpkg"),
             patch.object(inspect_docker_host.shutil, "which", return_value="/usr/bin/dpkg-query"),
             patch.object(inspect_docker_host, "_run", return_value=(
-                0, "docker-ce\\t29.0\\tinstalled\\nmalicious\\t1\\tinstalled\\n"
+                0, "docker-ce\t29.0\tinstalled\nmalicious\t1\tinstalled\n"
             )),
         ):
             packages = inspect_docker_host._installed_packages("dpkg")
