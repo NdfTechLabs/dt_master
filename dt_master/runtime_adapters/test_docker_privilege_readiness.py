@@ -1,6 +1,6 @@
 """Contracts for read-only Docker privilege readiness inspection."""
-import subprocess
 import json
+import subprocess
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
