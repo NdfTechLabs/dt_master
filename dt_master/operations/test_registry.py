@@ -23,7 +23,13 @@ class TestOperationRegistryAndContracts(unittest.TestCase):
         types = registered_operation_types()
         self.assertEqual(types, tuple(sorted(types)))
         self.assertIn("test.noop", types)
+        self.assertIn("runtime.adapter.inspect", types)
 
+
+    def test_runtime_adapter_inspection_operation_is_registered(self):
+        definition = get_operation("runtime.adapter.inspect")
+        self.assertEqual(definition.queue, "short")
+        self.assertEqual(definition.timeout_seconds, 90)
 
     def test_runtime_adapter_mutation_operation_is_registered(self):
         definition = get_operation("runtime.adapter.mutate")
