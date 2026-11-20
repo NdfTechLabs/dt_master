@@ -158,7 +158,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         try:
             adapter = resolve_adapter("docker")
             self.assertEqual(adapter.adapter_id, "docker-compose-v1")
-            self.assertEqual(adapter.capabilities(), ("inspect", "preflight"))
+            self.assertEqual(adapter.capabilities(), ("inspect", "preflight", "updates_check"))
         finally:
             clear_registry_for_tests()
 
