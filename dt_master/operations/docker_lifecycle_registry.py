@@ -47,6 +47,7 @@ def _docker_observation_lock(target, operation):
 for _operation_type, _method in (
     ("host.node.docker.inspect", "inspect"),
     ("host.node.docker.preflight", "preflight"),
+    ("host.node.docker.updates.check", "updates_check"),
 ):
     register_operation(
         OperationDefinition(
