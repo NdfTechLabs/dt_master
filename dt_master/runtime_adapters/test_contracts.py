@@ -101,6 +101,16 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         request = validate_request(observation_request(target_name=name))
         self.assertEqual(request.target_name, name)
 
+    def test_idempotency_key_accepts_coordinator_opaque_keys(self):
+        key = "host-inspect:NDF Tech Labs Contabo:4fc0b5dd-896b-4d20-ac04-c59a2c57bda4"
+        request = validate_request(observation_request(idempotency_key=key))
+        self.assertEqual(request.idempotency_key, key)
+
+    def test_idempotency_key_rejects_blank_control_and_oversize_values(self):
+        for key in ("   ", "host-inspect:NODE\\n0001", "k" * 141):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "idempotency_key"):
+                validate_request(observation_request(idempotency_key=key))
+
         result = RuntimeAdapterResult(
             adapter_id="host-v1", runtime_type="host",
             target_doctype="Infrastructure Node", target_name=name,
