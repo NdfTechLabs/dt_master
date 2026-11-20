@@ -175,10 +175,6 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 	def test_preflight_blocks_when_inspection_fails(self):
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
-			patch(
-				"dt_master.runtime_adapters.host.path_environment",
-				return_value={"BASE_DIR": "/opt/dtsaas/scripts"},
-			),
 			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(255, "", "")),
 		):
 			result = self.adapter.invoke("preflight", request("preflight"))
