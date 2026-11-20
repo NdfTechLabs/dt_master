@@ -168,6 +168,7 @@
 					creation: current.creation || operation.creation || operation.started_on || null,
 					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
 					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+					result: operation.result ?? current.result ?? null,
 					event_history: current.event_history || [],
 				});
 				this.realtimeDiscovered.add(operationId);
@@ -250,6 +251,7 @@
 			}
 			this.lastSequences.set(operationId, sequence);
 			this.render();
+			if (event.event_type === "completed") this.loadOperation(operationId);
 		}
 
 		setCollapsed(collapsed) {
