@@ -103,14 +103,14 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 				"package_manager": "apt", "service_manager": "systemd",
 			},
 			"compute": {
-				"logical_cpu_cores": 6, "memory_total_bytes": 8 * 1024**3,
+				"logical_cpu_cores": 6, "physical_cpu_cores": 3, "memory_total_bytes": 8 * 1024**3,
 				"memory_available_bytes": 4 * 1024**3, "swap_total_bytes": 2 * 1024**3,
 				"swap_free_bytes": 1 * 1024**3, "cpu_model": "Example CPU",
 				"load_average": [0.1, 0.2, 0.3], "uptime_seconds": 3600, "virtualization": "kvm",
 			},
 			"storage": {
 				"filesystems": [], "root_available_bytes": 50 * 1024**3,
-				"root_size_bytes": 100 * 1024**3,
+				"root_size_bytes": 100 * 1024**3, "disk_total_bytes": 100 * 1024**3,
 			},
 			"network": {"interfaces": [], "default_routes": [], "dns_nameservers": [], "listening_sockets": []},
 			"tools": {"python3": True, "nginx": True},
