@@ -74,7 +74,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			{"node": node.name, "target": request.target_name},
 			use_sudo=False,
 			timeout_seconds=45,
-			max_output_bytes=16384,
+			max_output_bytes=60000,
 		)
 		elapsed = min(86400000, int((monotonic() - started) * 1000))
 		if code != 0:
