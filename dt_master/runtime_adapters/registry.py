@@ -43,7 +43,25 @@ def resolve_adapter(runtime_type, adapter_id=None):
     if runtime_type not in {"host", "docker"}:
         raise RuntimeAdapterError("UNSUPPORTED_RUNTIME", "Runtime type must be host or docker.")
     if adapter_id:
-        adapter = get_adapter(adapter_id)
+        adapter = _ADAPTERS.get(adapter_id)
+        if adapter is None:
+            # Explicit adapter IDs are used in persisted operation payloads.
+            # Resolve known built-ins lazily in worker processes as well as
+            # callers that request the default adapter. Never import a class
+            # selected by an arbitrary caller-supplied module path.
+            builtin_adapters = {
+                ("host", "host-v1"): ("dt_master.runtime_adapters.host", "HostRuntimeAdapter"),
+                ("docker", "docker-v1"): ("dt_master.runtime_adapters.docker", "DockerRuntimeAdapter"),
+            }
+            builtin = builtin_adapters.get((runtime_type, adapter_id))
+            if builtin:
+                from importlib import import_module
+
+                module = import_module(builtin[0])
+                register_adapter(getattr(module, builtin[1])())
+                adapter = _ADAPTERS.get(adapter_id)
+        if adapter is None:
+            return get_adapter(adapter_id)
         if adapter.runtime_type != runtime_type:
             raise RuntimeAdapterError("RUNTIME_TYPE_MISMATCH", "Selected adapter does not implement the requested runtime type.")
         return adapter
