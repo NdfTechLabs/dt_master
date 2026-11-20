@@ -32,7 +32,7 @@ class TestDockerUpdateMetadata(unittest.TestCase):
         self.assertEqual(result["packages"], [])
 
     def test_policy_parser_handles_missing_candidate(self):
-        with patch.object(check_docker_updates, "_run", return_value=(0, "docker-ce:\\n  Installed: 1.0\\n  Candidate: (none)\\n  Version table:\\n")):
+        with patch.object(check_docker_updates, "_run", return_value=(0, "docker-ce:\n  Installed: 1.0\n  Candidate: (none)\n  Version table:\n")):
             result = check_docker_updates._policy("docker-ce")
         self.assertEqual(result["status"], "No Candidate")
 
