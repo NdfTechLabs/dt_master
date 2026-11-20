@@ -122,7 +122,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.node.storage_gb = 0
 		self.node.os_type = ""
 		self.node.os_version = ""
-		stdout = "discovery_json=" + json.dumps(discovery, separators=(",", ":")) + "\\n"
+		stdout = "discovery_json=" + json.dumps(discovery, separators=(",", ":")) + "\n"
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.host.frappe.db.set_value") as set_value,
