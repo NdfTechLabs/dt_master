@@ -103,7 +103,7 @@ def _installed_packages(manager: str) -> list[dict]:
     allowed = set(DEBIAN_PACKAGES if manager == "dpkg" else RPM_PACKAGES)
     packages = []
     for line in output.splitlines()[:32]:
-        parts = line.split("\\t")
+        parts = line.split("\t")
         if len(parts) != 3:
             continue
         name, version, status = (part.strip()[:160] for part in parts)
