@@ -210,27 +210,33 @@ class DockerRuntimeAdapter(RuntimeAdapter):
         failures = []
         incomplete = []
 
-        if cli["installed"] is False:
-            failures.append(("DOCKER_CLI_NOT_INSTALLED", "Docker CLI is not installed."))
-        elif not cli["path"] or not cli["client_version"]:
-            incomplete.append(("DOCKER_CLI_DETAILS_INCOMPLETE", "Docker CLI installation details could not be verified."))
+        if snapshot["inspection_status"] in {"Failed", "Timed Out"}:
+            incomplete.append((
+                "DOCKER_INSPECTION_INCOMPLETE",
+                "Docker component state could not be verified because the underlying inspection failed.",
+            ))
+        else:
+            if cli["installed"] is False:
+                failures.append(("DOCKER_CLI_NOT_INSTALLED", "Docker CLI is not installed."))
+            elif not cli["path"] or not cli["client_version"]:
+                incomplete.append(("DOCKER_CLI_DETAILS_INCOMPLETE", "Docker CLI installation details could not be verified."))
 
-        if engine["availability"] in {"Not Installed", "Unavailable"}:
-            failures.append(("DOCKER_ENGINE_UNAVAILABLE", "Docker Engine is not available."))
-        elif engine["availability"] == "Unknown":
-            incomplete.append(("DOCKER_ENGINE_STATUS_UNKNOWN", "Docker Engine availability could not be determined."))
-        elif not engine["server_version"]:
-            incomplete.append(("DOCKER_ENGINE_VERSION_UNKNOWN", "Docker Engine server version could not be verified."))
+            if engine["availability"] in {"Not Installed", "Unavailable"}:
+                failures.append(("DOCKER_ENGINE_UNAVAILABLE", "Docker Engine is not available."))
+            elif engine["availability"] == "Unknown":
+                incomplete.append(("DOCKER_ENGINE_STATUS_UNKNOWN", "Docker Engine availability could not be determined."))
+            elif not engine["server_version"]:
+                incomplete.append(("DOCKER_ENGINE_VERSION_UNKNOWN", "Docker Engine server version could not be verified."))
 
-        if compose["installed"] is False or compose["compatibility"] == "Unavailable":
-            failures.append(("DOCKER_COMPOSE_NOT_INSTALLED", "Docker Compose v2 plugin is not available."))
-        elif compose["compatibility"] == "Incompatible":
-            failures.append(("DOCKER_COMPOSE_INCOMPATIBLE", "Docker Compose v2 is reported as incompatible."))
-        elif compose["compatibility"] == "Unknown" or not compose["version"]:
-            incomplete.append(("DOCKER_COMPOSE_STATUS_UNKNOWN", "Docker Compose v2 installation could not be fully verified."))
+            if compose["installed"] is False or compose["compatibility"] == "Unavailable":
+                failures.append(("DOCKER_COMPOSE_NOT_INSTALLED", "Docker Compose v2 plugin is not available."))
+            elif compose["compatibility"] == "Incompatible":
+                failures.append(("DOCKER_COMPOSE_INCOMPATIBLE", "Docker Compose v2 is reported as incompatible."))
+            elif compose["compatibility"] == "Unknown" or not compose["version"]:
+                incomplete.append(("DOCKER_COMPOSE_STATUS_UNKNOWN", "Docker Compose v2 installation could not be fully verified."))
 
-        if snapshot["inspection_status"] != "Successful":
-            incomplete.append(("DOCKER_INSPECTION_INCOMPLETE", "The underlying Docker inspection was not complete."))
+            if snapshot["inspection_status"] == "Partial":
+                incomplete.append(("DOCKER_INSPECTION_INCOMPLETE", "The underlying Docker inspection was partial."))
 
         diagnostics = list(inspection.diagnostics)
         diagnostics.extend(
