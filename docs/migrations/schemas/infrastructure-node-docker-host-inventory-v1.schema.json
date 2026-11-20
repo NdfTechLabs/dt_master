@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NdfTechLabs/dt_master/blob/develop/docs/migrations/schemas/infrastructure-node-docker-host-inventory-v1.schema.json",
+  "title": "Infrastructure Node Docker Host Inventory",
+  "description": "Read-only host OS, Docker package, service and workload inventory. Does not include package candidates or perform package metadata refresh.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observed_at", "host_os", "package_manager", "docker_packages", "services", "workloads"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "host_os": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "id_like", "name", "version_id", "version_codename", "pretty_name", "architecture", "kernel_release"],
+      "properties": {
+        "id": {"type": ["string", "null"], "maxLength": 160},
+        "id_like": {"type": ["string", "null"], "maxLength": 160},
+        "name": {"type": ["string", "null"], "maxLength": 160},
+        "version_id": {"type": ["string", "null"], "maxLength": 160},
+        "version_codename": {"type": ["string", "null"], "maxLength": 160},
+        "pretty_name": {"type": ["string", "null"], "maxLength": 160},
+        "architecture": {"type": ["string", "null"], "maxLength": 64},
+        "kernel_release": {"type": ["string", "null"], "maxLength": 128}
+      }
+    },
+    "package_manager": {"enum": ["dpkg", "rpm", "apk", "pacman", "Unknown"]},
+    "docker_packages": {
+      "type": "array", "maxItems": 32,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "version", "status"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 160},
+          "version": {"type": "string", "minLength": 1, "maxLength": 160},
+          "status": {"const": "installed"}
+        }
+      }
+    },
+    "services": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manager", "docker", "containerd"],
+      "properties": {
+        "manager": {"enum": ["systemd", "Unknown"]},
+        "docker": {"enum": ["active", "inactive", "failed", "activating", "deactivating", "Unknown"]},
+        "containerd": {"enum": ["active", "inactive", "failed", "activating", "deactivating", "Unknown"]}
+      }
+    },
+    "workloads": {
+      "type": "object", "additionalProperties": false,
+      "required": ["available", "running_containers", "total_containers"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "running_containers": {"type": ["integer", "null"], "minimum": 0, "maximum": 100000},
+        "total_containers": {"type": ["integer", "null"], "minimum": 0, "maximum": 100000}
+      }
+    }
+  }
+}
