@@ -100,16 +100,15 @@ def _installed_packages(manager: str) -> list[dict]:
     code, output = _run(argv, timeout=8)
     if code not in (0, 1):
         return []
+    allowed = set(DEBIAN_PACKAGES if manager == "dpkg" else RPM_PACKAGES)
     packages = []
     for line in output.splitlines()[:32]:
-        parts = line.split("\t")
+        parts = line.split("\\t")
         if len(parts) != 3:
             continue
         name, version, status = (part.strip()[:160] for part in parts)
-        if not name or not version or status not in {"installed", "installed " , "installed"}:
-            # dpkg status is "installed"; rpm query output also says installed.
-            if status != "installed":
-                continue
+        if name not in allowed or not version or status != "installed":
+            continue
         packages.append({"name": name, "version": version, "status": "installed"})
     return packages
 
