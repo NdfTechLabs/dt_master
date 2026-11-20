@@ -11,7 +11,7 @@ from time import monotonic
 
 import frappe
 
-from dt_master.api.script_contract import run_remote_script
+from dt_master.api.script_contract import run_remote_script, run_trusted_helper
 from dt_master.docker_readiness import evaluate_node_docker_readiness
 from dt_master.runtime_adapters.base import RuntimeAdapter
 from dt_master.runtime_adapters.contracts import sanitize_diagnostic_message
@@ -108,6 +108,26 @@ class DockerRuntimeAdapter(RuntimeAdapter):
                 raise ValueError("Invalid Docker privilege diagnostic values")
         return payload
 
+    @staticmethod
+    def _validate_trusted_helper_self_test(payload):
+        required = {
+            "schema_version", "helper_version", "operation", "status",
+            "effective_uid", "effective_user",
+        }
+        if not isinstance(payload, dict) or set(payload) != required:
+            raise ValueError("Invalid trusted Docker helper self-test response")
+        if (
+            payload["schema_version"] != "1.0.0"
+            or payload["helper_version"] != "0.1.0"
+            or payload["operation"] != "self_test"
+            or payload["status"] != "ok"
+            or type(payload["effective_uid"]) is not int
+            or payload["effective_uid"] != 0
+            or payload["effective_user"] != "root"
+        ):
+            raise ValueError("Trusted Docker helper self-test did not confirm the expected root identity")
+        return payload
+
     def _privilege_readiness(self, node):
         try:
             code, stdout, _stderr = run_remote_script(
@@ -118,7 +138,19 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             )
             if code != 0:
                 raise ValueError("Privilege readiness probe did not complete")
-            return self._validate_privilege_readiness(json.loads(stdout.strip()))
+            readiness = self._validate_privilege_readiness(json.loads(stdout.strip()))
+            if readiness["status"] == "Ready":
+                helper_code, helper_stdout, _helper_stderr = run_trusted_helper(
+                    node,
+                    self._ssh_config(node),
+                    {"schema_version": "1.0.0", "operation": "self_test"},
+                    timeout_seconds=20,
+                    max_output_bytes=8192,
+                )
+                if helper_code != 0:
+                    raise ValueError("Trusted helper transport self-test did not complete")
+                self._validate_trusted_helper_self_test(json.loads(helper_stdout.strip()))
+            return readiness
         except Exception:
             return {
                 "schema_version": "1.0.0", "observed_at": None, "status": "Incomplete",
