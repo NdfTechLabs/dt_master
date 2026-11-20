@@ -415,6 +415,11 @@ def run_trusted_helper(
 			may_have_executed=False,
 		) from exc
 
+	def _set_output_file_limit():
+		_soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
+		limit = max_output_bytes if hard == resource.RLIM_INFINITY else min(max_output_bytes, hard)
+		resource.setrlimit(resource.RLIMIT_FSIZE, (limit, hard))
+
 	with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
 		try:
 			proc = subprocess.Popen(
@@ -423,11 +428,9 @@ def run_trusted_helper(
 				stdout=stdout_file,
 				stderr=stderr_file,
 				start_new_session=True,
-				preexec_fn=lambda: resource.setrlimit(
-					resource.RLIMIT_FSIZE, (max_output_bytes, max_output_bytes)
-				),
+				preexec_fn=_set_output_file_limit,
 			)
-		except OSError as exc:
+		except (OSError, subprocess.SubprocessError) as exc:
 			raise TrustedHelperExecutionError(
 				"transport_start_failed", "Trusted helper SSH process could not be started.",
 				may_have_executed=False,
