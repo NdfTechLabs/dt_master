@@ -170,7 +170,9 @@ class InfrastructureNode(Document):
 		"""Normalize equivalent Frappe form and database representations."""
 		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
 			return DOCKER_INSPECTION_DEFAULTS[field]
-		if field == "docker_inspected_on" and value:
+		if value in (None, "") and field == "host_discovery_status":
+			return HOST_DISCOVERY_DEFAULTS[field]
+		if field in ("docker_inspected_on", "host_discovered_on") and value:
 			# Form submissions may carry a datetime as a string while the
 			# database-loaded document exposes a Python datetime object.
 			return get_datetime(value)
