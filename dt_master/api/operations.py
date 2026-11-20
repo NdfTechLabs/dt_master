@@ -152,8 +152,9 @@ def get_operations(active_limit=50, recent_limit=20):
 
     Human users see their own operations. System Managers may see platform-wide
     operations, matching the single-operation read authorization policy.
-    Request/result payloads, execution identity, lock metadata and internal
-    diagnostics are deliberately excluded.
+    Request payloads, execution identity, lock metadata and internal
+    diagnostics are deliberately excluded. The bounded structured result is
+    included for authorized users so completed work can be inspected.
     """
     if frappe.session.user == "Guest":
         frappe.throw(_("Authentication is required to view operations."), frappe.PermissionError)
