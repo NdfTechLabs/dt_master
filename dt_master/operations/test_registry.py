@@ -31,6 +31,20 @@ class TestOperationRegistryAndContracts(unittest.TestCase):
         self.assertEqual(definition.queue, "short")
         self.assertEqual(definition.timeout_seconds, 90)
 
+    def test_explicit_builtin_host_adapter_id_is_lazy_registered(self):
+        from dt_master.runtime_adapters.registry import (
+            clear_registry_for_tests,
+            resolve_adapter,
+        )
+
+        clear_registry_for_tests()
+        try:
+            adapter = resolve_adapter("host", "host-v1")
+            self.assertEqual(adapter.adapter_id, "host-v1")
+            self.assertIn("inspect", adapter.capabilities())
+        finally:
+            clear_registry_for_tests()
+
     def test_runtime_adapter_mutation_operation_is_registered(self):
         definition = get_operation("runtime.adapter.mutate")
         self.assertEqual(definition.queue, "long")
