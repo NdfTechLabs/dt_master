@@ -1,5 +1,6 @@
 """Tests for the N2.4.2 trusted Docker helper bootstrap contract."""
 
+import hashlib
 import json
 import os
 import subprocess
@@ -61,10 +62,15 @@ class TestDockerPrivilegeHelper(unittest.TestCase):
     def test_installer_pins_helper_digest_and_does_not_use_broad_sudo(self):
         source = INSTALLER.read_text()
         self.assertIn("HELPER_SHA256=", source)
+        expected = source.split('HELPER_SHA256="', 1)[1].split('"', 1)[0]
+        actual = hashlib.sha256(HELPER.read_bytes()).hexdigest()
+        self.assertEqual(actual, expected)
         self.assertIn("sudo -n install -o root -g root -m 0755", source)
         self.assertNotIn("visudo", source)  # sudoers management is N2.4.3
         self.assertNotIn("NOPASSWD:ALL", source)
         self.assertNotIn("sudo -n bash", source)
+        syntax = subprocess.run(["bash", "-n", str(INSTALLER)], capture_output=True, text=True)
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
         self.assertIn("Refusing to overwrite an unrecognized helper version", source)
 
 
