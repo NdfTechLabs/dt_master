@@ -62,7 +62,7 @@ class TestDockerPrivilegeHelper(unittest.TestCase):
         source = INSTALLER.read_text()
         self.assertIn("HELPER_SHA256=", source)
         self.assertIn("sudo -n install -o root -g root -m 0755", source)
-        self.assertIn("visudo", source) is False  # sudoers management is N2.4.3
+        self.assertNotIn("visudo", source)  # sudoers management is N2.4.3
         self.assertNotIn("NOPASSWD:ALL", source)
         self.assertNotIn("sudo -n bash", source)
         self.assertIn("Refusing to overwrite an unrecognized helper version", source)
