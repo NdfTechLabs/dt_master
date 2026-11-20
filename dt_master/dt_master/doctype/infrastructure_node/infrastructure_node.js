@@ -45,7 +45,7 @@ frappe.ui.form.on("Infrastructure Node", {
 				label: "Check System Status",
 				statuses: ["Provisioning", "Active", "Maintenance"],
 				states: ["SSH Ready", "Healthy", "Running", "Stopped"],
-				method: "dt_master.api.infrastructure_node.verify_production",
+				method: "dt_master.api.infrastructure_node.check_system_status",
 			},
 		};
 
@@ -298,6 +298,30 @@ function create_log_dialog(title) {
 }
 
 function run_node_action(frm, label, method) {
+	if (method === "dt_master.api.infrastructure_node.check_system_status") {
+		frappe.call({
+			method,
+			args: { node_name: frm.doc.name },
+			freeze: true,
+			freeze_message: __("Submitting Host inspection..."),
+			callback(response) {
+				const operation = response.message || {};
+				frappe.show_alert({
+					message: __("System inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+					indicator: "blue",
+				});
+			},
+			error() {
+				frappe.msgprint({
+					title: __("System Inspection Not Started"),
+					message: __("The inspection could not be queued. Check the server error log."),
+					indicator: "red",
+				});
+			},
+		});
+		return;
+	}
+
 	const dialog = create_log_dialog(label);
 	start_execution_log_stream(dialog, frm.doc.name);
 	frappe.call({
