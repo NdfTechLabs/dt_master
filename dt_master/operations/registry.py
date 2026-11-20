@@ -161,3 +161,7 @@ register_operation(
         execution_identity="frappe-worker",
     )
 )
+
+
+# Register only Docker lifecycle observations with existing read-only adapter handlers.
+import dt_master.operations.docker_lifecycle_registry  # noqa: E402,F401
