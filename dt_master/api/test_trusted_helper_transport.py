@@ -15,7 +15,7 @@ class FakeProcess:
     pid = 12345
     returncode = 0
 
-    def __init__(self, args, kwargs, *, stdout=b'{"ok":true}\\n', timeout=False):
+    def __init__(self, args, kwargs, *, stdout=b'{"ok":true}\n', timeout=False):
         self.args = args
         self.kwargs = kwargs
         self.stdout = stdout
@@ -58,7 +58,7 @@ class TestTrustedHelperTransport(unittest.TestCase):
         self.assertEqual(build.call_args.args[1],
                          'sudo -n /usr/local/lib/dt-master/docker/docker_lifecycle_helper.py ""')
         self.assertEqual(processes[0].input,
-                         b'{"operation":"self_test","schema_version":"1.0.0"}\\n')
+                         b'{"operation":"self_test","schema_version":"1.0.0"}\n')
         self.assertIsNotNone(processes[0].kwargs["stdin"])
         self.assertIsNotNone(processes[0].kwargs["stdout"])
         self.assertIsNotNone(processes[0].kwargs["stderr"])
