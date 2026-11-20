@@ -70,10 +70,6 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch(
-				"dt_master.runtime_adapters.host.path_environment",
-				return_value={"BASE_DIR": "/opt/dtsaas/scripts"},
-			),
-			patch(
 				"dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)
 			) as run,
 		):
