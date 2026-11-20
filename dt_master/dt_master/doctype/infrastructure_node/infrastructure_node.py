@@ -23,15 +23,15 @@ DOCKER_INSPECTION_FIELDS = (
 )
 
 HOST_DISCOVERY_FIELDS = (
-    "host_discovery_status",
-    "host_discovered_on",
-    "host_discovery_snapshot",
+	"host_discovery_status",
+	"host_discovered_on",
+	"host_discovery_snapshot",
 )
 
 HOST_DISCOVERY_DEFAULTS = {
-    "host_discovery_status": "Not Discovered",
-    "host_discovered_on": None,
-    "host_discovery_snapshot": None,
+	"host_discovery_status": "Not Discovered",
+	"host_discovered_on": None,
+	"host_discovery_snapshot": None,
 }
 
 DOCKER_INSPECTION_DEFAULTS = {
@@ -170,7 +170,7 @@ class InfrastructureNode(Document):
 		"""Normalize equivalent Frappe form and database representations."""
 		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
 			return DOCKER_INSPECTION_DEFAULTS[field]
-		if value in (None, "") and field == "host_discovery_status":
+		if value in (None, "") and field in ("host_discovery_status", "host_discovery_snapshot"):
 			return HOST_DISCOVERY_DEFAULTS[field]
 		if field in ("docker_inspected_on", "host_discovered_on") and value:
 			# Form submissions may carry a datetime as a string while the
