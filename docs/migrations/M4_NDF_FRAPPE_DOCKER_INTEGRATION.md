@@ -1,4 +1,4 @@
-**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** (2026-11-09); M4.2 — Runtime Infrastructure Enhancements **Complete** within its accepted NDF scope (2026-11-17); M4.3 — Docker Orchestration Engine **In progress**: M4.3.1, M4.3.2 (including automated acceptance M4.3.2.6; 58 focused tests passed and PR #37 merged) and M4.3.3 Durable Operation Foundation are complete; M4.3.4 Host and Docker Runtime Adapters is the current implementation package. M4.3.4.1 contract/design baseline is prepared on its documentation branch; implementation review is next. M4.4–M4.7 remain pending.  
+**Status:** M4.0 architecture discovery completed; M4.1 — Integration Contract and Architecture **Complete** (2026-11-09); M4.2 — Runtime Infrastructure Enhancements **Complete** within its accepted NDF scope (2026-11-17); M4.3 — Runtime Orchestration **In progress**: M4.3.1–M4.3.4 foundations are complete (M4.3.4.6 merged in PR #43). The platform has prioritized Host-native production capability parity through the new durable runner before Docker baseline preparation or Docker workload orchestration. H1 source inventory v1 is recorded; M4.3.6 ownership foundation and H2–H8 Host-native migration follow. M4.3.NP.1–NP.3 and M4.3.5.1/.2 remain documented/merged non-mutating foundations; Docker mutation work is paused. M4.4–M4.7 remain pending.  
 
 **Source branch:** NdfTechLabs/dt_master:develop  
 **Scope:** Integrate NDF Frappe Docker with DT Master and DT Tenant without
@@ -340,14 +340,14 @@ acceptance of the NDF Frappe Docker product image or DT Master integration.
 
 ## 8. M4 milestone status
 
-The following is the authoritative M4 milestone structure. M4.0–M4.2 are completed. M4.3 implementation is underway: M4.3.1 and M4.3.2.1 are complete; M4.3.2.2 is next. M4.4–M4.7 have not started. M4.1 completion records architecture acceptance, not blanket implementation authorization. M4.2 completion is recorded against the NDF parent acceptance evidence. Earlier milestone labels or stage breakdowns in historical notes do not supersede this table.
+The following is the authoritative M4 milestone structure. M4.0–M4.2 are completed. M4.3 implementation is underway; see the revised Host-native-first current position below. M4.4–M4.7 have not started. M4.1 completion records architecture acceptance, not blanket implementation authorization. M4.2 completion is recorded against the NDF parent acceptance evidence. Earlier milestone labels or stage breakdowns in historical notes do not supersede this table.
 
 | Milestone | Name | Repository | Scope | Status |
 |---|---|---|---|---|
 | **M4.0** | Architecture and Repository Discovery | Both | Audit existing implementations, ownership, boundaries and target architecture. | **Completed** |
 | **M4.1** | Integration Contract and Architecture | Both | Schema ownership, relationships, deployment contracts, runtime interfaces, migration and NDF integration contracts accepted. | **Complete (2026-11-09)** |
 | **M4.2** | Runtime Infrastructure Enhancements | `frappe_docker` | NDF descriptors, runtime definitions, service topology, immutable artifacts and trust/acceptance contracts. | **Complete (2026-11-17)** — A01–A20 accepted within recorded scopes; see NDF M4.2.9.5 and M4.2.9.6 closure evidence at commit `e975fc16669573275bfd9d0a90886a4a912977e0`. |
-| **M4.3** | Docker Orchestration Engine | `dt_master` | Docker/Compose orchestration, Node integration, Bench lifecycle and runtime adapters. | **In progress (2026-11-18): M4.3.1 and M4.3.2.1 complete; M4.3.2.2 next.** See `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`. |
+| **M4.3** | Runtime Orchestration (Host-native first, then Docker) | `dt_master` | Node integration, Host/Docker runtime adapters, Bench lifecycle and Docker/Compose orchestration. | **In progress (2026-11-20): M4.3.1–M4.3.4 complete; Host-native parity audit H1 v1 is current; Docker work paused pending H8.** See `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`. |
 | **M4.4** | Product Image Deployment | `dt_master` | Immutable NDF images, deployment candidates, build tracking, provisioning and replacement deployments. | Not started |
 | **M4.5** | Runtime Application Management | Both | Bench-level app availability, marketplace compatibility, site app installation governance and composition changes. | Not started |
 | **M4.6** | Tenant Site and DT Tenant Integration | Both + `dt_tenant` | Site lifecycle with Bench Environments, tenant requests, site-level app installation and lifecycle reporting. | Not started |
@@ -355,18 +355,20 @@ The following is the authoritative M4 milestone structure. M4.0–M4.2 are compl
 
 ### M4.3 current position
 
-M4.3 — Docker Orchestration Engine is underway on `develop`. The approved workplan remains the detailed source for package scope and acceptance criteria.
+M4.3 — Runtime Orchestration is underway on `develop`. The platform has revised execution priority: make the existing Host-native production-management system fully available through the new durable runner before proceeding with Docker host preparation or Docker workload orchestration. Milestone identifiers remain unchanged; the detailed sequence and gates are in `M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md`.
 
 - **M4.3.1 — Runtime Foundation and Readiness: Complete.**
-- **M4.3.2 — Infrastructure Node Docker Readiness: Complete.** Node-scoped read-only Docker inspection, readiness evaluation, UI integration and automated acceptance are merged. It does not provision workloads.
+- **M4.3.2 — Infrastructure Node Docker Readiness: Complete.** Node-scoped read-only Docker inspection, readiness evaluation, UI integration and automated acceptance are merged. This remains observational and does not provision workloads.
 - **M4.3.3 — Durable Operation Foundation: Complete.** Durable operation state, coordinator/worker dispatch, events, leases, execution identity, heartbeat/recovery and authorized reconciliation are implemented.
-- **M4.3.4 — Runtime Adapter Foundation: Complete.** Contract, registry, Host/Docker read-only adapters, durable mutation bridge and contract acceptance/regression are merged. The platform owner reported 53 passing tests for M4.3.4.6. Built-in adapters remain read-only.
-- **M4.3.5.1 — Docker Orchestration Contract and Implementation Readiness: Review prepared; platform-owner acceptance pending.** The source review identified the NDF typed service/runtime contract gap and the M4.3.6 Bench ownership/target/locking dependency. See `M4.3.5.1_DOCKER_ORCHESTRATION_CONTRACT_AND_READINESS.md`.
-- **M4.3.5.2 onward:** Descriptor consumer/validation, deployment plan, Compose execution, durable lifecycle and safe teardown follow the approved M4.3.5 work package. No production Compose mutation may be enabled until the NDF runtime contract is complete and M4.3.6 provides the Bench Environment target/ownership model and coordinator lock policy. NDF artifact trust remains part of the M4.4 handoff.
-- Host-native Node and Bench functionality must remain operational throughout M4.3.
+- **M4.3.4 — Runtime Adapter Foundation: Complete.** Contract, registry, read-only Host/Docker adapters, durable mutation bridge and contract acceptance/regression are merged (PR #43). Built-in adapters still advertise only `inspect` and `preflight`.
+- **Host-native parity — current priority.** H1 source capability inventory v1 is documented in `M4.3_HOST_NATIVE_RUNTIME_CAPABILITY_AUDIT.md`. Legacy Node, Bench, Tenant Site and Installed App operations still execute through legacy direct API/script paths; they are not yet migrated to the durable runner. H2–H8 remain to be implemented and accepted.
+- **M4.3.6 — Bench Environment ownership foundation:** advance its Node-to-Bench ownership and target model before enabling Bench-scoped Host mutations. Tenant Site ownership migration remains within M4.6.
+- **M4.3.NP — Docker Node baseline preparation:** NP.1–NP.3 contracts are merged, but helper implementation and Docker baseline mutation are paused until Host-native H8 acceptance.
+- **M4.3.5.1/.2 — Docker contract/descriptor fixture work:** merged as non-mutating preparation. **M4.3.5.3–.6 operational Compose implementation is paused** until Host-native parity H8 is accepted and the existing NDF/Bench ownership gates are satisfied.
+- **M4.3.7–M4.3.10:** remain downstream of the revised runtime sequence.
+- **M4.4–M4.7:** remain pending.
 
-The M4.3.1 local review snapshot was `develop` at `73f0378` (clean working tree), with Frappe 16.53.0, ERPNext 16.52.1 and Python 3.14.3. This is historical baseline evidence for that review, not a live-node verification result or a claim about the current remote HEAD.
-
+The M4.3.1 local review snapshot `develop` at `73f0378` is historical baseline evidence only, not a live-node verification result or a claim about the current remote HEAD.
 
 ### M4.1 current position
 
