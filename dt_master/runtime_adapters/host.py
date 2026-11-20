@@ -131,6 +131,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				"cpu_cores": int(values["cpu_cores"]),
 				"memory_bytes": int(values["memory_bytes"]),
 				"root_available_bytes": int(values["root_available_bytes"]),
+				"swap_total_bytes": int(values.get("swap_total_bytes") or 0),
 				}
 			if any(value < 0 for value in measurements.values()):
 				raise ValueError("negative measurement")
@@ -170,7 +171,6 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			**measurements,
 			"bench_available": values.get("bench_available") == "true",
 			"host_stage": "Bench CLI Available" if values.get("bench_available") == "true" else "Fresh Host",
-			"swap_total_bytes": int(values.get("swap_total_bytes") or 0),
 			"tools": {
 				key: values.get(f"{key}_available") == "true"
 				for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
