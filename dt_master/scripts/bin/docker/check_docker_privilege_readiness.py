@@ -56,7 +56,7 @@ def main():
     record("helper_integrity", helper_ok, "Trusted helper is missing or its type, ownership, mode, or digest is incorrect.")
 
     parent_paths = [Path("/usr/local"), Path("/usr/local/lib"), Path("/usr/local/lib/dt-master"),
-                    Path("/usr/local/lib/dt-master/docker")]
+                    Path("/usr/local/lib/dt-master/docker"), Path("/etc/sudoers.d")]
     parents_ok = True
     for path in parent_paths:
         try:
@@ -71,7 +71,7 @@ def main():
     try:
         st = POLICY.lstat()
         content = POLICY.read_text(encoding="utf-8")
-        expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\\n'
+        expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\n'
         policy_ok = (
             stat.S_ISREG(st.st_mode) and st.st_uid == 0 and st.st_gid == 0
             and stat.S_IMODE(st.st_mode) == 0o440 and content == expected
