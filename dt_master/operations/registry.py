@@ -128,3 +128,36 @@ register_operation(
         execution_identity="frappe-worker",
     )
 )
+
+
+def _runtime_adapter_observation_payload(payload):
+    from dt_master.runtime_adapters.operation_bridge import validate_runtime_observation_payload
+
+    try:
+        return validate_runtime_observation_payload(payload)
+    except Exception as exc:
+        frappe.throw(_(str(exc)), frappe.ValidationError)
+
+
+def _runtime_adapter_observation_handler(context, payload):
+    from dt_master.runtime_adapters.operation_bridge import invoke_runtime_observation
+
+    return invoke_runtime_observation(context, payload)
+
+
+# Read-only inspection uses the same durable coordinator and Task Manager as
+# mutations. It is deliberately separate from runtime.adapter.mutate so the
+# observation allowlist can never be used to invoke a mutating adapter method.
+register_operation(
+    OperationDefinition(
+        operation_type="runtime.adapter.inspect",
+        handler=_runtime_adapter_observation_handler,
+        validate_payload=_runtime_adapter_observation_payload,
+        authorize=authorize_system_manager,
+        queue="short",
+        timeout_seconds=90,
+        max_attempts=1,
+        priority="Normal",
+        execution_identity="frappe-worker",
+    )
+)
