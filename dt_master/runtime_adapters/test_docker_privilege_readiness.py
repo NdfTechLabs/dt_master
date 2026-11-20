@@ -49,6 +49,10 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
             "effective_user": "root",
         }
 
+    def test_rejects_duplicate_json_response_keys(self):
+        with self.assertRaisesRegex(ValueError, "Duplicate"):
+            DockerRuntimeAdapter._unique_json_object([("status", "ok"), ("status", "failed")])
+
     def test_accepts_only_root_helper_self_test_response(self):
         payload = self.helper_self_test()
         self.assertEqual(DockerRuntimeAdapter._validate_trusted_helper_self_test(payload), payload)
