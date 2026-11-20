@@ -4,6 +4,7 @@ Bench-scoped operations are intentionally unavailable until M4.3.6 defines
 Bench Environment ownership and M4.3.4.5 connects mutations to the coordinator.
 """
 
+import json
 from time import monotonic
 
 import frappe
@@ -93,35 +94,53 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				duration_ms=elapsed,
 			)
 
-		values = parse_output(stdout)
+		parsed = parse_output(stdout)
+		try:
+			discovery = json.loads(parsed["discovery_json"]) if parsed.get("discovery_json") else None
+		except (KeyError, TypeError, ValueError):
+			discovery = None
+
+		# Retain the v1 parser during the transition so already-deployed script
+		# bundles can still be inspected while the v2 bundle is rolled out.
+		if discovery:
+			identity = discovery.get("identity") or {}
+			os_info = discovery.get("os") or {}
+			compute = discovery.get("compute") or {}
+			storage = discovery.get("storage") or {}
+			values = {
+				"hostname": identity.get("fqdn") or identity.get("hostname"),
+				"os": os_info.get("pretty_name"),
+				"os_id": os_info.get("id"),
+				"os_version_id": os_info.get("version_id"),
+				"os_version_codename": os_info.get("version_codename"),
+				"os_id_like": os_info.get("id_like"),
+				"raw_architecture": os_info.get("architecture"),
+				"architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(os_info.get("architecture"), os_info.get("architecture")),
+				"package_manager": os_info.get("package_manager"),
+				"service_manager": os_info.get("service_manager"),
+				"cpu_cores": compute.get("logical_cpu_cores"),
+				"memory_bytes": compute.get("memory_total_bytes"),
+				"root_available_bytes": storage.get("root_available_bytes"),
+				"swap_total_bytes": compute.get("swap_total_bytes"),
+				"bench_available": discovery.get("bench_available"),
+			}
+		else:
+			values = parsed
+
 		required = (
-			"hostname",
-			"os",
-			"os_id",
-			"os_version_id",
-			"os_version_codename",
-			"raw_architecture",
-			"architecture",
-			"package_manager",
-			"service_manager",
-			"cpu_cores",
-			"memory_bytes",
-			"root_available_bytes",
+			"hostname", "os", "os_id", "os_version_id", "os_version_codename",
+			"raw_architecture", "architecture", "package_manager", "service_manager",
+			"cpu_cores", "memory_bytes", "root_available_bytes",
 		)
-		missing = [key for key in required if not values.get(key)]
+		missing = [key for key in required if values.get(key) in (None, "")]
 		if missing:
 			return self.result_for(
-				request,
-				outcome="failed",
-				observed_state="Unknown",
+				request, outcome="failed", observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=(
-					{
-						"code": "HOST_INSPECTION_INCOMPLETE",
-						"severity": "error",
-						"message": "Host inspection returned an incomplete observation.",
-					},
-				),
+				diagnostics=({
+					"code": "HOST_INSPECTION_INCOMPLETE", "severity": "error",
+					"message": "Host inspection returned an incomplete observation.",
+				},),
 				data={"inspection_status": "Invalid", "missing_fields": missing},
 				duration_ms=elapsed,
 			)
@@ -132,50 +151,50 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				"memory_bytes": int(values["memory_bytes"]),
 				"root_available_bytes": int(values["root_available_bytes"]),
 				"swap_total_bytes": int(values.get("swap_total_bytes") or 0),
-				}
+			}
 			if any(value < 0 for value in measurements.values()):
 				raise ValueError("negative measurement")
 		except (TypeError, ValueError):
 			return self.result_for(
-				request,
-				outcome="failed",
-				observed_state="Unknown",
+				request, outcome="failed", observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=(
-					{
-						"code": "HOST_INSPECTION_INVALID_MEASUREMENT",
-						"severity": "error",
-						"message": "Host inspection returned invalid capacity measurements.",
-					},
-				),
+				diagnostics=({
+					"code": "HOST_INSPECTION_INVALID_MEASUREMENT", "severity": "error",
+					"message": "Host inspection returned invalid capacity measurements.",
+				},),
 				data={"inspection_status": "Invalid"},
 				duration_ms=elapsed,
 			)
 
 		os_support_status = self._os_support(values)
+		bench_available = discovery.get("bench_available", False) if discovery else values.get("bench_available") == "true"
+		tools = discovery.get("tools", {}) if discovery else {
+			key: parsed.get(f"{key}_available") == "true"
+			for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
+		}
 		data = {
-			"schema_version": "1.0.0",
+			"schema_version": discovery.get("schema_version", "1.0.0") if discovery else "1.0.0",
 			"inspection_status": "Successful",
-			"hostname": values["hostname"][:253],
-			"os": values["os"][:160],
-			"os_id": values["os_id"][:40].lower(),
-			"os_version_id": values["os_version_id"][:40],
-			"os_version_codename": values["os_version_codename"][:80],
-			"os_id_like": values.get("os_id_like", "unknown")[:160],
-			"raw_architecture": values["raw_architecture"][:40],
-			"architecture": values["architecture"][:40],
-			"package_manager": values["package_manager"][:40],
-			"service_manager": values["service_manager"][:40],
+			"hostname": str(values["hostname"])[:253],
+			"os": str(values["os"])[:160],
+			"os_id": str(values["os_id"])[:40].lower(),
+			"os_version_id": str(values["os_version_id"])[:40],
+			"os_version_codename": str(values["os_version_codename"])[:80],
+			"os_id_like": str(values.get("os_id_like") or "unknown")[:160],
+			"raw_architecture": str(values["raw_architecture"])[:40],
+			"architecture": str(values["architecture"])[:40],
+			"package_manager": str(values["package_manager"])[:40],
+			"service_manager": str(values["service_manager"])[:40],
 			"os_support_policy_version": OS_SUPPORT_POLICY_VERSION,
 			"os_support_status": os_support_status,
 			**measurements,
-			"bench_available": values.get("bench_available") == "true",
-			"host_stage": "Bench CLI Available" if values.get("bench_available") == "true" else "Fresh Host",
-			"tools": {
-				key: values.get(f"{key}_available") == "true"
-				for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
-			},
+			"bench_available": bool(bench_available),
+			"host_stage": "Bench CLI Available" if bench_available else "Fresh Host",
+			"tools": tools,
 		}
+		if discovery:
+			data["discovery"] = discovery
+
 		return self.result_for(
 			request,
 			outcome="succeeded",
