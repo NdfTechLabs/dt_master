@@ -96,6 +96,23 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         request = validate_request(observation_request())
         self.assertEqual(request.contract_version, ADAPTER_CONTRACT_VERSION)
 
+    def test_human_readable_frappe_target_names_are_valid(self):
+        name = "NDF Tech Labs Contabo"
+        request = validate_request(observation_request(target_name=name))
+        self.assertEqual(request.target_name, name)
+
+        result = RuntimeAdapterResult(
+            adapter_id="host-v1", runtime_type="host",
+            target_doctype="Infrastructure Node", target_name=name,
+            method="inspect", outcome="succeeded", observed_state="Available",
+        )
+        self.assertEqual(validate_result(result).target_name, name)
+
+    def test_target_name_rejects_blank_control_characters_and_oversize_values(self):
+        for name in ("   ", "NODE\\n0001", "N" * 141):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "target name"):
+                validate_request(observation_request(target_name=name))
+
     def test_request_mapping_round_trip(self):
         request = observation_request()
         self.assertEqual(validate_request(request.to_dict()), request)
