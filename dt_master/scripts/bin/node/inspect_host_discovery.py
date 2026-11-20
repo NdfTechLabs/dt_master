@@ -105,6 +105,39 @@ def service_state(name):
     return {"manager": "systemd", "active": active, "enabled": enabled}
 
 
+def parse_cpu_topology():
+    physical = set()
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as stream:
+            record = {}
+            for line in stream:
+                if not line.strip():
+                    if "physical id" in record and "core id" in record:
+                        physical.add((record["physical id"], record["core id"]))
+                    record = {}
+                elif ":" in line:
+                    key, value = line.split(":", 1)
+                    record[key.strip()] = value.strip()
+            if "physical id" in record and "core id" in record:
+                physical.add((record["physical id"], record["core id"]))
+    except OSError:
+        pass
+    return len(physical) or None
+
+
+def parse_block_devices():
+    raw = command(["lsblk", "-b", "-J", "-o", "NAME,TYPE,SIZE,ROTA,MODEL,MOUNTPOINTS"])
+    try:
+        devices = json.loads(raw).get("blockdevices", []) if raw else []
+    except (json.JSONDecodeError, AttributeError):
+        devices = []
+    return devices[:32]
+
+
+def disk_bytes(devices):
+    return sum(int(item.get("size") or 0) for item in devices if item.get("type") == "disk")
+
+
 def main():
     mem_total = number_file("/proc/meminfo", "MemTotal")
     mem_available = number_file("/proc/meminfo", "MemAvailable")
@@ -157,6 +190,7 @@ def main():
         if len(parts) >= 5:
             listening.append({"protocol": parts[0], "local_address": parts[4]})
     df = parse_df()
+    block_devices = parse_block_devices()
     root = next((row for row in df if row["mountpoint"] == "/"), {})
     result = {
         "schema_version": "2.0.0",
@@ -176,13 +210,13 @@ def main():
             "timezone": time.tzname[0] if time.tzname else "unknown",
         },
         "compute": {
-            "cpu_model": cpu_model[:255], "logical_cpu_cores": os.cpu_count() or 0,
+            "cpu_model": cpu_model[:255], "logical_cpu_cores": os.cpu_count() or 0, "physical_cpu_cores": parse_cpu_topology(),
             "memory_total_bytes": mem_total, "memory_available_bytes": mem_available,
             "swap_total_bytes": swap_total, "swap_free_bytes": swap_free,
             "load_average": load, "uptime_seconds": uptime_seconds,
             "virtualization": virt[:80],
         },
-        "storage": {"filesystems": df, "root_available_bytes": root.get("available_bytes", 0), "root_size_bytes": root.get("size_bytes", 0)},
+        "storage": {"filesystems": df, "block_devices": block_devices, "disk_total_bytes": disk_bytes(block_devices), "root_available_bytes": root.get("available_bytes", 0), "root_size_bytes": root.get("size_bytes", 0)},
         "network": {
             "interfaces": parse_interfaces(), "default_routes": parse_default_routes(),
             "dns_nameservers": parse_dns(), "listening_sockets": listening[:256],
