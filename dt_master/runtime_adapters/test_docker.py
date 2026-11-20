@@ -132,6 +132,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Unknown", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
+            patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
         ):
             result = self.adapter.invoke("preflight", request("preflight"))
         self.assertEqual(result.outcome, "failed")
@@ -146,6 +147,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Degraded", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
+            patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
         ):
             result = self.adapter.invoke("preflight", request("preflight"))
         self.assertEqual(result.outcome, "partial")
