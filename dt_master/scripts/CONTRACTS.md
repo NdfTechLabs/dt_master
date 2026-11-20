@@ -125,3 +125,17 @@ Run `python3 -m unittest discover -s tests -v` from the app repository. See
 `tests/README.md` for coverage and the required disposable-bench integration pass.
 No production migration, deployment, service restart or database operation is
 performed by this test suite.
+
+
+## New durable-runner migration status (2026-11-20)
+
+The contracts above describe the existing legacy API → shell execution path and remain the compatibility reference during migration. They do not mean that the legacy actions have already been migrated to the new durable runner.
+
+- Current `HostRuntimeAdapter` capability set is read-only: `inspect`, `preflight`.
+- Existing Node, Bench maintenance, Tenant Site and Tenant Installed App APIs still invoke the legacy script contract directly.
+- The Infrastructure Operation coordinator/RQ worker is the sole target execution manager for the migration; no parallel runner or queue is to be introduced.
+- Preserve script paths, environment/result contracts and user-visible lifecycle semantics where safe, but adapt scripts and libraries to Bench Environment ownership, typed operation inputs, resource locks, idempotency, bounded execution, lease heartbeat/fencing and structured result reconciliation.
+- The current Host-native source inventory and migration dispositions are recorded in `docs/migrations/M4.3_HOST_NATIVE_RUNTIME_CAPABILITY_AUDIT.md`.
+- Docker baseline preparation and Docker workload orchestration are paused until Host-native parity H8 acceptance.
+
+This section is a migration-status overlay; it does not change the legacy shell contracts above or authorize any live production mutation.
