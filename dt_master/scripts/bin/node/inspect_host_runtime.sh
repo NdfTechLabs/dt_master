@@ -60,6 +60,22 @@ if command -v bench >/dev/null 2>&1; then
     bench_available="true"
 fi
 
+swap_total_bytes="$(awk '/^SwapTotal:/ {print $2 * 1024; found=1} END {if (!found) print 0}' /proc/meminfo)"
+command_available() {
+    if command -v "$1" >/dev/null 2>&1; then printf 'true'; else printf 'false'; fi
+}
+python3_available="$(command_available python3)"
+node_available="$(command_available node)"
+npm_available="$(command_available npm)"
+yarn_available="$(command_available yarn)"
+nginx_available="$(command_available nginx)"
+supervisorctl_available="$(command_available supervisorctl)"
+redis_cli_available="$(command_available redis-cli)"
+mariadb_available="false"
+if command -v mariadb >/dev/null 2>&1 || command -v mysql >/dev/null 2>&1; then
+    mariadb_available="true"
+fi
+
 printf 'hostname=%s\n' "$hostname_value"
 printf 'os=%s\n' "$os_pretty_name"
 printf 'os_id=%s\n' "$os_id"
