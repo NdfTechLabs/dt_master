@@ -292,7 +292,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
                 use_sudo=False, timeout_seconds=45, max_output_bytes=16384,
             )
             payload = self._validate_update_check(json.loads(stdout.strip())) if code == 0 else None
-        except (Exception,):
+        except Exception:
             payload = None
         elapsed = min(86400000, int((monotonic() - started) * 1000))
         if payload is None:
