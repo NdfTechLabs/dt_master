@@ -355,7 +355,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             "code": item["code"],
             "severity": "error" if item["severity"] == "Error" else "warning",
             "message": sanitize_diagnostic_message(item["message"]),
-        } for item in inspection.data["privilege_readiness"]["diagnostics"])
+        } for item in inspection.data["privilege_readiness"].get("diagnostics", []))
         diagnostics = tuple(list(inspection.diagnostics) + list(privilege_diagnostics))[:100]
         return self.result_for(
             request,
