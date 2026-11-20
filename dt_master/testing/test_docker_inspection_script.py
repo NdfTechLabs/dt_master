@@ -16,7 +16,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
 
-TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "grep")
+TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "grep", "dirname")
 
 
 class DockerInspectionScriptAcceptance(unittest.TestCase):
@@ -49,6 +49,12 @@ case "$1 $2" in
       exit 1
     fi
     printf '%s\\n' "2.30.0"
+    ;;
+  "ps --all")
+    printf '%s\\n' "container-a" "container-b"
+    ;;
+  "ps --quiet")
+    printf '%s\\n' "container-a"
     ;;
   "info --format")
     if [ "$DOCKER_TEST_MODE" = "denied" ]; then
@@ -125,6 +131,9 @@ printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 10000
         self.assertEqual(result["engine"]["api_version"], "1.52")
         self.assertEqual(result["storage"]["driver"], "overlay2")
         self.assertEqual(result["storage"]["data_root"], "/var/lib/docker")
+        self.assertEqual(result["host_inventory"]["schema_version"], "1.0.0")
+        self.assertEqual(result["host_inventory"]["workloads"]["running_containers"], 1)
+        self.assertEqual(result["host_inventory"]["workloads"]["total_containers"], 2)
         self.assertIsNotNone(result["storage"]["filesystem"]["mount_point"])
 
     def test_missing_docker_cli_is_reported_without_failing_inspection(self):
@@ -159,6 +168,8 @@ printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 10000
                 "version --format {{.Client.Version}}",
                 "compose version --short",
                 "info --format {{json .}}",
+                "ps --all --quiet",
+                "ps --quiet",
             ],
         )
         forbidden = {"run", "create", "start", "stop", "rm", "rmi", "pull", "build", "volume", "network"}

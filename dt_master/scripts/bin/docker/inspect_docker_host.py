@@ -137,9 +137,9 @@ def _workload_summary() -> dict:
         return {"available": False, "running_containers": None, "total_containers": None}
     total = min(len([line for line in output.splitlines() if line.strip()]), 100000)
     code, running_output = _run(["docker", "ps", "--quiet"], timeout=8)
-    running = None
-    if code == 0:
-        running = min(len([line for line in running_output.splitlines() if line.strip()]), 100000)
+    if code != 0:
+        return {"available": False, "running_containers": None, "total_containers": None}
+    running = min(len([line for line in running_output.splitlines() if line.strip()]), 100000)
     return {"available": True, "running_containers": running, "total_containers": total}
 
 

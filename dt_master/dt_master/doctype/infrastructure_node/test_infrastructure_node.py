@@ -208,6 +208,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			},
 			"permissions": {"execution_identity": "frank", "inspection_access": "Allowed"},
 			"diagnostics": [],
+			"host_inventory": _docker_failure_snapshot("Failed", "probe failed")["host_inventory"],
 		}
 		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
 		self.assertNotIn("readiness", snapshot)
@@ -251,6 +252,14 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertNotIn("readiness", snapshot)
 		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
 
+
+	def test_docker_snapshot_validator_rejects_unexpected_host_package(self):
+		snapshot = _docker_failure_snapshot("Failed", "probe failed")
+		snapshot["host_inventory"]["docker_packages"] = [
+			{"name": "unexpected-package", "version": "1", "status": "installed"}
+		]
+		with self.assertRaises(ValueError):
+			_validate_docker_snapshot(snapshot)
 
 	def test_docker_snapshot_validator_rejects_malformed_capacity_measurement(self):
 		snapshot = _docker_failure_snapshot("Failed", "probe failed")
