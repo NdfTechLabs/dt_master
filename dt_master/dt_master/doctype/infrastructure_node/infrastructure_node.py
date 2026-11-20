@@ -22,6 +22,18 @@ DOCKER_INSPECTION_FIELDS = (
 	"docker_readiness_evaluation",
 )
 
+HOST_DISCOVERY_FIELDS = (
+    "host_discovery_status",
+    "host_discovered_on",
+    "host_discovery_snapshot",
+)
+
+HOST_DISCOVERY_DEFAULTS = {
+    "host_discovery_status": "Not Discovered",
+    "host_discovered_on": None,
+    "host_discovery_snapshot": None,
+}
+
 DOCKER_INSPECTION_DEFAULTS = {
 	"docker_inspection_status": "Not Inspected",
 	"docker_readiness": "Unknown",
@@ -34,6 +46,7 @@ DOCKER_INSPECTION_DEFAULTS = {
 class InfrastructureNode(Document):
 	def validate(self):
 		self._prevent_direct_docker_inspection_updates()
+		self._prevent_direct_host_discovery_updates()
 		self._validate_docker_readiness_requirements()
 
 	def on_update(self):
@@ -101,6 +114,29 @@ class InfrastructureNode(Document):
 			frappe.throw(
 				frappe._("Invalid Docker readiness requirements: {0}").format(str(exc)),
 				title=frappe._("Invalid Docker Readiness Requirements"),
+			)
+
+
+	def _prevent_direct_host_discovery_updates(self):
+		"""Keep Host discovery evidence server-managed, like Docker inspection evidence."""
+		previous = self.get_doc_before_save()
+		if previous:
+			changed_fields = [
+				field for field in HOST_DISCOVERY_FIELDS
+				if self._normalize_inspection_value(field, self.get(field))
+				!= self._normalize_inspection_value(field, previous.get(field))
+			]
+		else:
+			changed_fields = [
+				field for field, default in HOST_DISCOVERY_DEFAULTS.items()
+				if self.get(field) not in (None, "", default)
+			]
+		if changed_fields:
+			frappe.throw(
+				frappe._("Host discovery fields are managed by the server-side inspection service: {0}").format(
+					", ".join(changed_fields)
+				),
+				title=frappe._("Read-only Host Discovery Data"),
 			)
 
 	def _prevent_direct_docker_inspection_updates(self):
