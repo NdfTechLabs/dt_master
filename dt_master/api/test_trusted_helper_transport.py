@@ -3,6 +3,7 @@
 import json
 import subprocess
 import unittest
+from typing import ClassVar
 from unittest.mock import patch
 
 from dt_master.api.script_contract import (
@@ -34,7 +35,7 @@ class FakeProcess:
 
 
 class TestTrustedHelperTransport(unittest.TestCase):
-    REQUEST = {"schema_version": "1.0.0", "operation": "self_test"}
+    REQUEST: ClassVar[dict[str, str]] = {"schema_version": "1.0.0", "operation": "self_test"}
 
     def test_uses_fixed_helper_and_exact_sudoers_invocation(self):
         processes = []
