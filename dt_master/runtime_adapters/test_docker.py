@@ -151,6 +151,63 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.outcome, "partial")
         self.assertEqual(result.observed_state, "Degraded")
 
+    def _verification_snapshot(self):
+        return {
+            "inspection_status": "Successful",
+            "docker_cli": {"installed": True, "path": "/usr/bin/docker", "client_version": "29.9.3"},
+            "engine": {"availability": "Available", "server_version": "29.9.3"},
+            "compose": {"installed": True, "version": "5.7.0", "compatibility": "Compatible"},
+        }
+
+    def _run_verify(self, snapshot):
+        request_obj = request("verify")
+        inspection = self.adapter.result_for(
+            request_obj,
+            outcome="succeeded",
+            observed_state="Available",
+            data={"snapshot": snapshot},
+            duration_ms=20,
+        )
+        with patch.object(self.adapter, "_inspect", return_value=inspection):
+            return self.adapter.invoke("verify", request_obj)
+
+    def test_verify_reports_verified_when_all_components_are_operational(self):
+        result = self._run_verify(self._verification_snapshot())
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.observed_state, "Verified")
+        self.assertEqual(result.data["verification_status"], "Verified")
+        self.assertEqual(result.data["components"]["compose"]["version"], "5.7.0")
+
+    def test_verify_reports_not_verified_when_engine_is_unavailable(self):
+        snapshot = self._verification_snapshot()
+        snapshot["engine"]["availability"] = "Unavailable"
+        result = self._run_verify(snapshot)
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.observed_state, "Not Verified")
+        self.assertIn("DOCKER_ENGINE_UNAVAILABLE", {item["code"] for item in result.diagnostics})
+
+    def test_verify_reports_incomplete_when_component_state_is_unknown(self):
+        snapshot = self._verification_snapshot()
+        snapshot["engine"]["availability"] = "Unknown"
+        result = self._run_verify(snapshot)
+        self.assertEqual(result.outcome, "partial")
+        self.assertEqual(result.observed_state, "Incomplete")
+        self.assertIn("DOCKER_ENGINE_STATUS_UNKNOWN", {item["code"] for item in result.diagnostics})
+
+    def test_verify_does_not_claim_components_absent_when_inspection_failed(self):
+        snapshot = self._verification_snapshot()
+        snapshot["inspection_status"] = "Failed"
+        snapshot["docker_cli"]["installed"] = False
+        snapshot["engine"]["availability"] = "Unknown"
+        snapshot["compose"]["installed"] = False
+        result = self._run_verify(snapshot)
+        self.assertEqual(result.outcome, "partial")
+        self.assertEqual(result.observed_state, "Incomplete")
+        codes = {item["code"] for item in result.diagnostics}
+        self.assertIn("DOCKER_INSPECTION_INCOMPLETE", codes)
+        self.assertNotIn("DOCKER_CLI_NOT_INSTALLED", codes)
+        self.assertNotIn("DOCKER_COMPOSE_NOT_INSTALLED", codes)
+
     def test_registry_resolves_builtin_docker_adapter(self):
         from dt_master.runtime_adapters.registry import clear_registry_for_tests, resolve_adapter
 
@@ -158,7 +215,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         try:
             adapter = resolve_adapter("docker")
             self.assertEqual(adapter.adapter_id, "docker-compose-v1")
-            self.assertEqual(adapter.capabilities(), ("inspect", "preflight", "updates_check"))
+            self.assertEqual(adapter.capabilities(), ("inspect", "preflight", "updates_check", "verify"))
         finally:
             clear_registry_for_tests()
 

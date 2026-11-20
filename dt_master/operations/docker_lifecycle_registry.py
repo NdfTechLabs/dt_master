@@ -1,7 +1,7 @@
 """Registry definitions for safe, read-only Docker lifecycle operations.
 
 Only read-only observations with fixed, tested handlers are registered here.
-Post-change verification remains deferred until its independent contract is implemented.
+Verification is a read-only confirmation of Docker CLI, Engine and Compose v2 state.
 """
 
 from dt_master.operations.registry import OperationDefinition, register_operation
@@ -47,6 +47,7 @@ for _operation_type, _method in (
     ("host.node.docker.inspect", "inspect"),
     ("host.node.docker.preflight", "preflight"),
     ("host.node.docker.updates.check", "updates_check"),
+    ("host.node.docker.verify", "verify"),
 ):
     register_operation(
         OperationDefinition(

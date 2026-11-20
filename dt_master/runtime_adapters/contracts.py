@@ -14,7 +14,7 @@ ADAPTER_CONTRACT_VERSION = "1.0.0"
 MUTATING_METHODS = frozenset({
     "provision", "start", "stop", "deploy", "storage_prepare", "backup", "restore",
 })
-OBSERVATION_METHODS = frozenset({"inspect", "preflight", "endpoints", "health", "updates_check"})
+OBSERVATION_METHODS = frozenset({"inspect", "preflight", "endpoints", "health", "updates_check", "verify"})
 ADAPTER_METHODS = MUTATING_METHODS | OBSERVATION_METHODS
 RUNTIME_TYPES = frozenset({"host", "docker"})
 OUTCOMES = frozenset({"succeeded", "partial", "failed"})
