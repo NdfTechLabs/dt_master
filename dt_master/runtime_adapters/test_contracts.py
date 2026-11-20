@@ -109,7 +109,7 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         self.assertEqual(validate_result(result).target_name, name)
 
     def test_target_name_rejects_blank_control_characters_and_oversize_values(self):
-        for name in ("   ", "NODE\\n0001", "N" * 141):
+        for name in ("   ", "NODE\n0001", "N" * 141):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "target name"):
                 validate_request(observation_request(target_name=name))
 
