@@ -1,5 +1,6 @@
 """Unit tests for the read-only Host runtime adapter."""
 
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -90,6 +91,54 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.data["architecture"], "amd64")
 		self.assertEqual(run.call_args.kwargs["use_sudo"], False)
 		self.assertEqual(run.call_args.args[2:4], ("node", "inspect_host_runtime.sh"))
+
+	def test_v2_discovery_persists_snapshot_and_prefills_only_blank_inventory(self):
+		discovery = {
+			"schema_version": "2.0.0",
+			"observed_at": "2026-11-20T17:17:33Z",
+			"identity": {"hostname": "node-01", "fqdn": "node-01.example.test"},
+			"os": {
+				"pretty_name": "Ubuntu 24.04.4 LTS", "id": "ubuntu", "version_id": "24.04",
+				"version_codename": "noble", "id_like": "debian", "architecture": "x86_64",
+				"package_manager": "apt", "service_manager": "systemd",
+			},
+			"compute": {
+				"logical_cpu_cores": 6, "memory_total_bytes": 8 * 1024**3,
+				"memory_available_bytes": 4 * 1024**3, "swap_total_bytes": 2 * 1024**3,
+				"swap_free_bytes": 1 * 1024**3, "cpu_model": "Example CPU",
+				"load_average": [0.1, 0.2, 0.3], "uptime_seconds": 3600, "virtualization": "kvm",
+			},
+			"storage": {
+				"filesystems": [], "root_available_bytes": 50 * 1024**3,
+				"root_size_bytes": 100 * 1024**3,
+			},
+			"network": {"interfaces": [], "default_routes": [], "dns_nameservers": [], "listening_sockets": []},
+			"tools": {"python3": True, "nginx": True},
+			"services": {"nginx": {"active": "active", "enabled": "enabled"}},
+			"bench_available": False,
+		}
+		self.node.cpu_cores = 0
+		self.node.ram_gb = 0
+		self.node.storage_gb = 0
+		self.node.os_type = ""
+		self.node.os_version = ""
+		stdout = "discovery_json=" + json.dumps(discovery, separators=(",", ":")) + "\\n"
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.frappe.db.set_value") as set_value,
+			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, stdout, "")),
+		):
+			result = self.adapter.invoke("inspect", request())
+		self.assertEqual(result.data["schema_version"], "2.0.0")
+		self.assertEqual(result.data["discovery"]["network"]["interfaces"], [])
+		updates = set_value.call_args.args[2]
+		self.assertEqual(updates["cpu_cores"], 6)
+		self.assertEqual(updates["ram_gb"], 8)
+		self.assertEqual(updates["storage_gb"], 100)
+		self.assertEqual(updates["os_type"], "Ubuntu")
+		self.assertEqual(updates["os_version"], "24.04")
+		self.assertEqual(updates["host_discovery_status"], "Successful")
+		self.assertIn("host_discovery_snapshot", updates)
 
 	def test_fresh_host_is_inspectable_without_bench_project_paths(self):
 		result, run = self._run_inspection(
