@@ -1,8 +1,7 @@
 """Registry definitions for safe, read-only Docker lifecycle operations.
 
-Only capabilities with an existing read-only adapter path are registered here.
-Package-manager inspection and post-change verification are registered in later
-increments once their independent contracts and handlers are implemented.
+Only read-only observations with fixed, tested handlers are registered here.
+Post-change verification remains deferred until its independent contract is implemented.
 """
 
 from dt_master.operations.registry import OperationDefinition, register_operation
