@@ -75,6 +75,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={
                 "readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"
             }),
+            patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
         ):
             result = self.adapter.invoke(method, request(method))
         return result, remote
@@ -84,9 +85,9 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.outcome, "succeeded")
         self.assertEqual(result.observed_state, "Available")
         self.assertEqual(result.data["readiness"], "Ready")
-        self.assertEqual(remote.call_args.args[2:4], ("docker", "inspect_docker.sh"))
-        self.assertFalse(remote.call_args.kwargs["use_sudo"])
-        self.assertEqual(remote.call_args.kwargs["timeout_seconds"], 45)
+        self.assertEqual(remote.call_args_list[0].args[2:4], ("docker", "inspect_docker.sh"))
+        self.assertFalse(remote.call_args_list[0].kwargs["use_sudo"])
+        self.assertEqual(remote.call_args_list[0].kwargs["timeout_seconds"], 45)
 
     def test_inspection_is_node_scoped_and_read_permission_only(self):
         with patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node):
