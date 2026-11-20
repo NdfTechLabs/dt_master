@@ -104,8 +104,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		# Retain the v1 parser during the transition so already-deployed script
 		# bundles can still be inspected while the v2 bundle is rolled out.
 		if discovery:
-			identity = discovery.get("identity") or {}
-			os_info = discovery.get("os") or {}
+				os_info = discovery.get("os") or {}
 			compute = discovery.get("compute") or {}
 			storage = discovery.get("storage") or {}
 			values = {
@@ -197,6 +196,15 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			data["discovery"] = discovery
 			self._persist_discovery_snapshot(node, discovery)
 
+		return self.result_for(
+			request,
+			outcome="succeeded",
+			observed_state="Available",
+			capabilities=self.capabilities(),
+			data=data,
+			duration_ms=elapsed,
+		)
+
 	@staticmethod
 	def _persist_discovery_snapshot(node, discovery):
 		"""Persist the latest observed snapshot and fill only blank inventory fields."""
@@ -225,15 +233,6 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		# Network addresses are also not copied into ip_address: interfaces may
 		# contain private, public, bridge and transient addresses.
 		frappe.db.set_value("Infrastructure Node", node.name, updates, update_modified=False)
-
-		return self.result_for(
-			request,
-			outcome="succeeded",
-			observed_state="Available",
-			capabilities=self.capabilities(),
-			data=data,
-			duration_ms=elapsed,
-		)
 
 	def _preflight(self, request, execution_context=None):
 		inspection = self._inspect(request, execution_context=execution_context)
