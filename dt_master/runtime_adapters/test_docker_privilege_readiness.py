@@ -1,7 +1,9 @@
 """Contracts for read-only Docker privilege readiness inspection."""
 import subprocess
+import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from dt_master.runtime_adapters.docker import DockerRuntimeAdapter
@@ -36,6 +38,80 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
         payload["command"] = "id"
         with self.assertRaises(ValueError):
             DockerRuntimeAdapter._validate_privilege_readiness(payload)
+
+    def helper_self_test(self):
+        return {
+            "schema_version": "1.0.0",
+            "helper_version": "0.1.0",
+            "operation": "self_test",
+            "status": "ok",
+            "effective_uid": 0,
+            "effective_user": "root",
+        }
+
+    def test_accepts_only_root_helper_self_test_response(self):
+        payload = self.helper_self_test()
+        self.assertEqual(DockerRuntimeAdapter._validate_trusted_helper_self_test(payload), payload)
+        payload["effective_uid"] = 1000
+        with self.assertRaises(ValueError):
+            DockerRuntimeAdapter._validate_trusted_helper_self_test(payload)
+
+    def test_rejects_extra_fields_in_helper_self_test_response(self):
+        payload = self.helper_self_test()
+        payload["command"] = "id"
+        with self.assertRaises(ValueError):
+            DockerRuntimeAdapter._validate_trusted_helper_self_test(payload)
+
+    def test_ready_probe_uses_existing_runner_for_direct_helper_self_test(self):
+        adapter = DockerRuntimeAdapter()
+        node = SimpleNamespace(
+            name="NODE-0001",
+            ssh_user="deploy",
+            ssh_port=22,
+            ssh_host_alias=None,
+            ip_address="192.0.2.10",
+        )
+        readiness = self.payload()
+        with (
+            patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
+                0, json.dumps(readiness), ""
+            )),
+            patch("dt_master.runtime_adapters.docker.run_trusted_helper", return_value=(
+                0, json.dumps(self.helper_self_test()), ""
+            )) as trusted_helper,
+        ):
+            result = adapter._privilege_readiness(node)
+
+        self.assertEqual(result["status"], "Ready")
+        trusted_helper.assert_called_once_with(
+            node,
+            adapter._ssh_config(node),
+            {"schema_version": "1.0.0", "operation": "self_test"},
+            timeout_seconds=20,
+            max_output_bytes=8192,
+        )
+
+    def test_non_ready_probe_does_not_invoke_trusted_helper(self):
+        adapter = DockerRuntimeAdapter()
+        node = SimpleNamespace(
+            name="NODE-0001",
+            ssh_user="deploy",
+            ssh_port=22,
+            ssh_host_alias=None,
+            ip_address="192.0.2.10",
+        )
+        readiness = self.payload()
+        readiness["status"] = "Not Ready"
+        with (
+            patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(
+                0, json.dumps(readiness), ""
+            )),
+            patch("dt_master.runtime_adapters.docker.run_trusted_helper") as trusted_helper,
+        ):
+            result = adapter._privilege_readiness(node)
+
+        self.assertEqual(result["status"], "Not Ready")
+        trusted_helper.assert_not_called()
 
     def test_preflight_blocks_when_privilege_boundary_is_not_ready(self):
         adapter = DockerRuntimeAdapter()
