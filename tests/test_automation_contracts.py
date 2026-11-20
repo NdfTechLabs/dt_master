@@ -375,6 +375,11 @@ class ContractTests(unittest.TestCase):
 		for category, env in environments.items():
 			for wrapper in (SCRIPTS / "bin" / category).glob("*.sh"):
 				calls = re.findall(r"^([a-z]+::[a-z_]+)\s*$", wrapper.read_text(), re.M)
+				if not calls:
+					# Host runtime inspection is a standalone, read-only probe rather
+					# than a legacy library wrapper with a namespaced function.
+					self.assertEqual(wrapper.name, "inspect_host_runtime.sh", str(wrapper))
+					continue
 				self.assertEqual(len(calls), 1, str(wrapper))
 				output = subprocess.run(
 					["bash", "-c", bootstrap, "contract", str(SCRIPTS / "lib"), calls[0]],
@@ -797,6 +802,8 @@ class ContractTests(unittest.TestCase):
 		node = self.docs["node"]
 		before = (node.state, node.status)
 		snapshot = self.nodes._docker_failure_snapshot("Partial", "one optional probe unavailable")
+		# A legacy snapshot readiness field is accepted for compatibility but
+		# must never override DT Master's independent readiness evaluation.
 		snapshot["readiness"] = "Degraded"
 		with patch.object(
 			self.nodes, "run_remote_script", return_value=(0, json.dumps(snapshot), "")
@@ -806,13 +813,17 @@ class ContractTests(unittest.TestCase):
 		self.assertEqual(args[2:4], ("docker", "inspect_docker.sh"))
 		self.assertFalse(kwargs["use_sudo"])
 		self.assertEqual(result["inspection_status"], "Partial")
-		self.assertEqual(result["readiness"], "Degraded")
+		self.assertEqual(result["readiness"], "Unknown")
+		self.assertEqual(
+			result["readiness_evaluation"]["diagnostics"][0]["code"],
+			"DOCKER_READINESS_REQUIREMENTS_UNCONFIGURED",
+		)
 		self.assertEqual((node.state, node.status), before)
 		self.assertEqual(node.node_action_logs[-1]["action_type"], "Docker Inspection")
 		self.assertEqual(node.node_action_logs[-1]["state_before"], node.node_action_logs[-1]["state_after"])
 		values = self.frappe.db.set_value.call_args.args[2]
 		self.assertEqual(values["docker_inspection_status"], "Partial")
-		self.assertEqual(values["docker_readiness"], "Degraded")
+		self.assertEqual(values["docker_readiness"], "Unknown")
 
 	def test_docker_inspection_api_records_timeout_without_changing_node_state(self):
 		node = self.docs["node"]
