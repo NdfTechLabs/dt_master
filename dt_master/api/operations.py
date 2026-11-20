@@ -142,6 +142,7 @@ def _operation_summary(row):
         "modified": str(row.modified) if row.modified else None,
         "error_code": row.error_code,
         "error_summary": row.error_summary,
+        "result": frappe.parse_json(row.result_payload) if row.result_payload else None,
     }
 
 
@@ -151,8 +152,9 @@ def get_operations(active_limit=50, recent_limit=20):
 
     Human users see their own operations. System Managers may see platform-wide
     operations, matching the single-operation read authorization policy.
-    Request/result payloads, execution identity, lock metadata and internal
-    diagnostics are deliberately excluded.
+    Request payloads, execution identity, lock metadata and internal
+    diagnostics are deliberately excluded. The bounded structured result is
+    included for authorized users so completed work can be inspected.
     """
     if frappe.session.user == "Guest":
         frappe.throw(_("Authentication is required to view operations."), frappe.PermissionError)
@@ -195,6 +197,7 @@ def get_operations(active_limit=50, recent_limit=20):
         "modified",
         "error_code",
         "error_summary",
+        "result_payload",
     ]
 
     active_rows = frappe.get_all(

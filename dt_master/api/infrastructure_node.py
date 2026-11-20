@@ -1,11 +1,13 @@
 import datetime
 import json
+import uuid
 
 import frappe
 from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import framework_environment, parse_output, run_remote_script, secret
 from dt_master.docker_readiness import evaluate_node_docker_readiness
+from dt_master.operations.coordinator import start_operation
 
 ALLOWED_TRANSITIONS = {
 	"Declared": ["SSH Ready", "Error"],
@@ -1167,3 +1169,24 @@ def inspect_docker_runtime(node_name):
 		"readiness_evaluation": evaluation,
 		"snapshot": snapshot,
 	}
+
+
+@frappe.whitelist(methods=["POST"])
+def check_system_status(node_name):
+	"""Queue a read-only Host inspection through the durable operation manager."""
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before system inspection.")
+	return start_operation(
+		operation_type="runtime.adapter.inspect",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={
+			"adapter_id": "host-v1",
+			"runtime_type": "host",
+			"method": "inspect",
+			"payload": {},
+		},
+		idempotency_key=f"host-inspect:{node.name}:{uuid.uuid4()}",
+	)

@@ -36,6 +36,31 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertFalse(node.docker_min_cpu_cores)
 		self.assertFalse(node.docker_min_engine_version)
 
+	def test_new_node_accepts_default_host_discovery_state(self):
+		node = self._new_node()
+		self.assertEqual(node.host_discovery_status, "Not Discovered")
+		self.assertFalse(node.host_discovered_on)
+		self.assertFalse(node.host_discovery_snapshot)
+		node.validate()
+
+	def test_new_node_rejects_client_supplied_host_discovery_snapshot(self):
+		node = self._new_node()
+		node.host_discovery_snapshot = '{"schema_version":"2.0.0"}'
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+	def test_new_node_rejects_client_supplied_host_discovery_status(self):
+		node = self._new_node()
+		node.host_discovery_status = "Successful"
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+	def test_new_node_rejects_client_supplied_host_discovery_timestamp(self):
+		node = self._new_node()
+		node.host_discovered_on = "2026-11-20 17:00:00"
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
 	def test_new_node_rejects_severity_without_requirement(self):
 		node = self._new_node()
 		node.docker_engine_severity = "Required"

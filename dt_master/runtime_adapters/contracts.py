@@ -23,6 +23,9 @@ MAX_REQUEST_BYTES = 65536
 MAX_RESULT_BYTES = 65536
 _MAX_DIAGNOSTICS = 100
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,139}$")
+# Frappe document names may be human-readable and contain spaces or punctuation.
+# Keep them bounded and reject control characters without imposing an identifier alphabet.
+_TARGET_NAME = re.compile(r"^[^\x00-\x1f\x7f]{1,140}$")
 _ADAPTER_ID = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _SECRET_KEY_PARTS = ("password", "token", "secret", "private_key", "credential")
 _FORBIDDEN_INPUT_KEYS = frozenset({
@@ -175,6 +178,14 @@ class RuntimeAdapterResult:
         }
 
 
+def _valid_target_name(value):
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and bool(_TARGET_NAME.fullmatch(value))
+    )
+
+
 def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterRequest:
     if isinstance(request, dict):
         try:
@@ -191,7 +202,7 @@ def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterReq
         raise ValueError("Unsupported runtime type")
     if not isinstance(request.target_doctype, str) or not request.target_doctype.strip():
         raise ValueError("Target DocType is required")
-    if not isinstance(request.target_name, str) or not _ID.fullmatch(request.target_name):
+    if not _valid_target_name(request.target_name):
         raise ValueError("Invalid target name")
     if not isinstance(request.method, str) or request.method not in ADAPTER_METHODS:
         raise ValueError("Unsupported adapter method")
@@ -208,10 +219,18 @@ def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterReq
         missing = [key for key, value in required.items() if not isinstance(value, str) or not value.strip()]
         if missing:
             raise ValueError("Mutating adapter requests require coordinator identity fields: " + ", ".join(missing))
-    for field_name in ("operation_id", "correlation_id", "initiated_by", "execution_identity", "idempotency_key"):
+    for field_name in ("operation_id", "correlation_id", "initiated_by", "execution_identity"):
         value = getattr(request, field_name)
         if value is not None and (not isinstance(value, str) or not _ID.fullmatch(value)):
             raise ValueError(f"Invalid {field_name}")
+    idempotency_key = request.idempotency_key
+    if idempotency_key is not None and (
+        not isinstance(idempotency_key, str)
+        or not idempotency_key.strip()
+        or len(idempotency_key) > 140
+        or any(ord(character) < 32 or ord(character) == 127 for character in idempotency_key)
+    ):
+        raise ValueError("Invalid idempotency_key")
     encoded = json.dumps(request.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
     if len(encoded.encode("utf-8")) > MAX_REQUEST_BYTES:
         raise ValueError("Adapter request exceeds the 64 KiB contract limit")
@@ -238,7 +257,7 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
         raise ValueError("Invalid result runtime type")
     if not isinstance(result.method, str) or result.method not in ADAPTER_METHODS:
         raise ValueError("Invalid result method")
-    if not isinstance(result.target_doctype, str) or not result.target_doctype.strip() or not isinstance(result.target_name, str) or not _ID.fullmatch(result.target_name):
+    if not isinstance(result.target_doctype, str) or not result.target_doctype.strip() or not _valid_target_name(result.target_name):
         raise ValueError("Invalid result target identity")
     if not isinstance(result.outcome, str) or result.outcome not in OUTCOMES:
         raise ValueError("Invalid adapter result outcome")

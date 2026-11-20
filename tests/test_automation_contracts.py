@@ -64,6 +64,9 @@ class ContractTests(unittest.TestCase):
 		self.docs["tenant"].installed_apps = [self.docs["app"]]
 		self.docs["mail_server"].mail_users = [self.docs["mail_user"]]
 		self.frappe = types.ModuleType("frappe")
+		# Production modules may import Frappe translation helpers during import.
+		# Keep this isolated contract suite runnable without a live Frappe runtime.
+		self.frappe._ = lambda message: message
 		self.frappe.ValidationError = ValueError
 		self.frappe.whitelist = lambda *a, **kw: lambda fn: fn
 		self.frappe.throw = Mock(side_effect=ValueError)

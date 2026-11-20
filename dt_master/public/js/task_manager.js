@@ -168,6 +168,7 @@
 					creation: current.creation || operation.creation || operation.started_on || null,
 					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
 					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+					result: operation.result ?? current.result ?? null,
 					event_history: current.event_history || [],
 				});
 				this.realtimeDiscovered.add(operationId);
@@ -250,6 +251,7 @@
 			}
 			this.lastSequences.set(operationId, sequence);
 			this.render();
+			if (event.event_type === "completed") this.loadOperation(operationId);
 		}
 
 		setCollapsed(collapsed) {
@@ -480,6 +482,19 @@
 				});
 				history.appendChild(list);
 				card.appendChild(history);
+			}
+			if (operation.result && typeof operation.result === "object") {
+				const resultDetails = document.createElement("details");
+				resultDetails.className = "dt-task-manager__history";
+				const resultSummary = document.createElement("summary");
+				resultSummary.textContent = __("Execution result");
+				const resultBody = document.createElement("pre");
+				resultBody.className = "dt-task-manager__result";
+				resultBody.textContent = JSON.stringify(operation.result, null, 2);
+				resultBody.style.whiteSpace = "pre-wrap";
+				resultBody.style.overflowWrap = "anywhere";
+				resultDetails.append(resultSummary, resultBody);
+				card.appendChild(resultDetails);
 			}
 			if (timestamp) {
 				const time = document.createElement("time");

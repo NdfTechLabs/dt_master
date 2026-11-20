@@ -19,6 +19,10 @@
   "ram_gb",
   "storage_gb",
   "max_sites",
+  "host_discovery_section",
+  "host_discovery_status",
+  "host_discovered_on",
+  "host_discovery_snapshot",
   "docker_inspection_section",
   "docker_readiness_requirements_section",
   "docker_engine_required",
@@ -131,6 +135,34 @@
    "fieldname": "max_sites",
    "fieldtype": "Int",
    "label": "Max Sites"
+  },
+  {
+   "fieldname": "host_discovery_section",
+   "fieldtype": "Section Break",
+   "label": "Host Discovery",
+   "description": "Latest read-only inventory of the VPS itself. Separate from Docker readiness, Bench ownership and lifecycle state."
+  },
+  {
+   "fieldname": "host_discovery_status",
+   "fieldtype": "Select",
+   "label": "Discovery Status",
+   "options": "Not Discovered\nSuccessful\nPartial\nFailed",
+   "default": "Not Discovered",
+   "read_only": 1
+  },
+  {
+   "fieldname": "host_discovered_on",
+   "fieldtype": "Datetime",
+   "label": "Last Discovered On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "host_discovery_snapshot",
+   "fieldtype": "Code",
+   "label": "Host Discovery Snapshot",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Versioned read-only Host inventory, including compute, storage, network, OS, tools and service observations. Contract: docs/migrations/schemas/infrastructure-node-host-discovery-v2.schema.json."
   },
   {
    "fieldname": "docker_inspection_section",

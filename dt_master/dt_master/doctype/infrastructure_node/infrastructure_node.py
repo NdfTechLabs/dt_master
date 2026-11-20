@@ -22,6 +22,18 @@ DOCKER_INSPECTION_FIELDS = (
 	"docker_readiness_evaluation",
 )
 
+HOST_DISCOVERY_FIELDS = (
+	"host_discovery_status",
+	"host_discovered_on",
+	"host_discovery_snapshot",
+)
+
+HOST_DISCOVERY_DEFAULTS = {
+	"host_discovery_status": "Not Discovered",
+	"host_discovered_on": None,
+	"host_discovery_snapshot": None,
+}
+
 DOCKER_INSPECTION_DEFAULTS = {
 	"docker_inspection_status": "Not Inspected",
 	"docker_readiness": "Unknown",
@@ -34,6 +46,7 @@ DOCKER_INSPECTION_DEFAULTS = {
 class InfrastructureNode(Document):
 	def validate(self):
 		self._prevent_direct_docker_inspection_updates()
+		self._prevent_direct_host_discovery_updates()
 		self._validate_docker_readiness_requirements()
 
 	def on_update(self):
@@ -103,6 +116,29 @@ class InfrastructureNode(Document):
 				title=frappe._("Invalid Docker Readiness Requirements"),
 			)
 
+
+	def _prevent_direct_host_discovery_updates(self):
+		"""Keep Host discovery evidence server-managed, like Docker inspection evidence."""
+		previous = self.get_doc_before_save()
+		if previous:
+			changed_fields = [
+				field for field in HOST_DISCOVERY_FIELDS
+				if self._normalize_inspection_value(field, self.get(field))
+				!= self._normalize_inspection_value(field, previous.get(field))
+			]
+		else:
+			changed_fields = [
+				field for field, default in HOST_DISCOVERY_DEFAULTS.items()
+				if self.get(field) not in (None, "", default)
+			]
+		if changed_fields:
+			frappe.throw(
+				frappe._("Host discovery fields are managed by the server-side inspection service: {0}").format(
+					", ".join(changed_fields)
+				),
+				title=frappe._("Read-only Host Discovery Data"),
+			)
+
 	def _prevent_direct_docker_inspection_updates(self):
 		"""Keep inspection evidence server-managed, not user-editable DocType data."""
 		previous = self.get_doc_before_save()
@@ -134,7 +170,9 @@ class InfrastructureNode(Document):
 		"""Normalize equivalent Frappe form and database representations."""
 		if value in (None, "") and field in ("docker_inspection_status", "docker_readiness"):
 			return DOCKER_INSPECTION_DEFAULTS[field]
-		if field == "docker_inspected_on" and value:
+		if value in (None, "") and field in ("host_discovery_status", "host_discovery_snapshot"):
+			return HOST_DISCOVERY_DEFAULTS[field]
+		if field in ("docker_inspected_on", "host_discovered_on") and value:
 			# Form submissions may carry a datetime as a string while the
 			# database-loaded document exposes a Python datetime object.
 			return get_datetime(value)
