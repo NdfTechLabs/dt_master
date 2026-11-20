@@ -22,7 +22,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
     runtime_type = "docker"
 
     def capabilities(self):
-        return ("inspect", "preflight", "updates_check")
+        return ("inspect", "preflight", "updates_check", "verify")
 
     @staticmethod
     def _node_for_request(request):
@@ -197,6 +197,85 @@ class DockerRuntimeAdapter(RuntimeAdapter):
         return self.result_for(
             request, outcome=outcome, observed_state=payload["overall_status"],
             capabilities=self.capabilities(), data={"update_check": payload}, duration_ms=elapsed,
+        )
+
+    def _verify(self, request, execution_context=None):
+        """Verify Docker CLI, Engine and Compose v2 from one read-only inspection."""
+        inspection = self._inspect(request, execution_context=execution_context)
+        snapshot = inspection.data["snapshot"]
+        cli = snapshot["docker_cli"]
+        engine = snapshot["engine"]
+        compose = snapshot["compose"]
+
+        failures = []
+        incomplete = []
+
+        if cli["installed"] is False:
+            failures.append(("DOCKER_CLI_NOT_INSTALLED", "Docker CLI is not installed."))
+        elif not cli["path"] or not cli["client_version"]:
+            incomplete.append(("DOCKER_CLI_DETAILS_INCOMPLETE", "Docker CLI installation details could not be verified."))
+
+        if engine["availability"] in {"Not Installed", "Unavailable"}:
+            failures.append(("DOCKER_ENGINE_UNAVAILABLE", "Docker Engine is not available."))
+        elif engine["availability"] == "Unknown":
+            incomplete.append(("DOCKER_ENGINE_STATUS_UNKNOWN", "Docker Engine availability could not be determined."))
+        elif not engine["server_version"]:
+            incomplete.append(("DOCKER_ENGINE_VERSION_UNKNOWN", "Docker Engine server version could not be verified."))
+
+        if compose["installed"] is False or compose["compatibility"] == "Unavailable":
+            failures.append(("DOCKER_COMPOSE_NOT_INSTALLED", "Docker Compose v2 plugin is not available."))
+        elif compose["compatibility"] == "Incompatible":
+            failures.append(("DOCKER_COMPOSE_INCOMPATIBLE", "Docker Compose v2 is reported as incompatible."))
+        elif compose["compatibility"] == "Unknown" or not compose["version"]:
+            incomplete.append(("DOCKER_COMPOSE_STATUS_UNKNOWN", "Docker Compose v2 installation could not be fully verified."))
+
+        if snapshot["inspection_status"] != "Successful":
+            incomplete.append(("DOCKER_INSPECTION_INCOMPLETE", "The underlying Docker inspection was not complete."))
+
+        diagnostics = list(inspection.diagnostics)
+        diagnostics.extend(
+            {"code": code, "severity": "error", "message": message}
+            for code, message in failures
+        )
+        diagnostics.extend(
+            {"code": code, "severity": "warning", "message": message}
+            for code, message in incomplete
+        )
+
+        if failures:
+            outcome, state = "failed", "Not Verified"
+        elif incomplete:
+            outcome, state = "partial", "Incomplete"
+        else:
+            outcome, state = "succeeded", "Verified"
+
+        return self.result_for(
+            request,
+            outcome=outcome,
+            observed_state=state,
+            capabilities=self.capabilities(),
+            diagnostics=tuple(diagnostics[:100]),
+            data={
+                "verification_status": state,
+                "inspection_status": snapshot["inspection_status"],
+                "components": {
+                    "docker_cli": {
+                        "installed": cli["installed"],
+                        "path": cli["path"],
+                        "client_version": cli["client_version"],
+                    },
+                    "engine": {
+                        "availability": engine["availability"],
+                        "server_version": engine["server_version"],
+                    },
+                    "compose": {
+                        "installed": compose["installed"],
+                        "version": compose["version"],
+                        "compatibility": compose["compatibility"],
+                    },
+                },
+            },
+            duration_ms=inspection.duration_ms,
         )
 
     def _preflight(self, request, execution_context=None):
