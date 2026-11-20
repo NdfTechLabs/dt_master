@@ -97,12 +97,28 @@ def parse_dns():
     return values
 
 
+def systemctl_state(action, name):
+    try:
+        result = subprocess.run(
+            ["systemctl", action, name], capture_output=True, text=True,
+            timeout=3, check=False,
+        )
+        # systemctl returns non-zero for valid states such as inactive,
+        # disabled and not-found. Preserve stdout instead of treating those
+        # observations as command failures.
+        return (result.stdout or result.stderr).strip() or "unknown"
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+
+
 def service_state(name):
     if not shutil.which("systemctl"):
         return {"manager": "unknown", "active": "unknown", "enabled": "unknown"}
-    active = command(["systemctl", "is-active", name], timeout=3) or "unknown"
-    enabled = command(["systemctl", "is-enabled", name], timeout=3) or "unknown"
-    return {"manager": "systemd", "active": active, "enabled": enabled}
+    return {
+        "manager": "systemd",
+        "active": systemctl_state("is-active", name),
+        "enabled": systemctl_state("is-enabled", name),
+    }
 
 
 def parse_cpu_topology():
