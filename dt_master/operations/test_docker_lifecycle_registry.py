@@ -27,6 +27,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
             "host.node.docker.inspect",
             "host.node.docker.preflight",
             "host.node.docker.updates.check",
+            "host.node.docker.verify",
         ):
             definition = get_operation(operation_type)
             operation = SimpleNamespace(operation_type=operation_type)
