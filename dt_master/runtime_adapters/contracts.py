@@ -219,10 +219,18 @@ def validate_request(request: RuntimeAdapterRequest | dict) -> RuntimeAdapterReq
         missing = [key for key, value in required.items() if not isinstance(value, str) or not value.strip()]
         if missing:
             raise ValueError("Mutating adapter requests require coordinator identity fields: " + ", ".join(missing))
-    for field_name in ("operation_id", "correlation_id", "initiated_by", "execution_identity", "idempotency_key"):
+    for field_name in ("operation_id", "correlation_id", "initiated_by", "execution_identity"):
         value = getattr(request, field_name)
         if value is not None and (not isinstance(value, str) or not _ID.fullmatch(value)):
             raise ValueError(f"Invalid {field_name}")
+    idempotency_key = request.idempotency_key
+    if idempotency_key is not None and (
+        not isinstance(idempotency_key, str)
+        or not idempotency_key.strip()
+        or len(idempotency_key) > 140
+        or any(ord(character) < 32 or ord(character) == 127 for character in idempotency_key)
+    ):
+        raise ValueError("Invalid idempotency_key")
     encoded = json.dumps(request.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
     if len(encoded.encode("utf-8")) > MAX_REQUEST_BYTES:
         raise ValueError("Adapter request exceeds the 64 KiB contract limit")
