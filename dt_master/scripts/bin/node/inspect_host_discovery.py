@@ -45,7 +45,7 @@ def parse_df():
                 })
             except ValueError:
                 continue
-    return rows
+    return rows[:64]
 
 
 def parse_interfaces():
@@ -69,7 +69,7 @@ def parse_interfaces():
             "mac_address": item.get("address"), "mtu": item.get("mtu"),
             "addresses": addresses,
         })
-    return result
+    return result[:32]
 
 
 def parse_default_routes():
@@ -182,10 +182,10 @@ def main():
             "load_average": load, "uptime_seconds": uptime_seconds,
             "virtualization": virt[:80],
         },
-        "storage": {"filesystems": df, "root_available_bytes": root.get("available_bytes", 0)},
+        "storage": {"filesystems": df, "root_available_bytes": root.get("available_bytes", 0), "root_size_bytes": root.get("size_bytes", 0)},
         "network": {
             "interfaces": parse_interfaces(), "default_routes": parse_default_routes(),
-            "dns_nameservers": parse_dns(), "listening_sockets": listening,
+            "dns_nameservers": parse_dns(), "listening_sockets": listening[:256],
         },
         "tools": tools,
         "services": services,
