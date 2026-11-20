@@ -203,6 +203,34 @@ class ContractTests(unittest.TestCase):
 		self.assertEqual(fields["ssh_host_alias"]["fieldtype"], "Data")
 		self.assertFalse(fields["ssh_host_alias"].get("reqd", 0))
 
+	def test_host_native_form_actions_use_frappe_toolbar_groups(self):
+		for doctype, action_fields in (
+			("infrastructure_node", {
+				"install_dependencies", "install_bench", "initialize_project",
+				"prepare_project", "start_project", "stop_project", "check_system_status",
+			}),
+			("tenant_site", {
+				"create_site", "install_apps", "verify_site", "configure_proxy",
+				"suspend_site", "resume_site", "destroy_site",
+			}),
+		):
+			schema = self.schema(doctype)
+			self.assertFalse(
+				any(
+					field["fieldtype"] == "Button" and field["fieldname"] in action_fields
+					for field in schema["fields"]
+				)
+			)
+			self.assertFalse(action_fields.intersection(schema["field_order"]))
+
+		node_js = (SCHEMAS / "infrastructure_node" / "infrastructure_node.js").read_text()
+		site_js = (SCHEMAS / "tenant_site" / "tenant_site.js").read_text()
+		for group in ('__("Node")', '__("Bench")', '__("Docker")'):
+			self.assertIn(group, node_js)
+		self.assertIn('__("Site")', site_js)
+		self.assertIn("frm.add_custom_button", node_js)
+		self.assertIn("frm.add_custom_button", site_js)
+
 	def test_demo_values_match_doctype_options(self):
 		for key, doctype in (
 			("node", "infrastructure_node"),
