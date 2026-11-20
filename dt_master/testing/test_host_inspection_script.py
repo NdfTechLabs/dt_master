@@ -24,6 +24,15 @@ class TestHostInspectionScript(unittest.TestCase):
 			"memory_bytes=",
 			"root_available_bytes=",
 			"bench_available=",
+			"swap_total_bytes=",
+			"python3_available=",
+			"node_available=",
+			"npm_available=",
+			"yarn_available=",
+			"nginx_available=",
+			"supervisorctl_available=",
+			"redis_cli_available=",
+			"mariadb_available=",
 		):
 			self.assertIn(key, source)
 
