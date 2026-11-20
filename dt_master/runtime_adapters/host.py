@@ -8,6 +8,7 @@ import json
 from time import monotonic
 
 import frappe
+from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import parse_output, run_remote_script
 from dt_master.runtime_adapters.base import RuntimeAdapter
@@ -201,7 +202,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		"""Persist the latest observed snapshot and fill only blank inventory fields."""
 		updates = {
 			"host_discovery_status": "Successful",
-			"host_discovered_on": discovery.get("observed_at"),
+			"host_discovered_on": now_datetime(),
 			"host_discovery_snapshot": json.dumps(discovery, separators=(",", ":"), sort_keys=True),
 		}
 		identity = discovery.get("identity") or {}
@@ -211,7 +212,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		prefill = {
 			"cpu_cores": compute.get("logical_cpu_cores"),
 			"ram_gb": int(compute.get("memory_total_bytes") or 0) // (1024 ** 3),
-			"storage_gb": int(storage.get("root_size_bytes") or 0) // (1024 ** 3),
+			"storage_gb": int(storage.get("disk_total_bytes") or 0) // (1024 ** 3),
 			"os_version": os_info.get("version_id"),
 		}
 		os_type = {"ubuntu": "Ubuntu", "debian": "Debian"}.get(os_info.get("id", "").lower())
