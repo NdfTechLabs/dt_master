@@ -8,6 +8,7 @@ import re
 import shlex
 import signal
 import subprocess
+import tempfile
 from pathlib import PurePosixPath
 from queue import Empty, Queue
 from threading import Thread
@@ -354,3 +355,119 @@ def run_remote_script(
 	final_status = "Completed" if return_code == 0 else ("Timed Out" if return_code == 124 else "Failed")
 	frappe.publish_realtime(event, {**context, "status": final_status}, user=frappe.session.user)
 	return return_code, "\n".join(output["stdout"]), "\n".join(output["stderr"])
+
+
+
+class TrustedHelperExecutionError(RuntimeError):
+	"""Safe error for the fixed trusted-helper transport."""
+
+	def __init__(self, code, message, *, may_have_executed):
+		super().__init__(message)
+		self.code = code
+		self.may_have_executed = bool(may_have_executed)
+
+
+def run_trusted_helper(
+	node,
+	ssh,
+	request,
+	*,
+	timeout_seconds=20,
+	max_output_bytes=8192,
+):
+	"""Invoke only the root-owned Docker helper using its exact sudoers command.
+
+	The helper path, sudo invocation, environment, and protocol allowlist are
+	owned here. Callers can supply only the versioned JSON request object.
+	"""
+	helper_path = "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py"
+	if (
+		not isinstance(request, dict)
+		or set(request) != {"schema_version", "operation"}
+		or request.get("schema_version") != "1.0.0"
+		or request.get("operation") != "self_test"
+	):
+		raise ValueError("Unsupported trusted Docker helper request")
+
+	if not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 120:
+		raise ValueError("Trusted helper timeout must be between 1 and 120 seconds")
+	if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 65536:
+		raise ValueError("Trusted helper output limit must be between 1 and 65536 bytes")
+
+	try:
+		request_bytes = (
+			json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\\n"
+		).encode("utf-8")
+	except (TypeError, ValueError) as exc:
+		raise ValueError("Trusted helper request must be bounded JSON") from exc
+	if len(request_bytes) > 16 * 1024:
+		raise ValueError("Trusted helper request exceeds the 16 KiB limit")
+
+	# The empty argument is intentional: it matches the exact sudoers rule
+	# rendered and verified by the N2.4.3/N2.4.4 privilege boundary.
+	remote_command = f"sudo -n {shlex.quote(helper_path)} \"\""
+	try:
+		command = build_ssh_argv(ssh, remote_command)
+	except Exception as exc:
+		raise TrustedHelperExecutionError(
+			"transport_setup_failed", "Trusted helper SSH configuration is invalid.",
+			may_have_executed=False,
+		) from exc
+
+	with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+		try:
+			proc = subprocess.Popen(
+				command,
+				stdin=subprocess.PIPE,
+				stdout=stdout_file,
+				stderr=stderr_file,
+				start_new_session=True,
+			)
+		except OSError as exc:
+			raise TrustedHelperExecutionError(
+				"transport_start_failed", "Trusted helper SSH process could not be started.",
+				may_have_executed=False,
+			) from exc
+
+		try:
+			proc.communicate(input=request_bytes, timeout=timeout_seconds)
+		except subprocess.TimeoutExpired as exc:
+			try:
+				os.killpg(proc.pid, signal.SIGTERM)
+			except ProcessLookupError:
+				pass
+			try:
+				proc.wait(timeout=5)
+			except subprocess.TimeoutExpired:
+				try:
+					os.killpg(proc.pid, signal.SIGKILL)
+				except ProcessLookupError:
+					pass
+				proc.wait()
+			raise TrustedHelperExecutionError(
+				"execution_timeout",
+				"Trusted helper execution timed out; remote execution outcome is uncertain.",
+				may_have_executed=True,
+			) from exc
+
+		stdout_file.seek(0, os.SEEK_END)
+		stdout_size = stdout_file.tell()
+		stderr_file.seek(0, os.SEEK_END)
+		stderr_size = stderr_file.tell()
+		if stdout_size + stderr_size > max_output_bytes:
+			raise TrustedHelperExecutionError(
+				"output_limit_exceeded", "Trusted helper output exceeded its configured limit.",
+				may_have_executed=True,
+			)
+		stdout_file.seek(0)
+		stderr_file.seek(0)
+		try:
+			stdout = stdout_file.read(max_output_bytes + 1).decode("utf-8")
+			stderr = stderr_file.read(max_output_bytes + 1).decode("utf-8")
+		except UnicodeDecodeError as exc:
+			raise TrustedHelperExecutionError(
+				"invalid_output_encoding", "Trusted helper returned non-UTF-8 output.",
+				may_have_executed=True,
+			) from exc
+
+	return proc.returncode, stdout, stderr
