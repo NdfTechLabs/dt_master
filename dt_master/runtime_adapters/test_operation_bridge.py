@@ -19,7 +19,7 @@ class MutatingTestAdapter(RuntimeAdapter):
     runtime_type = "host"
 
     def capabilities(self):
-        return ("start",)
+        return ("inspect", "start")
 
     def _inspect(self, request, execution_context=None):
         self.last_request = request
