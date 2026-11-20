@@ -1951,3 +1951,24 @@ M4.1 was marked Complete on 2026-11-09 after the architecture, source-audit, doc
 
 **Completion record (2026-11-09):** The platform owner explicitly approved M4.1 after the final acceptance review. All 13 architecture acceptance criteria are satisfied; M4.1 — Integration Contract and Architecture is **Complete**. The owner-confirmed absence of known additional DT Master API consumers outside DT Tenant remains subject to independent runtime, deployment and credential-inventory verification during implementation. Runtime-only Frappe checks and NDF immutable-build/descriptor gaps remain assigned to M4.2–M4.7 and do not reopen M4.1. **Implementation authorization remains NOT GRANTED.** The separate implementation gate remains unchecked. M4.2 has not started.
 
+
+
+## 17. M4.3 candidate/build and NDF catalogue reconciliation
+
+The field-level mapping between the approved Bench Environment model, the existing Extension catalogue, NDF Marketplace App Descriptor, Deployment Candidate, Deployment Build and NDF Product Deployment Descriptor is maintained in:
+
+- [M4.3 — NDF / DT Master Candidate, Build and Bench Environment Mapping](M4.3_NDF_DT_MASTER_CANDIDATE_AND_BUILD_MAPPING.md)
+
+That companion mapping is the detailed cross-repository field contract. Apply it together with this schema specification; it does not replace the approved parent/child DocType definitions in Sections 4–7 or the NDF ownership boundaries in Section 8.
+
+Key reconciliations:
+
+- `Extension` and `Extension Version` remain the application catalogue and release records. Extend them with structured metadata needed to produce the NDF Marketplace App Descriptor; do not repurpose `Tenant Installed App` as a catalogue.
+- `Bench Environment Application` is the complete Bench-level application composition/inventory. `Tenant Installed App` remains the actual app installation state on one Tenant Site.
+- The Bench Environment's `product`, `product_release`, `framework_version` and `runtime_profile` provide the product/runtime inputs for candidate resolution. Product and release are currently identifiers on the target Bench Environment schema; no separate Product or Product Release DocType is assumed by this mapping.
+- `Deployment Candidate` is the immutable full-composition build-input snapshot; `Deployment Candidate Application` captures each resolved app release, descriptor digest and immutable source commit.
+- `Deployment Build` is one asynchronous NDF build attempt and its correlated immutable outputs. Retries create new records. `Bench Deployment` is a separate target-specific deployment attempt and lifecycle record.
+- The DT Master-only link from a Candidate to its Bench Environment is orchestration metadata. It is not serialized into the NDF candidate payload unless the versioned NDF schema explicitly adds that property. Node-specific deployment allocations remain outside the candidate payload.
+- NDF produces the PDD and evidence. DT Master verifies and maps the output into the Build record, Bench application/runtime/service inventories, storage/network allocations and deployment record. A descriptor declaration is not observed runtime state.
+
+**Implementation status:** These are approved target contracts. The corresponding Bench Environment, candidate, build and deployment DocTypes and end-to-end integration must not be described as implemented until source and acceptance evidence establish that status.
