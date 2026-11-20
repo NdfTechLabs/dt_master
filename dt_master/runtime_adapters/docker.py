@@ -22,7 +22,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
     runtime_type = "docker"
 
     def capabilities(self):
-        return ("inspect", "preflight")
+        return ("inspect", "preflight", "updates_check")
 
     @staticmethod
     def _node_for_request(request):
@@ -138,6 +138,65 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             diagnostics=self._diagnostics(snapshot, evaluation),
             data=data,
             duration_ms=snapshot["duration_ms"],
+        )
+
+
+    @staticmethod
+    def _validate_update_check(payload):
+        required = {"schema_version", "observed_at", "package_manager", "metadata", "packages", "overall_status"}
+        if not isinstance(payload, dict) or set(payload) != required or payload["schema_version"] != "1.0.0":
+            raise ValueError("Invalid Docker update-check contract")
+        if payload["package_manager"] not in {"apt", "Unsupported"}:
+            raise ValueError("Unsupported Docker update-check package manager")
+        metadata = payload["metadata"]
+        if not isinstance(metadata, dict) or set(metadata) != {"status", "age_seconds", "newest_index_at"}:
+            raise ValueError("Invalid APT metadata freshness contract")
+        if metadata["status"] not in {"Fresh", "Aging", "Stale", "Unavailable"}:
+            raise ValueError("Invalid APT metadata freshness status")
+        if metadata["age_seconds"] is not None and (not isinstance(metadata["age_seconds"], int) or metadata["age_seconds"] < 0):
+            raise ValueError("Invalid APT metadata age")
+        if not isinstance(payload["packages"], list) or len(payload["packages"]) > 5:
+            raise ValueError("Invalid Docker package update rows")
+        allowed = {"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin", "docker-compose-plugin"}
+        for row in payload["packages"]:
+            if not isinstance(row, dict) or set(row) != {"name", "installed_version", "candidate_version", "candidate_origin", "status"}:
+                raise ValueError("Invalid Docker package update row")
+            if row["name"] not in allowed or row["status"] not in {"Unavailable", "No Candidate", "Not Installed", "Up To Date", "Update Available"}:
+                raise ValueError("Invalid Docker package update row values")
+            for key in ("installed_version", "candidate_version", "candidate_origin"):
+                if row[key] is not None and (not isinstance(row[key], str) or len(row[key]) > 300):
+                    raise ValueError("Invalid Docker package update string")
+        if payload["overall_status"] not in {"Unsupported", "Unknown", "Updates Available", "Partial", "Up To Date", "Metadata Aging"}:
+            raise ValueError("Invalid Docker update-check status")
+        return payload
+
+    def _updates_check(self, request, execution_context=None):
+        started = monotonic()
+        node = self._node_for_request(request)
+        try:
+            code, stdout, _stderr = run_remote_script(
+                node, self._ssh_config(node), "docker", "check_docker_updates.sh", {},
+                "script_execution_log", {"execution": "check_docker_updates.sh", "node": node.name},
+                use_sudo=False, timeout_seconds=45, max_output_bytes=16384,
+            )
+            payload = self._validate_update_check(json.loads(stdout.strip())) if code == 0 else None
+        except (Exception,):
+            payload = None
+        elapsed = min(86400000, int((monotonic() - started) * 1000))
+        if payload is None:
+            payload = {
+                "schema_version": "1.0.0", "observed_at": None, "package_manager": "Unsupported",
+                "metadata": {"status": "Unavailable", "age_seconds": None, "newest_index_at": None},
+                "packages": [], "overall_status": "Unknown",
+            }
+            outcome = "failed"
+        elif payload["overall_status"] in {"Unknown", "Unsupported", "Partial"}:
+            outcome = "partial"
+        else:
+            outcome = "succeeded"
+        return self.result_for(
+            request, outcome=outcome, observed_state=payload["overall_status"],
+            capabilities=self.capabilities(), data={"update_check": payload}, duration_ms=elapsed,
         )
 
     def _preflight(self, request, execution_context=None):
