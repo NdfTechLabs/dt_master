@@ -104,7 +104,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		# Retain the v1 parser during the transition so already-deployed script
 		# bundles can still be inspected while the v2 bundle is rolled out.
 		if discovery:
-				os_info = discovery.get("os") or {}
+			identity = discovery.get("identity") or {}
+			os_info = discovery.get("os") or {}
 			compute = discovery.get("compute") or {}
 			storage = discovery.get("storage") or {}
 			values = {
