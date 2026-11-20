@@ -50,7 +50,7 @@ case "$1 $2" in
     fi
     printf '%s\\n' "2.30.0"
     ;;
-  "ps --all --quiet")
+  "ps --all")
     printf '%s\\n' "container-a" "container-b"
     ;;
   "ps --quiet")
