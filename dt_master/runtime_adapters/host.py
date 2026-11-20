@@ -131,7 +131,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				"cpu_cores": int(values["cpu_cores"]),
 				"memory_bytes": int(values["memory_bytes"]),
 				"root_available_bytes": int(values["root_available_bytes"]),
-			}
+				}
 			if any(value < 0 for value in measurements.values()):
 				raise ValueError("negative measurement")
 		except (TypeError, ValueError):
