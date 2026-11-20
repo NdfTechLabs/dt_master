@@ -194,6 +194,36 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		}
 		if discovery:
 			data["discovery"] = discovery
+			self._persist_discovery_snapshot(node, discovery)
+
+	@staticmethod
+	def _persist_discovery_snapshot(node, discovery):
+		"""Persist the latest observed snapshot and fill only blank inventory fields."""
+		updates = {
+			"host_discovery_status": "Successful",
+			"host_discovered_on": discovery.get("observed_at"),
+			"host_discovery_snapshot": json.dumps(discovery, separators=(",", ":"), sort_keys=True),
+		}
+		identity = discovery.get("identity") or {}
+		os_info = discovery.get("os") or {}
+		compute = discovery.get("compute") or {}
+		storage = discovery.get("storage") or {}
+		prefill = {
+			"cpu_cores": compute.get("logical_cpu_cores"),
+			"ram_gb": int(compute.get("memory_total_bytes") or 0) // (1024 ** 3),
+			"storage_gb": int(storage.get("root_size_bytes") or 0) // (1024 ** 3),
+			"os_version": os_info.get("version_id"),
+		}
+		os_type = {"ubuntu": "Ubuntu", "debian": "Debian"}.get(os_info.get("id", "").lower())
+		if os_type:
+			prefill["os_type"] = os_type
+		for field, value in prefill.items():
+			if value not in (None, "", 0) and not getattr(node, field, None):
+				updates[field] = value
+		# Hostname is retained in the snapshot, not used to rename a managed Node.
+		# Network addresses are also not copied into ip_address: interfaces may
+		# contain private, public, bridge and transient addresses.
+		frappe.db.set_value("Infrastructure Node", node.name, updates, update_modified=False)
 
 		return self.result_for(
 			request,
