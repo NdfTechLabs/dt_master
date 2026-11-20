@@ -145,6 +145,36 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(updates["host_discovery_status"], "Successful")
 		self.assertIn("host_discovery_snapshot", updates)
 
+	def test_prefill_preserves_operator_values_and_treats_zero_as_blank(self):
+		node = SimpleNamespace(
+			name="NODE-0001",
+			cpu_cores=8,
+			ram_gb=16,
+			storage_gb="0",
+			os_type="Debian",
+			os_version="12",
+		)
+		discovery = {
+			"identity": {"hostname": "observed-host"},
+			"os": {"id": "ubuntu", "version_id": "24.04"},
+			"compute": {"logical_cpu_cores": 12, "memory_total_bytes": 32 * 1024**3},
+			"storage": {"disk_total_bytes": 200 * 1024**3},
+		}
+		with patch("dt_master.runtime_adapters.host.frappe.db.set_value") as set_value:
+			HostRuntimeAdapter._persist_discovery_snapshot(node, discovery)
+
+		updates = set_value.call_args.args[2]
+		self.assertNotIn("cpu_cores", updates)
+		self.assertNotIn("ram_gb", updates)
+		self.assertEqual(updates["storage_gb"], 200)
+		self.assertNotIn("os_type", updates)
+		self.assertNotIn("os_version", updates)
+		self.assertIn("host_discovery_snapshot", updates)
+		self.assertEqual(set(updates) - {
+			"host_discovery_status", "host_discovered_on", "host_discovery_snapshot",
+			"storage_gb",
+		}, set())
+
 	def test_fresh_host_is_inspectable_without_bench_project_paths(self):
 		result, run = self._run_inspection(
 			stdout=inspection_output(bench_available="false", python3_available="false", node_available="false")
