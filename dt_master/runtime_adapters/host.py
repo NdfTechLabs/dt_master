@@ -8,7 +8,7 @@ from time import monotonic
 
 import frappe
 
-from dt_master.api.script_contract import parse_output, path_environment, run_remote_script
+from dt_master.api.script_contract import parse_output, run_remote_script
 from dt_master.runtime_adapters.base import RuntimeAdapter
 
 OS_SUPPORT_POLICY_VERSION = "1.0.0"
@@ -169,7 +169,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			"os_support_status": os_support_status,
 			**measurements,
 			"bench_available": values.get("bench_available") == "true",
-			"host_stage": "Provisioned" if values.get("bench_available") == "true" else "Fresh",
+			"host_stage": "Bench CLI Available" if values.get("bench_available") == "true" else "Fresh Host",
 			"swap_total_bytes": int(values.get("swap_total_bytes") or 0),
 			"tools": {
 				key: values.get(f"{key}_available") == "true"
