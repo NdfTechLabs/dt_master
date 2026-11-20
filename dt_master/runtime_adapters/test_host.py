@@ -35,6 +35,15 @@ def inspection_output(**overrides):
 		"memory_bytes": "17179869184",
 		"root_available_bytes": "107374182400",
 		"bench_available": "true",
+		"swap_total_bytes": "2147483648",
+		"python3_available": "true",
+		"node_available": "true",
+		"npm_available": "true",
+		"yarn_available": "false",
+		"nginx_available": "true",
+		"supervisorctl_available": "true",
+		"redis_cli_available": "true",
+		"mariadb_available": "true",
 	}
 	values.update(overrides)
 	return "".join(f"{key}={value}\n" for key, value in values.items())
@@ -47,8 +56,8 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			name="NODE-0001",
 			access_verified=1,
 			scripts_base_dir="/opt/dtsaas/scripts",
-			project_base_dir="/opt/dtsaas",
-			project_logs_dir="/var/log/dtsaas",
+			project_base_dir=None,
+			project_logs_dir=None,
 			ip_address="192.0.2.10",
 			ssh_user="deploy",
 			ssh_port=22,
@@ -77,10 +86,24 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Available")
 		self.assertEqual(result.data["cpu_cores"], 8)
 		self.assertTrue(result.data["bench_available"])
+		self.assertEqual(result.data["host_stage"], "Provisioned")
+		self.assertEqual(result.data["swap_total_bytes"], 2147483648)
+		self.assertTrue(result.data["tools"]["python3"])
+		self.assertFalse(result.data["tools"]["yarn"])
 		self.assertEqual(result.data["os_support_status"], "Supported")
 		self.assertEqual(result.data["architecture"], "amd64")
 		self.assertEqual(run.call_args.kwargs["use_sudo"], False)
 		self.assertEqual(run.call_args.args[2:4], ("node", "inspect_host_runtime.sh"))
+
+	def test_fresh_host_is_inspectable_without_bench_project_paths(self):
+		result, run = self._run_inspection(
+			stdout=inspection_output(bench_available="false", python3_available="false", node_available="false")
+		)
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.data["host_stage"], "Fresh")
+		self.assertFalse(result.data["bench_available"])
+		self.assertFalse(result.data["tools"]["python3"])
+		run.assert_called_once()
 
 	def test_ubuntu_2204_is_supported(self):
 		result, _ = self._run_inspection(
