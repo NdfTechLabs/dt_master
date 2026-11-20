@@ -25,7 +25,7 @@ _MAX_DIAGNOSTICS = 100
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,139}$")
 # Frappe document names may be human-readable and contain spaces or punctuation.
 # Keep them bounded and reject control characters without imposing an identifier alphabet.
-_TARGET_NAME = re.compile(r"^[^\\x00-\\x1f\\x7f]{1,140}$")
+_TARGET_NAME = re.compile(r"^[^\x00-\x1f\x7f]{1,140}$")
 _ADAPTER_ID = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _SECRET_KEY_PARTS = ("password", "token", "secret", "private_key", "credential")
 _FORBIDDEN_INPUT_KEYS = frozenset({
