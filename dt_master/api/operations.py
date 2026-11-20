@@ -142,6 +142,7 @@ def _operation_summary(row):
         "modified": str(row.modified) if row.modified else None,
         "error_code": row.error_code,
         "error_summary": row.error_summary,
+        "result": frappe.parse_json(row.result_payload) if row.result_payload else None,
     }
 
 
@@ -195,6 +196,7 @@ def get_operations(active_limit=50, recent_limit=20):
         "modified",
         "error_code",
         "error_summary",
+        "result_payload",
     ]
 
     active_rows = frappe.get_all(
