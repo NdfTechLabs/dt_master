@@ -133,31 +133,24 @@ frappe.ui.form.on("Infrastructure Node", {
 });
 
 function run_docker_inspection(frm) {
-	const dialog = create_log_dialog("Inspect Docker Runtime");
-	start_execution_log_stream(dialog, frm.doc.name);
-
 	frappe.call({
 		method: "dt_master.api.infrastructure_node.inspect_docker_runtime",
 		args: { node_name: frm.doc.name },
 		freeze: true,
-		freeze_message: __("Inspecting Docker runtime..."),
-		callback: (response) => {
-			const result = response.message || {};
-			const readiness = result.readiness || __("Unknown");
-			const inspection = result.inspection_status || __("Unknown");
+		freeze_message: __("Submitting Docker inspection..."),
+		callback(response) {
+			const operation = response.message || {};
 			frappe.show_alert({
-				message: __("Docker inspection: {0}; readiness: {1}", [inspection, readiness]),
-				indicator: readiness === "Ready" ? "green" : readiness === "Degraded" ? "orange" : "red",
+				message: __("Docker inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+				indicator: "blue",
 			});
-			frm.reload_doc();
 		},
-		error: () => {
+		error() {
 			frappe.msgprint({
-				title: __("Docker Inspection Failed"),
-				message: __("The inspection request failed. Check the Node Action Log and server logs for details."),
+				title: __("Docker Inspection Not Started"),
+				message: __("The Docker inspection could not be queued. Check the server error log."),
 				indicator: "red",
 			});
-			frm.reload_doc();
 		},
 	});
 }
