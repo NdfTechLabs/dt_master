@@ -76,6 +76,61 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             })
         return tuple(diagnostics[:100])
 
+    @staticmethod
+    def _validate_privilege_readiness(payload):
+        required = {"schema_version", "observed_at", "status", "execution_identity", "helper", "sudoers", "checks", "diagnostics"}
+        if not isinstance(payload, dict) or set(payload) != required or payload["schema_version"] != "1.0.0":
+            raise ValueError("Invalid Docker privilege readiness contract")
+        if payload["status"] not in {"Ready", "Not Ready", "Incomplete"}:
+            raise ValueError("Invalid Docker privilege readiness status")
+        if payload["execution_identity"] is not None and (
+            not isinstance(payload["execution_identity"], str) or len(payload["execution_identity"]) > 64
+        ):
+            raise ValueError("Invalid Docker privilege execution identity")
+        if not isinstance(payload["helper"], dict) or set(payload["helper"]) != {"path", "version", "sha256"}:
+            raise ValueError("Invalid Docker helper observation")
+        if not isinstance(payload["sudoers"], dict) or set(payload["sudoers"]) != {"path", "syntax"}:
+            raise ValueError("Invalid Docker sudoers observation")
+        if payload["sudoers"]["syntax"] not in {"Valid", "Invalid"}:
+            raise ValueError("Invalid Docker sudoers syntax status")
+        if not isinstance(payload["checks"], list) or len(payload["checks"]) > 12:
+            raise ValueError("Invalid Docker privilege checks")
+        allowed_checks = {"execution_identity", "helper_integrity", "trusted_directories", "sudoers_policy", "sudoers_syntax", "effective_command", "helper_self_test"}
+        for item in payload["checks"]:
+            if not isinstance(item, dict) or set(item) != {"name", "status"} or item["name"] not in allowed_checks or item["status"] not in {"Passed", "Failed"}:
+                raise ValueError("Invalid Docker privilege check row")
+        if not isinstance(payload["diagnostics"], list) or len(payload["diagnostics"]) > 12:
+            raise ValueError("Invalid Docker privilege diagnostics")
+        for item in payload["diagnostics"]:
+            if not isinstance(item, dict) or set(item) != {"code", "severity", "message"}:
+                raise ValueError("Invalid Docker privilege diagnostic")
+            if item["severity"] not in {"Error", "Warning"} or not isinstance(item["message"], str) or len(item["message"]) > 300:
+                raise ValueError("Invalid Docker privilege diagnostic values")
+        return payload
+
+    def _privilege_readiness(self, node):
+        try:
+            code, stdout, _stderr = run_remote_script(
+                node, self._ssh_config(node), "docker", "check_docker_privilege_readiness.sh",
+                {"EXPECTED_SSH_USER": node.ssh_user},
+                "script_execution_log", {"execution": "check_docker_privilege_readiness.sh", "node": node.name},
+                use_sudo=False, timeout_seconds=20, max_output_bytes=8192,
+            )
+            if code != 0:
+                raise ValueError("Privilege readiness probe did not complete")
+            return self._validate_privilege_readiness(json.loads(stdout.strip()))
+        except Exception:
+            return {
+                "schema_version": "1.0.0", "observed_at": None, "status": "Incomplete",
+                "execution_identity": None,
+                "helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py", "version": None, "sha256": None},
+                "sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Invalid"},
+                "checks": [], "diagnostics": [{
+                    "code": "DOCKER_PRIVILEGE_PROBE_INCOMPLETE", "severity": "Warning",
+                    "message": "Docker privilege readiness could not be fully inspected.",
+                }],
+            }
+
     def _inspect(self, request, execution_context=None):
         from dt_master.api.infrastructure_node import (
             _docker_failure_snapshot,
@@ -120,6 +175,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
                 "Failed", "Docker inspection could not be completed over the configured SSH transport.", elapsed
             )
 
+        privilege_readiness = self._privilege_readiness(node)
         evaluation = evaluate_node_docker_readiness(node, snapshot)
         snapshot, evaluation = self._sanitize_observation_diagnostics(snapshot, evaluation)
         status = snapshot["inspection_status"]
@@ -129,6 +185,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
             "readiness": evaluation["readiness"],
             "readiness_evaluation": evaluation,
             "snapshot": snapshot,
+            "privilege_readiness": privilege_readiness,
         }
         return self.result_for(
             request,
@@ -287,23 +344,31 @@ class DockerRuntimeAdapter(RuntimeAdapter):
     def _preflight(self, request, execution_context=None):
         inspection = self._inspect(request, execution_context=execution_context)
         readiness = inspection.data["readiness"]
-        if inspection.outcome == "failed" or readiness in {"Unknown", "Not Ready"}:
+        privilege = inspection.data["privilege_readiness"]["status"]
+        if inspection.outcome == "failed" or readiness in {"Unknown", "Not Ready"} or privilege == "Not Ready":
             outcome, state = "failed", "Blocked"
-        elif readiness == "Degraded" or inspection.outcome == "partial":
+        elif readiness == "Degraded" or inspection.outcome == "partial" or privilege == "Incomplete":
             outcome, state = "partial", "Degraded"
         else:
             outcome, state = "succeeded", "Ready"
+        privilege_diagnostics = tuple({
+            "code": item["code"],
+            "severity": "error" if item["severity"] == "Error" else "warning",
+            "message": sanitize_diagnostic_message(item["message"]),
+        } for item in inspection.data["privilege_readiness"].get("diagnostics", []))
+        diagnostics = tuple(list(inspection.diagnostics) + list(privilege_diagnostics))[:100]
         return self.result_for(
             request,
             outcome=outcome,
             observed_state=state,
             capabilities=self.capabilities(),
-            diagnostics=inspection.diagnostics,
+            diagnostics=diagnostics,
             data={
                 "preflight_status": state,
                 "inspection_status": inspection.data["inspection_status"],
                 "readiness": readiness,
                 "readiness_evaluation": inspection.data["readiness_evaluation"],
+                "privilege_readiness": inspection.data["privilege_readiness"],
             },
             duration_ms=inspection.duration_ms,
         )
