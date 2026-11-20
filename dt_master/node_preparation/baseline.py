@@ -241,6 +241,24 @@ def validate_baseline_preparation_plan(plan: dict) -> None:
         raise BaselinePolicyError("Unsupported preparation plan schema version")
     if plan["policy"] != {"id": POLICY_ID, "version": POLICY_VERSION}:
         raise BaselinePolicyError("Unsupported baseline policy")
+    target = plan["target"]
+    if (
+        not isinstance(target, dict)
+        or set(target) != {"doctype", "name"}
+        or target.get("doctype") != "Infrastructure Node"
+        or not isinstance(target.get("name"), str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,139}", target["name"])
+    ):
+        raise BaselinePolicyError("Invalid Infrastructure Node plan target")
+    observations = plan["observations"]
+    if (
+        not isinstance(observations, dict)
+        or set(observations) != {"host_support", "host_evidence", "docker_evidence"}
+        or observations.get("host_support") not in {"supported", "unsupported", "unknown"}
+        or observations.get("host_evidence") not in {"complete", "incomplete", "invalid"}
+        or observations.get("docker_evidence") not in {"complete", "missing", "incomplete"}
+    ):
+        raise BaselinePolicyError("Invalid baseline observation summary")
     if plan["mode"] != "plan_only" or plan["mutation_authorized"] is not False:
         raise BaselinePolicyError("NP.2 plans must be non-mutating")
     if plan["status"] not in {"blocked", "verification_required"}:
@@ -259,13 +277,32 @@ def validate_baseline_preparation_plan(plan: dict) -> None:
     actual = [{"action_id": item.get("action_id"), "scope": item.get("scope")} for item in plan["actions"]]
     if actual != expected:
         raise BaselinePolicyError("Preparation plan actions do not match the server-owned action catalogue")
+    expected_statuses = {
+        "verify_host_support": {"verified", "blocked"},
+        "verify_host_capacity_evidence": {"evidence_available", "blocked"},
+        "verify_docker_engine": {"evidence_available", "blocked"},
+        "verify_docker_compose": {"evidence_available", "blocked"},
+        "verify_docker_storage": {"evidence_available", "blocked"},
+        "verify_execution_identity": {"requires_verification"},
+    }
     for item in plan["actions"]:
-        if item.get("kind") != "verification" or item.get("status") not in {
-            "verified", "evidence_available", "blocked", "requires_verification"
-        }:
-            raise BaselinePolicyError("Preparation plan contains an invalid or mutating action")
         if set(item) != {"action_id", "scope", "kind", "status", "reason_code"}:
             raise BaselinePolicyError("Preparation action contains unknown properties")
+        if item.get("kind") != "verification" or item.get("status") not in expected_statuses[item["action_id"]]:
+            raise BaselinePolicyError("Preparation plan contains an invalid or mutating action")
+        if not isinstance(item.get("reason_code"), str) or not re.fullmatch(
+            r"[A-Z][A-Z0-9_]{1,63}", item["reason_code"]
+        ):
+            raise BaselinePolicyError("Preparation action reason code is invalid")
+    expected_plan_status = (
+        "blocked"
+        if plan["observations"]["host_support"] != "supported"
+        or plan["observations"]["host_evidence"] != "complete"
+        or plan["observations"]["docker_evidence"] != "complete"
+        else "verification_required"
+    )
+    if plan["status"] != expected_plan_status:
+        raise BaselinePolicyError("Preparation plan status does not match its evidence summary")
     digest = plan["plan_digest"]
     if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
         raise BaselinePolicyError("Invalid preparation plan digest")
