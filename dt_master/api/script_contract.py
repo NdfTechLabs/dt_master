@@ -231,7 +231,7 @@ def run_remote_script(
 	script = PurePosixPath(node.scripts_base_dir) / "bin" / category / script_name
 	env = dict(env, SCRIPTS_BASE_DIR=str(script.parent), SCRIPT_BASE_DIR=str(script.parent))
 	command = build_ssh_argv(ssh, build_remote_command(env, script, use_sudo=use_sudo))
-	if not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 3600:
+	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 3600:
 		raise ValueError("Remote script timeout must be between 1 and 3600 seconds")
 	if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 20_000_000:
 		raise ValueError("Remote script output limit must be between 1 and 20000000 bytes")
@@ -390,7 +390,7 @@ def run_trusted_helper(
 	):
 		raise ValueError("Unsupported trusted Docker helper request")
 
-	if not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 120:
+	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 120:
 		raise ValueError("Trusted helper timeout must be between 1 and 120 seconds")
 	if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 65536:
 		raise ValueError("Trusted helper output limit must be between 1 and 65536 bytes")
