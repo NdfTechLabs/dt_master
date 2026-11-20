@@ -7,7 +7,9 @@ from dt_master.runtime_adapters.base import RuntimeAdapter
 from dt_master.runtime_adapters.contracts import RuntimeAdapterError
 from dt_master.runtime_adapters.operation_bridge import (
     invoke_runtime_mutation,
+    invoke_runtime_observation,
     validate_runtime_mutation_payload,
+    validate_runtime_observation_payload,
 )
 from dt_master.runtime_adapters.registry import clear_registry_for_tests, register_adapter
 
@@ -18,6 +20,16 @@ class MutatingTestAdapter(RuntimeAdapter):
 
     def capabilities(self):
         return ("start",)
+
+    def _inspect(self, request, execution_context=None):
+        self.last_request = request
+        return self.result_for(
+            request,
+            outcome="succeeded",
+            observed_state="Available",
+            capabilities=("inspect",),
+            data={"host_stage": "Fresh"},
+        )
 
     def _start(self, request, execution_context=None):
         self.last_request = request
@@ -76,6 +88,28 @@ class TestRuntimeOperationBridge(unittest.TestCase):
         self.assertEqual(result["target_name"], "NODE-0001")
         self.assertEqual(result["observed_state"], "Running")
         self.assertEqual(result["data"]["fencing_token"], 17)
+
+    def test_durable_observation_uses_worker_identity_and_read_only_method(self):
+        observation = {
+            "adapter_id": "test-host-v1",
+            "runtime_type": "host",
+            "method": "inspect",
+            "payload": {},
+        }
+        result = invoke_runtime_observation(context(), observation)
+        self.assertEqual(result["observed_state"], "Available")
+        self.assertEqual(result["data"]["host_stage"], "Fresh")
+        self.assertEqual(self.adapter.last_request.operation_id, "operation-123")
+
+    def test_observation_bridge_rejects_mutating_methods(self):
+        observation = {
+            "adapter_id": "test-host-v1",
+            "runtime_type": "host",
+            "method": "start",
+            "payload": {},
+        }
+        with self.assertRaisesRegex(ValueError, "read-only"):
+            validate_runtime_observation_payload(observation)
 
     def test_plain_mapping_cannot_authorize_mutation(self):
         with self.assertRaises(RuntimeAdapterError) as raised:
