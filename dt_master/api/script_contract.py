@@ -5,6 +5,7 @@ import codecs
 import json
 import os
 import re
+import resource
 import shlex
 import signal
 import subprocess
@@ -396,7 +397,7 @@ def run_trusted_helper(
 
 	try:
 		request_bytes = (
-			json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\\n"
+			json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
 		).encode("utf-8")
 	except (TypeError, ValueError) as exc:
 		raise ValueError("Trusted helper request must be bounded JSON") from exc
@@ -422,6 +423,9 @@ def run_trusted_helper(
 				stdout=stdout_file,
 				stderr=stderr_file,
 				start_new_session=True,
+				preexec_fn=lambda: resource.setrlimit(
+					resource.RLIMIT_FSIZE, (max_output_bytes, max_output_bytes)
+				),
 			)
 		except OSError as exc:
 			raise TrustedHelperExecutionError(
@@ -454,7 +458,12 @@ def run_trusted_helper(
 		stdout_size = stdout_file.tell()
 		stderr_file.seek(0, os.SEEK_END)
 		stderr_size = stderr_file.tell()
-		if stdout_size + stderr_size > max_output_bytes:
+		if (
+			stdout_size + stderr_size > max_output_bytes
+			or stdout_size >= max_output_bytes
+			or stderr_size >= max_output_bytes
+			or proc.returncode == -getattr(signal, "SIGXFSZ", 25)
+		):
 			raise TrustedHelperExecutionError(
 				"output_limit_exceeded", "Trusted helper output exceeded its configured limit.",
 				may_have_executed=True,
