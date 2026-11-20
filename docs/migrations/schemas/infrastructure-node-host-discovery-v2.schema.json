@@ -27,9 +27,9 @@
     },
     "compute": {
       "type": "object", "additionalProperties": false,
-      "required": ["cpu_model", "logical_cpu_cores", "memory_total_bytes", "memory_available_bytes", "swap_total_bytes", "swap_free_bytes", "load_average", "uptime_seconds", "virtualization"],
+      "required": ["cpu_model", "logical_cpu_cores", "physical_cpu_cores", "memory_total_bytes", "memory_available_bytes", "swap_total_bytes", "swap_free_bytes", "load_average", "uptime_seconds", "virtualization"],
       "properties": {
-        "cpu_model": {"type": "string", "maxLength": 255}, "logical_cpu_cores": {"type": "integer", "minimum": 0},
+        "cpu_model": {"type": "string", "maxLength": 255}, "logical_cpu_cores": {"type": "integer", "minimum": 0}, "physical_cpu_cores": {"type": ["integer", "null"], "minimum": 0},
         "memory_total_bytes": {"type": "integer", "minimum": 0}, "memory_available_bytes": {"type": "integer", "minimum": 0},
         "swap_total_bytes": {"type": "integer", "minimum": 0}, "swap_free_bytes": {"type": "integer", "minimum": 0},
         "load_average": {"type": "array", "items": {"type": "number", "minimum": 0}, "maxItems": 3},
@@ -37,9 +37,9 @@
       }
     },
     "storage": {
-      "type": "object", "additionalProperties": false, "required": ["filesystems", "root_available_bytes", "root_size_bytes"],
+      "type": "object", "additionalProperties": false, "required": ["filesystems", "block_devices", "disk_total_bytes", "root_available_bytes", "root_size_bytes"],
       "properties": {
-        "root_available_bytes": {"type": "integer", "minimum": 0}, "root_size_bytes": {"type": "integer", "minimum": 0},
+        "root_available_bytes": {"type": "integer", "minimum": 0}, "root_size_bytes": {"type": "integer", "minimum": 0}, "disk_total_bytes": {"type": "integer", "minimum": 0}, "block_devices": {"type": "array", "maxItems": 32, "items": {"type": "object"}},
         "filesystems": {"type": "array", "maxItems": 64, "items": {"type": "object", "required": ["filesystem", "type", "size_bytes", "used_bytes", "available_bytes", "used_percent", "mountpoint"], "properties": {
           "filesystem": {"type": "string", "maxLength": 255}, "type": {"type": "string", "maxLength": 40},
           "size_bytes": {"type": "integer", "minimum": 0}, "used_bytes": {"type": "integer", "minimum": 0},
