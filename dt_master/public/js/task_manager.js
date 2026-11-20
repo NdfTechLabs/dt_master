@@ -481,6 +481,19 @@
 				history.appendChild(list);
 				card.appendChild(history);
 			}
+			if (operation.result && typeof operation.result === "object") {
+				const resultDetails = document.createElement("details");
+				resultDetails.className = "dt-task-manager__history";
+				const resultSummary = document.createElement("summary");
+				resultSummary.textContent = __("Execution result");
+				const resultBody = document.createElement("pre");
+				resultBody.className = "dt-task-manager__result";
+				resultBody.textContent = JSON.stringify(operation.result, null, 2);
+				resultBody.style.whiteSpace = "pre-wrap";
+				resultBody.style.overflowWrap = "anywhere";
+				resultDetails.append(resultSummary, resultBody);
+				card.appendChild(resultDetails);
+			}
 			if (timestamp) {
 				const time = document.createElement("time");
 				time.className = "dt-task-manager__time";
