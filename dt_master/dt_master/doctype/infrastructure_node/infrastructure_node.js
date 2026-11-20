@@ -44,7 +44,7 @@ frappe.ui.form.on("Infrastructure Node", {
 			check_system_status: {
 				label: "Check System Status",
 				statuses: ["Provisioning", "Active", "Maintenance"],
-				states: ["SSH Ready", "Healthy", "Running", "Stopped"],
+				states: ["SSH Ready", "Healthy", "Running", "Stopped", "Error"],
 				method: "dt_master.api.infrastructure_node.check_system_status",
 			},
 		};
