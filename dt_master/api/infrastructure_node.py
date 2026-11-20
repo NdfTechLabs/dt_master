@@ -1117,99 +1117,26 @@ def _validate_docker_snapshot(snapshot):
 	return snapshot
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def inspect_docker_runtime(node_name):
-	"""Run fixed, read-only Docker inspection and persist its latest snapshot."""
+	"""Queue read-only Docker inspection through the durable Docker adapter."""
 	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
-	node.check_permission("write")
-	state_before = node.state
-	started = now_datetime()
-	code, stdout, stderr = -1, "", ""
-	status, snapshot = "Failed", None
-	try:
-		code, stdout, stderr = run_remote_script(
-			node,
-			_docker_ssh_config(node),
-			"docker",
-			"inspect_docker.sh",
-			{},
-			"script_execution_log",
-			{"execution": "inspect_docker.sh", "node": node.name},
-			use_sudo=False,
-		)
-		if code == 124:
-			status = "Timed Out"
-			snapshot = _docker_failure_snapshot(
-				status,
-				stderr or "Docker inspection timed out.",
-				int(max(0, (now_datetime() - started).total_seconds() * 1000)),
-			)
-		elif code != 0:
-			status = "Failed"
-			snapshot = _docker_failure_snapshot(
-				status,
-				stderr or stdout or f"Inspection exited with {code}.",
-				int(max(0, (now_datetime() - started).total_seconds() * 1000)),
-			)
-		else:
-			try:
-				snapshot = _validate_docker_snapshot(json.loads(stdout.strip()))
-				status = snapshot["inspection_status"]
-			except (ValueError, TypeError, json.JSONDecodeError) as exc:
-				status = "Failed"
-				snapshot = _docker_failure_snapshot(
-					status,
-					f"Invalid inspection payload: {exc}",
-					int(max(0, (now_datetime() - started).total_seconds() * 1000)),
-				)
-	except Exception as exc:
-		status = "Failed"
-		stderr = (stderr + "\n" + str(exc)).strip()
-		snapshot = _docker_failure_snapshot(
-			status, str(exc), int(max(0, (now_datetime() - started).total_seconds() * 1000))
-		)
-
-	finished = now_datetime()
-	snapshot["inspection_status"] = status
-	evaluation = evaluate_node_docker_readiness(node, snapshot)
-	evaluation_json = json.dumps(evaluation, separators=(",", ":"), sort_keys=True)
-	snapshot_json = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
-	# Persist the observation and its independently evaluated readiness together.
-	# The snapshot contains observations only; readiness lives on the Node and
-	# in docker_readiness_evaluation.
-	frappe.db.set_value(
-		"Infrastructure Node",
-		node.name,
-		{
-			"docker_inspection_status": status,
-			"docker_readiness": evaluation["readiness"],
-			"docker_readiness_evaluation": evaluation_json,
-			"docker_inspected_on": finished,
-			"docker_inspection_snapshot": snapshot_json,
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before Docker inspection.")
+	return start_operation(
+		operation_type="runtime.adapter.inspect",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "inspect",
+			"payload": {},
 		},
-		update_modified=True,
+		idempotency_key=f"docker-inspect:{node.name}:{uuid.uuid4()}",
 	)
-	node.reload()
-	_log_node_action(
-		node=node,
-		action_name="Inspect Docker Runtime",
-		action_type="Docker Inspection",
-		state_before=state_before,
-		state_after=state_before,
-		result=status,
-		exit_code=code,
-		stdout=snapshot_json[:200000],
-		stderr=(stderr or "")[:200000],
-		started_at=started,
-		finished_at=finished,
-	)
-	return {
-		"inspection_status": status,
-		"readiness": evaluation["readiness"],
-		"readiness_evaluation": evaluation,
-		"snapshot": snapshot,
-	}
 
 
 @frappe.whitelist(methods=["POST"])
