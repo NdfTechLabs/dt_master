@@ -73,9 +73,15 @@ class TestBaselinePreparationPlan(unittest.TestCase):
         self.assertEqual(unknown["observations"]["host_support"], "unknown")
 
     def test_missing_or_incomplete_docker_evidence_blocks_plan(self):
-        plan = build_baseline_preparation_plan("NODE-0001", host_observation())
-        self.assertEqual(plan["status"], "blocked")
-        self.assertEqual(plan["observations"]["docker_evidence"], "missing")
+        missing_plan = build_baseline_preparation_plan("NODE-0001", host_observation())
+        self.assertEqual(missing_plan["status"], "blocked")
+        self.assertEqual(missing_plan["observations"]["docker_evidence"], "missing")
+
+        incomplete_plan = build_baseline_preparation_plan(
+            "NODE-0001", host_observation(), {"inspection_status": "Successful"}
+        )
+        self.assertEqual(incomplete_plan["status"], "blocked")
+        self.assertEqual(incomplete_plan["observations"]["docker_evidence"], "incomplete")
 
     def test_successful_evidence_still_requires_execution_identity_verification(self):
         plan = build_baseline_preparation_plan(
