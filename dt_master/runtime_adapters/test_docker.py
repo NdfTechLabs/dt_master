@@ -194,6 +194,20 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         self.assertEqual(result.observed_state, "Incomplete")
         self.assertIn("DOCKER_ENGINE_STATUS_UNKNOWN", {item["code"] for item in result.diagnostics})
 
+    def test_verify_does_not_claim_components_absent_when_inspection_failed(self):
+        snapshot = self._verification_snapshot()
+        snapshot["inspection_status"] = "Failed"
+        snapshot["docker_cli"]["installed"] = False
+        snapshot["engine"]["availability"] = "Unknown"
+        snapshot["compose"]["installed"] = False
+        result = self._run_verify(snapshot)
+        self.assertEqual(result.outcome, "partial")
+        self.assertEqual(result.observed_state, "Incomplete")
+        codes = {item["code"] for item in result.diagnostics}
+        self.assertIn("DOCKER_INSPECTION_INCOMPLETE", codes)
+        self.assertNotIn("DOCKER_CLI_NOT_INSTALLED", codes)
+        self.assertNotIn("DOCKER_COMPOSE_NOT_INSTALLED", codes)
+
     def test_registry_resolves_builtin_docker_adapter(self):
         from dt_master.runtime_adapters.registry import clear_registry_for_tests, resolve_adapter
 
