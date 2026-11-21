@@ -9,6 +9,9 @@ from historical migration and deployment experiments.
   **canonical M4.0–M4.7 milestone tracker**, integration architecture, current
   milestone position and remaining work.
 - [M4.3 — Docker Orchestration Engine workplan](M4.3_DOCKER_ORCHESTRATION_ENGINE_WORKPLAN.md): current M4.3 package sequence, implementation status and acceptance boundaries.
+- [M4.3 — Infrastructure Node Docker lifecycle audit](M4.3_NODE_DOCKER_LIFECYCLE_AUDIT.md): Node-level Docker lifecycle ownership, operation catalogue, security boundaries and N3–N8 acceptance sequence.
+- [M4.3 N3.2 — Docker Engine install preflight and plan](M4.3_N3.2_DOCKER_ENGINE_INSTALL_PREFLIGHT_AND_PLAN.md): accepted read-only inventory, deterministic planner and durable preflight contract.
+- [M4.3 N3.3 — Docker DEB signing-key trust policy](M4.3_N3.3_DOCKER_DEB_SIGNING_KEY_TRUST_POLICY.md): accepted primary/subkey evidence contract, pinned trust anchor, planner enforcement and validation evidence.
 - [M4.3.3 — Durable Operation Foundation acceptance and closure](M4.3.3_ACCEPTANCE_AND_CLOSURE.md): accepted operation coordinator, leases, worker recovery, reconciliation, Task Manager and browser/test evidence.
 - [M4.3.4.1 — Runtime Adapter Contract and Implementation Plan](M4.3.4_RUNTIME_ADAPTER_CONTRACT_AND_IMPLEMENTATION_PLAN.md): versioned Host/Docker adapter boundary, source inventory, sequencing gates and M4.3.4 execution breakdown.
 - [M4.3 — Host-native Runtime Capability Audit](M4.3_HOST_NATIVE_RUNTIME_CAPABILITY_AUDIT.md): completed H1 source inventory, script dependency map, API/UI mapping, reuse/adapt/rewrite decisions and H1–H8 parity plan.
