@@ -240,7 +240,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Check the trusted Docker helper and sudoers boundary without changing node state."""
 		started = monotonic()
 		node = self._node_for_request(request)
-		readiness = self._privilege_readiness(node)
+		readiness = deepcopy(self._privilege_readiness(node))
+		for item in readiness.get("diagnostics", []):
+			item["message"] = sanitize_diagnostic_message(item["message"])
 		status = readiness["status"]
 		outcome = "succeeded" if status == "Ready" else ("failed" if status == "Not Ready" else "partial")
 		diagnostics = tuple(
