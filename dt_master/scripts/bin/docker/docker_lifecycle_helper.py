@@ -228,6 +228,17 @@ def _result(
     return result
 
 
+def _same_plan_decisions(first: dict, second: dict) -> bool:
+    """Compare plan decisions while ignoring the continuously aging APT counter."""
+    left = {key: value for key, value in first.items() if key != "plan_digest"}
+    right = {key: value for key, value in second.items() if key != "plan_digest"}
+    for plan in (left, right):
+        apt = plan.get("apt_metadata")
+        if isinstance(apt, dict):
+            plan["apt_metadata"] = {"status": apt.get("status")}
+    return left == right
+
+
 def _simulate_exact_install(versions: list[str]) -> None:
     argv = [
         "/usr/bin/apt-get", "-s", "--no-install-recommends", "--no-upgrade",
@@ -307,7 +318,7 @@ def _install(request: dict) -> dict:
         raise HelperError("FRESH_INVENTORY_INVALID", "state_validation") from exc
     if (
         fresh_fingerprint != fingerprint
-        or fresh_plan.get("plan_digest") != plan.get("plan_digest")
+        or not _same_plan_decisions(plan, fresh_plan)
         or fresh_plan.get("status") != "ready"
     ):
         raise HelperError("STATE_CHANGED_AFTER_SIMULATION", "state_validation")
