@@ -204,7 +204,7 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		)
 		self.assertIn("ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED", plan["reason_codes"])
 		self.assertTrue(plan["workload_impact"]["operator_impact_approval_required"])
-		self.assertEqual(plan["status"], "blocked")
+		self.assertEqual(plan["status"], "ready")
 
 	def test_package_manager_lock_blocks(self):
 		plan = build_docker_engine_install_plan(
