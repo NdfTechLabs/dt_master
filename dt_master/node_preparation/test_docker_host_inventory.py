@@ -110,7 +110,7 @@ class TestDockerHostInventory(TestCase):
 		}])
 
 	def test_gpg_parser_does_not_promote_subkey_to_primary_key(self):
-		output = "sub:-:4096:1:SUBKEYID:1700000000::::::\\nfpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:"
+		output = "sub:-:4096:1:SUBKEYID:1700000000::::::\nfpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:"
 		fingerprints, primary_keys = PROBE._parse_gpg_key_inventory(output)
 		self.assertEqual(fingerprints, ["0123456789ABCDEF0123456789ABCDEF01234567"])
 		self.assertEqual(primary_keys, [])
