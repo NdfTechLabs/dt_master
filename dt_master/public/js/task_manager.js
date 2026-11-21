@@ -28,6 +28,8 @@
 		"host.node.docker.preflight": __("Run Docker Preflight"),
 		"host.node.docker.updates.check": __("Check Docker Updates"),
 		"host.node.docker.verify": __("Verify Docker Runtime"),
+		"host.node.inspect": __("Inspect Node"),
+		"host.node.connection.check": __("Test Node Connection"),
 		"runtime.adapter.inspect": __("Inspect Runtime Adapter"),
 		"runtime.adapter.mutate": __("Execute Runtime Adapter Mutation"),
 		"test.noop": __("Test Background Operation (No-op)"),
