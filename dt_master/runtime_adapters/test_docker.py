@@ -80,6 +80,52 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
             result = self.adapter.invoke(method, request(method))
         return result, remote
 
+    def test_privilege_check_returns_readiness_and_does_not_run_docker_inventory(self):
+        readiness = {
+            "schema_version": "1.0.0",
+            "observed_at": "2026-11-21T06:00:00Z",
+            "status": "Ready",
+            "execution_identity": "deploy",
+            "helper": {
+                "path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+                "version": "0.1.0",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            },
+            "sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
+            "checks": [{"name": "helper_self_test", "status": "Passed"}],
+            "diagnostics": [],
+        }
+        with (
+            patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+            patch.object(self.adapter, "_privilege_readiness", return_value=readiness) as check,
+            patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
+        ):
+            result = self.adapter.invoke("privilege_check", request("privilege_check"))
+        check.assert_called_once_with(self.node)
+        remote.assert_not_called()
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.observed_state, "Ready")
+        self.assertEqual(result.data["privilege_readiness"]["checks"][0]["name"], "helper_self_test")
+
+    def test_privilege_check_reports_incomplete_without_claiming_ready(self):
+        readiness = {
+            "schema_version": "1.0.0",
+            "observed_at": None,
+            "status": "Incomplete",
+            "execution_identity": None,
+            "helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py", "version": None, "sha256": None},
+            "sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Invalid"},
+            "checks": [],
+            "diagnostics": [{"code": "DOCKER_PRIVILEGE_PROBE_INCOMPLETE", "severity": "Warning", "message": "Probe incomplete."}],
+        }
+        with (
+            patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+            patch.object(self.adapter, "_privilege_readiness", return_value=readiness),
+        ):
+            result = self.adapter.invoke("privilege_check", request("privilege_check"))
+        self.assertEqual(result.outcome, "partial")
+        self.assertEqual(result.observed_state, "Incomplete")
+
     def test_inspection_uses_fixed_read_only_docker_script_without_sudo(self):
         result, remote = self._run()
         self.assertEqual(result.outcome, "succeeded")
@@ -218,7 +264,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
         try:
             adapter = resolve_adapter("docker")
             self.assertEqual(adapter.adapter_id, "docker-compose-v1")
-            self.assertEqual(adapter.capabilities(), ("inspect", "preflight", "updates_check", "verify"))
+            self.assertEqual(adapter.capabilities(), ("inspect", "preflight", "updates_check", "verify", "privilege_check"))
         finally:
             clear_registry_for_tests()
 
