@@ -34,7 +34,7 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			{"confirm": True},
 		)
 
-	 def test_engine_install_requires_only_explicit_confirmation(self):
+	def test_engine_install_requires_only_explicit_confirmation(self):
 		self.assertEqual(
 			validate_docker_lifecycle_payload("host.node.docker.install", {"confirm": True}),
 			{"confirm": True},
