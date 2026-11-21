@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-HELPER_VERSION = "0.2.0"
+HELPER_VERSION = "0.3.0"
 REQUEST_SCHEMA_VERSION = "1.0.0"
 RESULT_SCHEMA_VERSION = "1.0.0"
 MAX_REQUEST_BYTES = 16 * 1024
@@ -99,8 +99,8 @@ def _request(raw: bytes) -> dict:
     if not isinstance(value, dict):
         raise HelperError("REQUEST_NOT_OBJECT", "request_validation")
     if set(value) == {"schema_version", "operation"}:
-        if value.get("schema_version") != REQUEST_SCHEMA_VERSION or value.get("operation") != "self_test":
-            raise HelperError("UNSUPPORTED_SELF_TEST_REQUEST", "request_validation")
+        if value.get("schema_version") != REQUEST_SCHEMA_VERSION or value.get("operation") not in {"self_test", "prepare_repository"}:
+            raise HelperError("UNSUPPORTED_HELPER_REQUEST", "request_validation")
         return value
     required = {
         "schema_version", "operation", "operation_id", "target", "plan",
@@ -174,6 +174,60 @@ def _load_policy():
     import docker_install_inventory
     import docker_install_policy
     return docker_install_inventory, docker_install_policy
+
+
+
+def _prepare_repository() -> dict:
+    """Configure only Docker's pinned official APT repository on supported hosts."""
+    if os.geteuid() != 0:
+        raise HelperError("ROOT_REQUIRED", "host_validation")
+    release = {}
+    try:
+        for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.startswith("#"):
+                key, value = line.split("=", 1)
+                release[key] = value.strip().strip('"').strip("'")
+    except OSError as exc:
+        raise HelperError("OS_IDENTITY_UNAVAILABLE", "host_validation") from exc
+    distro, version, codename = release.get("ID"), release.get("VERSION_ID"), release.get("VERSION_CODENAME")
+    if not codename or not ((distro == "ubuntu" and version in {"22.04", "24.04"}) or (distro == "debian" and version == "12")):
+        raise HelperError("HOST_UNSUPPORTED", "host_validation")
+    code, architecture = _run(["/usr/bin/dpkg", "--print-architecture"])
+    if code or architecture.strip() != "amd64":
+        raise HelperError("HOST_ARCHITECTURE_UNSUPPORTED", "host_validation")
+    code, _ = _run(["/usr/bin/apt-get", "update"], timeout=300)
+    if code:
+        raise HelperError("APT_INITIAL_REFRESH_FAILED", "repository_prepare")
+    code, _ = _run(["/usr/bin/apt-get", "--yes", "--no-install-recommends", "--no-upgrade", "--no-remove", "install", "ca-certificates", "curl", "gnupg"], timeout=300)
+    if code:
+        raise HelperError("APT_PREREQUISITES_FAILED", "repository_prepare")
+    key_url = f"https://download.docker.com/linux/{distro}/gpg"
+    code, _ = _run(["/usr/bin/curl", "--fail", "--silent", "--show-error", "--location", "--proto", "=https", "--tlsv1.2", "--max-time", "30", key_url, "--output", "/tmp/dt-docker-release.asc"], timeout=45)
+    if code:
+        raise HelperError("DOCKER_KEY_DOWNLOAD_FAILED", "repository_prepare")
+    code, key_output = _run(["/usr/bin/gpg", "--batch", "--show-keys", "--with-colons", "/tmp/dt-docker-release.asc"])
+    fingerprints = [fields[9] for line in key_output.splitlines() if (fields := line.split(":"))[0] == "fpr" and len(fields) > 9]
+    if code or not fingerprints or fingerprints[0] != "9DC858229FC7DD38854AE2D88D81803C0EBFCD88":
+        raise HelperError("DOCKER_SIGNING_KEY_FINGERPRINT_MISMATCH", "repository_prepare")
+    keydir = Path("/etc/apt/keyrings")
+    keydir.mkdir(mode=0o755, parents=True, exist_ok=True)
+    keytmp = keydir / ".docker.asc.dt-master.tmp"
+    keytmp.write_bytes(Path("/tmp/dt-docker-release.asc").read_bytes())
+    os.chmod(keytmp, 0o644)
+    os.replace(keytmp, keydir / "docker.asc")
+    source = Path("/etc/apt/sources.list.d/docker.sources")
+    sourcetmp = source.with_name(".docker.sources.dt-master.tmp")
+    sourcetmp.write_text(f"Types: deb\\nURIs: https://download.docker.com/linux/{distro}\\nSuites: {codename}\\nComponents: stable\\nArchitectures: amd64\\nSigned-By: /etc/apt/keyrings/docker.asc\\n", encoding="utf-8")
+    os.chmod(sourcetmp, 0o644)
+    os.replace(sourcetmp, source)
+    code, _ = _run(["/usr/bin/apt-get", "update"], timeout=300)
+    if code:
+        raise HelperError("DOCKER_REPOSITORY_REFRESH_FAILED", "repository_prepare")
+    for package in ENGINE_PACKAGES:
+        code, output = _run(["/usr/bin/apt-cache", "policy", package])
+        if code or "download.docker.com" not in output or "Candidate: (none)" in output:
+            raise HelperError("DOCKER_PACKAGE_CANDIDATE_UNVERIFIED", "repository_prepare")
+    return {"schema_version": RESULT_SCHEMA_VERSION, "helper_version": HELPER_VERSION, "operation": "prepare_repository", "status": "succeeded", "diagnostics": []}
 
 
 def _installed_versions(inventory: dict) -> dict[str, str | None]:
@@ -403,6 +457,11 @@ def main() -> int:
             "effective_uid": os.geteuid(),
             "effective_user": "root" if os.geteuid() == 0 else "non-root",
         }
+    elif request["operation"] == "prepare_repository":
+        try:
+            response = _prepare_repository()
+        except HelperError as exc:
+            response = {"schema_version": RESULT_SCHEMA_VERSION, "helper_version": HELPER_VERSION, "operation": "prepare_repository", "status": "failed", "diagnostics": [exc.code]}
     else:
         try:
             response = _install(request)
