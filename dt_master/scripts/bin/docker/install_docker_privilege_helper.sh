@@ -90,7 +90,9 @@ check_existing() {
 }
 
 check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGACY_HELPER_SHA256" "$OLDER_LEGACY_HELPER_SHA256"
-check_existing "$POLICY_NAME" "$POLICY_SHA256"
+# The currently deployed 0.3.0 helper pinned this exact prior policy digest.
+# Accept it only as an explicit upgrade source; unknown policy files remain protected.
+check_existing "$POLICY_NAME" "$POLICY_SHA256" "3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"
 check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256"
 
 stage_dir="$(sudo -n mktemp -d "${DEST_DIR}/.helper.XXXXXX")" \
