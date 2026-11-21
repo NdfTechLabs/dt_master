@@ -381,12 +381,35 @@ def run_trusted_helper(
 	owned here. Callers can supply only the versioned JSON request object.
 	"""
 	helper_path = "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py"
-	if (
-		not isinstance(request, dict)
-		or set(request) != {"schema_version", "operation"}
-		or request.get("schema_version") != "1.0.0"
-		or request.get("operation") != "self_test"
-	):
+	if not isinstance(request, dict):
+		raise ValueError("Unsupported trusted Docker helper request")
+
+	operation = request.get("operation")
+	if operation == "self_test":
+		if (
+			set(request) != {"schema_version", "operation"}
+			or request.get("schema_version") != "1.0.0"
+		):
+			raise ValueError("Unsupported trusted Docker helper request")
+	elif operation == "install_engine":
+		# Validate the proposed protocol at the protected boundary, but do not
+		# dispatch it until the helper implementation and operation gate are
+		# separately accepted.
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			DockerHelperContractError,
+			validate_install_engine_request,
+		)
+
+		try:
+			validate_install_engine_request(request)
+		except DockerHelperContractError:
+			raise
+		raise TrustedHelperExecutionError(
+			"operation_disabled",
+			"Docker Engine installation is not enabled by this helper version.",
+			may_have_executed=False,
+		)
+	else:
 		raise ValueError("Unsupported trusted Docker helper request")
 
 	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 120:
