@@ -45,7 +45,7 @@ frappe.ui.form.on("Infrastructure Node", {
 				label: "Inspect Node",
 				statuses: ["Provisioning", "Active", "Maintenance"],
 				states: ["SSH Ready", "Healthy", "Running", "Stopped", "Error"],
-				method: "dt_master.api.infrastructure_node.check_system_status",
+				method: "dt_master.api.infrastructure_node.inspect_node",
 			},
 		};
 
@@ -415,7 +415,7 @@ function create_log_dialog(title) {
 }
 
 function run_node_action(frm, label, method) {
-	if (method === "dt_master.api.infrastructure_node.check_system_status") {
+	if (method === "dt_master.api.infrastructure_node.inspect_node") {
 		frappe.call({
 			method,
 			args: { node_name: frm.doc.name },
