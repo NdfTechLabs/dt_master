@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="56d7c1e73c532e7642a691e90c43433690c03bb8fc80abca32c06dd06164cea8"
+readonly HELPER_SHA256="383d25536d84aa7fa74495030afcee4616c24f7c0bc82a2fbf463cd911a9788b"
 readonly PREVIOUS_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
 readonly POLICY_NAME="docker_install_policy.py"
 readonly POLICY_SHA256="23f31009ae54e68550ca9bf3f864d599df6053387812e151b4bc7709f8445f0e"
