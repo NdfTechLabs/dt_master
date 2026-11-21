@@ -20,6 +20,37 @@ def request(method="inspect"):
 	)
 
 
+
+def helper_install_result(status="succeeded", phase="result_verification", exit_code=0):
+	return {
+		"schema_version": "1.0.0",
+		"helper_version": "0.1.0",
+		"operation": "install_engine",
+		"operation_id": "OP-0001",
+		"status": status,
+		"phase": phase,
+		"before_state_fingerprint": "b" * 64,
+		"after_state_fingerprint": "c" * 64,
+		"packages": [
+			{
+				"name": name,
+				"requested_version": "5:29.0.0-1~ubuntu.24.04~noble",
+				"installed_version": "5:29.0.0-1~ubuntu.24.04~noble",
+				"status": "installed",
+			}
+			for name in (
+				"docker-ce",
+				"docker-ce-cli",
+				"containerd.io",
+				"docker-buildx-plugin",
+			)
+		],
+		"package_manager_exit_code": exit_code,
+		"daemon_action": "package_maintainer_scripts",
+		"diagnostics": [],
+	}
+
+
 class TestDockerRuntimeAdapter(unittest.TestCase):
 	def setUp(self):
 		self.adapter = DockerRuntimeAdapter()
@@ -34,6 +65,76 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 			get=lambda field: None,
 		)
+
+
+	def test_helper_success_is_intermediate_until_postcondition_verification(self):
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		result = self.adapter._interpret_install_engine_result(
+			request_obj, helper_install_result()
+		)
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.observed_state, "Awaiting Postcondition Verification")
+		self.assertFalse(result.data["postcondition_verified"])
+		self.assertEqual(result.data["helper_status"], "succeeded")
+
+	def test_helper_pre_mutation_failure_is_a_failed_install(self):
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		result = self.adapter._interpret_install_engine_result(
+			request_obj,
+			helper_install_result("failed_before_mutation", "host_validation", 1),
+		)
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.observed_state, "Install Not Applied")
+
+	def test_helper_uncertain_or_partial_mutation_requires_recovery(self):
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		for status in ("failed_after_mutation", "uncertain"):
+			with self.subTest(status=status):
+				result = self.adapter._interpret_install_engine_result(
+					request_obj,
+					helper_install_result(status, "package_install", 1),
+				)
+				self.assertEqual(result.outcome, "partial")
+				self.assertEqual(result.observed_state, "Recovery Required")
+
+	def test_helper_result_operation_mismatch_is_rejected(self):
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-OTHER",
+			correlation_id="CORR-0001",
+		)
+		with self.assertRaises(ValueError):
+			self.adapter._interpret_install_engine_result(
+				request_obj, helper_install_result()
+			)
 
 	def _snapshot(self, status="Successful"):
 		return {
