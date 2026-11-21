@@ -32,6 +32,7 @@ class TestDockerSudoersPolicy(unittest.TestCase):
         self.assertIn("visudo -cf", source)
         self.assertIn("sudo -n mv", source)
         self.assertIn("sudo -n -l -U", source)
+        self.assertIn('sudo -n -l -U "$username" "$HELPER_PATH" ""', source)
         self.assertIn("Refusing to overwrite an unrecognized sudoers policy", source)
         self.assertIn('sudo -n rm -f -- "$POLICY_FILE"', source)
         self.assertNotIn("NOPASSWD:ALL", source)
