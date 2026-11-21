@@ -65,6 +65,75 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			get=lambda field: None,
 		)
 
+	def test_install_postcondition_verification_is_required_for_success(self):
+		from dt_master.node_preparation.test_docker_install_verification import (
+			helper_result,
+			inventory,
+		)
+
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		result = self.adapter._interpret_install_engine_postcondition(
+			request_obj, helper_result(), inventory()
+		)
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Verified")
+		self.assertTrue(result.data["postcondition_verified"])
+
+	def test_install_postcondition_mismatch_requires_recovery(self):
+		from dt_master.node_preparation.test_docker_install_verification import (
+			helper_result,
+			inventory,
+		)
+
+		observed = inventory()
+		observed["packages"][0]["installed_version"] = "5:28.0.0-1"
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		result = self.adapter._interpret_install_engine_postcondition(
+			request_obj, helper_result(), observed
+		)
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.observed_state, "Recovery Required")
+		self.assertFalse(result.data["postcondition_verified"])
+
+	def test_install_postcondition_incomplete_inspection_requires_recovery(self):
+		from dt_master.node_preparation.test_docker_install_verification import (
+			helper_result,
+			inventory,
+		)
+
+		observed = inventory()
+		observed["docker_engine_health"] = "unavailable"
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			 target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		result = self.adapter._interpret_install_engine_postcondition(
+			request_obj, helper_result(), observed
+		)
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.observed_state, "Recovery Required")
+
 	def test_helper_success_is_intermediate_until_postcondition_verification(self):
 		request_obj = RuntimeAdapterRequest(
 			adapter_id="docker-compose-v1",
