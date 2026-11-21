@@ -344,7 +344,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid trusted Docker helper self-test response")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.2.0"
+			or payload["helper_version"] != "0.3.0"
 			or payload["operation"] != "self_test"
 			or payload["status"] != "ok"
 			or type(payload["effective_uid"]) is not int
