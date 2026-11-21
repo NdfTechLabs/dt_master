@@ -124,6 +124,26 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             {"available": True, "running_containers": 0, "total_containers": 0},
         )
 
+    def test_inventory_does_not_assume_zero_workloads_when_service_is_active(self):
+        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_service_test", inventory_path)
+        inventory_module = importlib.util.module_from_spec(inventory_spec)
+        inventory_spec.loader.exec_module(inventory_module)
+        with (
+            patch.object(inventory_module, "_package_manager", return_value="dpkg"),
+            patch.object(inventory_module, "_os_release", return_value={}),
+            patch.object(inventory_module, "_service_state", return_value={"docker": "active", "containerd": "inactive"}),
+            patch.object(inventory_module, "_workload_summary", return_value={"available": True, "running_containers": 0, "total_containers": 0}),
+            patch.object(inventory_module, "_installed_packages", return_value=[]),
+            patch.object(inventory_module, "_install_inventory", return_value={}),
+            patch.object(inventory_module.shutil, "which", return_value=None),
+        ):
+            snapshot = inventory_module.collect()
+        self.assertEqual(
+            snapshot["workloads"],
+            {"available": False, "running_containers": None, "total_containers": None},
+        )
+
     def test_inventory_fails_closed_when_package_lock_inspector_is_missing(self):
         inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
         inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_lock_test", inventory_path)
