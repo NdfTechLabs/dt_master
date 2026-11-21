@@ -20,7 +20,12 @@ class TestBuiltinRuntimeAdapterConformance(unittest.TestCase):
                 self.assertEqual(adapter.adapter_id, adapter_id)
                 self.assertEqual(adapter.runtime_type, runtime_type)
                 self.assertEqual(adapter.contract_version, "1.0.0")
-                self.assertEqual(adapter.capabilities(), ("inspect", "preflight"))
+                expected_capabilities = (
+                    ("inspect", "preflight")
+                    if runtime_type == "host"
+                    else ("inspect", "preflight", "updates_check", "verify", "privilege_check")
+                )
+                self.assertEqual(adapter.capabilities(), expected_capabilities)
 
     def test_builtins_reject_mutations_before_target_access(self):
         for adapter, adapter_id, runtime_type in self.adapters:
