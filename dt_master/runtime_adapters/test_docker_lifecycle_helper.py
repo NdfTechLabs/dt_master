@@ -1,7 +1,6 @@
 """Focused tests for the standalone trusted Docker lifecycle helper."""
 
 import importlib.util
-import subprocess
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
