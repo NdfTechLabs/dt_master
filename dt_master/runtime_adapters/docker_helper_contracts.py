@@ -79,8 +79,6 @@ def _packages(value: Any, *, result: bool) -> list[dict]:
 				raise DockerHelperContractError("Invalid helper package status")
 			if row["status"] in {"installed", "already_installed"} and installed != requested:
 				raise DockerHelperContractError("Installed helper package version does not match request")
-			if row["status"] == "not_attempted" and installed is None:
-				continue
 		else:
 			version = row["version"]
 			if not isinstance(version, str) or not _PACKAGE_VERSION.fullmatch(version):
