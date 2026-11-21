@@ -42,7 +42,7 @@ frappe.ui.form.on("Infrastructure Node", {
 				method: "dt_master.api.infrastructure_node.stop_project",
 			},
 			check_system_status: {
-				label: "Check System Status",
+				label: "Inspect Node",
 				statuses: ["Provisioning", "Active", "Maintenance"],
 				states: ["SSH Ready", "Healthy", "Running", "Stopped", "Error"],
 				method: "dt_master.api.infrastructure_node.check_system_status",
@@ -58,6 +58,13 @@ frappe.ui.form.on("Infrastructure Node", {
 				);
 			}
 		});
+		if (frappe.user_roles.includes("System Manager") && frm.doc.access_verified) {
+			frm.add_custom_button(
+				__("Test Node Connection"),
+				() => test_node_connection(frm),
+				__("Node")
+			);
+		}
 		render_docker_readiness_summary(frm);
 
 		if (frappe.user_roles.includes("System Manager")) {
@@ -175,6 +182,31 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 	},
 });
+
+function test_node_connection(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.test_node_connection",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Queueing SSH connection test..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __("Node connection test queued. Operation: {0}. Follow progress and results in Task Manager.", [
+					operation.operation_id || __("unknown")
+				]),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Node Connection Test Not Started"),
+				message: __("The SSH connection test could not be queued. Check the server error log."),
+				indicator: "red",
+			});
+		},
+	});
+}
 
 function run_docker_privilege_bootstrap(frm) {
 	frappe.call({
