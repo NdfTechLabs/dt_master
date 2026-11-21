@@ -12,7 +12,18 @@ import re
 from typing import Any
 
 POLICY_ID = "docker-engine-install"
-POLICY_VERSION = "1.0.0"
+POLICY_VERSION = "1.1.0"
+SIGNING_KEY_POLICY_VERSION = "1.0.0"
+DOCKER_DEB_SIGNING_KEY_FINGERPRINT = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+DOCKER_DEB_SIGNING_KEY_IDENTITY = "Docker Release (CE deb) <docker@docker.com>"
+DOCKER_DEB_KEY_URLS = {
+	"ubuntu": "https://download.docker.com/linux/ubuntu/gpg",
+	"debian": "https://download.docker.com/linux/debian/gpg",
+}
+DOCKER_SIGNING_KEY_ROTATION_POLICY = (
+	"Primary-key rotation requires a reviewed policy-version change; signing-subkey rollover "
+	"under the pinned primary key is permitted after GnuPG validates the key structure."
+)
 PLAN_SCHEMA_VERSION = "1.0.0"
 SUPPORTED_HOSTS = frozenset(
 	{
@@ -233,16 +244,24 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	if repository["keyring_path"] != DOCKER_KEYRING_PATH:
 		reasons.append("DOCKER_KEYRING_PATH_UNTRUSTED")
 	fingerprints = repository["fingerprints"]
-	if not isinstance(fingerprints, list) or not fingerprints:
+	if not isinstance(fingerprints, list) or any(
+		not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in fingerprints
+	):
+		raise DockerInstallPlanError("Invalid observed signing-key fingerprint")
+	primary_keys = repository.get("primary_keys", [])
+	if not primary_keys:
 		prerequisites.append("verify_and_pin_docker_signing_key")
 		reasons.append("DOCKER_SIGNING_KEY_UNVERIFIED")
 	else:
-		if any(not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in fingerprints):
-			raise DockerInstallPlanError("Invalid observed signing-key fingerprint")
-		# The expected fingerprint is intentionally not guessed in N3.2.
-		# A later reviewed policy constant supplies the comparison before N3.3.
-		prerequisites.append("verify_and_pin_docker_signing_key")
-		reasons.append("DOCKER_SIGNING_KEY_POLICY_PENDING")
+		trusted_key_present = (
+			len(primary_keys) == 1
+			and primary_keys[0]["fingerprint"] == DOCKER_DEB_SIGNING_KEY_FINGERPRINT
+			and primary_keys[0]["identity"] == DOCKER_DEB_SIGNING_KEY_IDENTITY
+			and DOCKER_DEB_SIGNING_KEY_FINGERPRINT in fingerprints
+		)
+		if not trusted_key_present:
+			reasons.append("DOCKER_SIGNING_KEY_MISMATCH")
+	key_url = DOCKER_DEB_KEY_URLS.get(host["id"])
 	root_bytes = _int(storage["root_available_bytes"], "storage.root_available_bytes")
 	cache_bytes = _int(storage["apt_cache_available_bytes"], "storage.apt_cache_available_bytes")
 	if root_bytes < MIN_ROOT_AVAILABLE_BYTES:
@@ -341,6 +360,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 						"DOCKER_REPOSITORY_UNTRUSTED",
 						"DOCKER_SIGNING_KEY_UNVERIFIED",
 						"DOCKER_SIGNING_KEY_POLICY_PENDING",
+						"DOCKER_SIGNING_KEY_UNVERIFIED",
 					}
 				)
 				else "blocked"
@@ -367,6 +387,15 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 			"source_id": repository["source_id"],
 			"keyring_path": repository["keyring_path"],
 			"fingerprint_evidence": "observed" if fingerprints else "missing",
+			"signing_key_policy": {
+				"version": SIGNING_KEY_POLICY_VERSION,
+				"primary_fingerprint": DOCKER_DEB_SIGNING_KEY_FINGERPRINT,
+				"identity": DOCKER_DEB_SIGNING_KEY_IDENTITY,
+				"key_url": key_url,
+				"rotation": DOCKER_SIGNING_KEY_ROTATION_POLICY,
+				"trusted": "DOCKER_SIGNING_KEY_MISMATCH" not in reasons
+				and "DOCKER_SIGNING_KEY_UNVERIFIED" not in reasons,
+			},
 		},
 		"apt_metadata": {"status": apt["status"], "age_seconds": apt["age_seconds"]},
 		"package_manager": {"locked": pm["locked"], "dpkg_audit_clean": pm["dpkg_audit_clean"]},
