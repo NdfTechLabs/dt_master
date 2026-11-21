@@ -88,7 +88,7 @@ def _contains_sensitive_message(message: str) -> bool:
 
 
 def _is_json_value(value: Any) -> bool:
-	if value is None or isinstance(value, (str, bool, int, float)):
+	if value is None or isinstance(value, str | bool | int | float):
 		return not isinstance(value, float) or (value == value and abs(value) != float("inf"))
 	if isinstance(value, list):
 		return all(_is_json_value(item) for item in value)
@@ -304,7 +304,7 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
 		not isinstance(result.observed_at, str) or len(result.observed_at) > 40
 	):
 		raise ValueError("Invalid observation timestamp")
-	if not isinstance(result.diagnostics, (tuple, list)) or len(result.diagnostics) > _MAX_DIAGNOSTICS:
+	if not isinstance(result.diagnostics, tuple | list) or len(result.diagnostics) > _MAX_DIAGNOSTICS:
 		raise ValueError("Invalid or excessive adapter diagnostics")
 	for diagnostic in result.diagnostics:
 		if not isinstance(diagnostic, dict) or set(diagnostic) != {"code", "severity", "message"}:
@@ -320,7 +320,7 @@ def validate_result(result: RuntimeAdapterResult | dict) -> RuntimeAdapterResult
 			raise ValueError("Invalid diagnostic message")
 		if _contains_sensitive_message(message):
 			raise ValueError("Diagnostic message contains credential-like material")
-	if not isinstance(result.capabilities, (tuple, list)) or any(
+	if not isinstance(result.capabilities, tuple | list) or any(
 		not isinstance(item, str) or item not in ADAPTER_METHODS for item in result.capabilities
 	):
 		raise ValueError("Invalid adapter capabilities")
