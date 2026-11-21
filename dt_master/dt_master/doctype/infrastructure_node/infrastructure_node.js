@@ -58,7 +58,10 @@ frappe.ui.form.on("Infrastructure Node", {
 				);
 			}
 		});
-		if (frappe.user_roles.includes("System Manager") && frm.doc.access_verified) {
+		const sshConfigured = Boolean(
+			frm.doc.ssh_host_alias || (frm.doc.ip_address && frm.doc.ssh_user)
+		);
+		if (frappe.user_roles.includes("System Manager") && sshConfigured) {
 			frm.add_custom_button(
 				__("Test Node Connection"),
 				() => test_node_connection(frm),
