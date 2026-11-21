@@ -145,7 +145,8 @@ def _load_policy():
             not path.is_file()
             or path.is_symlink()
             or path.stat().st_uid != 0
-            or path.stat().st_mode & 0o022
+            or path.stat().st_gid != 0
+            or (path.stat().st_mode & 0o777) != 0o755
         ):
             raise HelperError("POLICY_ARTIFACT_UNTRUSTED", "host_validation")
     import docker_install_inventory
@@ -309,6 +310,16 @@ def _install(request: dict) -> dict:
 
 
 def main() -> int:
+    # Ignore caller-controlled Python, locale, APT, and Docker environment.
+    os.environ.clear()
+    os.environ.update({
+        "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+        "LC_ALL": "C",
+        "LANG": "C",
+        "DEBIAN_FRONTEND": "noninteractive",
+        "HOME": "/root",
+        "DOCKER_HOST": "unix:///var/run/docker.sock",
+    })
     raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
     request = _request(raw)
     if request["operation"] == "self_test":
