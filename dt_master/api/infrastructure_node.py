@@ -1223,12 +1223,7 @@ def bootstrap_docker_privileges(node_name):
 		operation_type="host.node.docker.privileges.bootstrap",
 		target_doctype="Infrastructure Node",
 		target_name=node.name,
-		payload={
-			"adapter_id": "docker-compose-v1",
-			"runtime_type": "docker",
-			"method": "bootstrap_privileges",
-			"payload": {},
-		},
+		payload={},
 		idempotency_key=f"docker-privilege-bootstrap:{node.name}:{uuid.uuid4().hex}",
 	)
 
