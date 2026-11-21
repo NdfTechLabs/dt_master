@@ -324,6 +324,8 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 			reasons.append("ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED")
 	elif workloads["running_containers"] is not None or workloads["total_containers"] is not None:
 		raise DockerInstallPlanError("Unavailable workload evidence must not contain counts")
+	else:
+		reasons.append("WORKLOAD_STATE_UNAVAILABLE")
 
 	installed_engine = [packages.get(name) for name in ENGINE_PACKAGES]
 	conflict_rows = [
