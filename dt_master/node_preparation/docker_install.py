@@ -365,7 +365,8 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 				else "blocked"
 			)
 		elif status == "no_op" and any(
-			reason not in {"DOCKER_SIGNING_KEY_POLICY_PENDING", "DOCKER_SIGNING_KEY_UNVERIFIED"} for reason in reasons
+			reason not in {"DOCKER_SIGNING_KEY_POLICY_PENDING", "DOCKER_SIGNING_KEY_UNVERIFIED"}
+			for reason in reasons
 		):
 			status = "blocked"
 	elif status != "no_op":
