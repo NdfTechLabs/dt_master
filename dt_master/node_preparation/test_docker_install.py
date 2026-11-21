@@ -69,6 +69,23 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
         self.assertIn("DOCKER_SIGNING_KEY_POLICY_PENDING", plan["reason_codes"])
         self.assertNotEqual(plan["status"], "ready")
 
+    def test_structured_primary_and_subkey_evidence_is_accepted_without_trusting_it_yet(self):
+        repository = copy.deepcopy(inventory()["repository"])
+        repository["primary_keys"] = [{
+            "fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+            "identity": "Docker Release (CE deb) <docker@docker.com>",
+            "subkey_fingerprints": ["0123456789ABCDEF0123456789ABCDEF01234567"],
+        }]
+        plan = build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
+        self.assertIn("DOCKER_SIGNING_KEY_POLICY_PENDING", plan["reason_codes"])
+        self.assertNotEqual(plan["status"], "ready")
+
+    def test_malformed_structured_key_evidence_is_rejected(self):
+        repository = copy.deepcopy(inventory()["repository"])
+        repository["primary_keys"] = [{"fingerprint": "not-a-fingerprint", "identity": "Docker", "subkey_fingerprints": []}]
+        with self.assertRaises(DockerInstallPlanError):
+            build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
+
     def test_stale_metadata_requires_explicit_preparation(self):
         plan = build_docker_engine_install_plan(
             "NODE-1", inventory(apt_metadata={"status": "Stale", "age_seconds": 900000})
