@@ -226,7 +226,7 @@ def _prepare_repository() -> dict:
             pass
     source = Path("/etc/apt/sources.list.d/docker.sources")
     sourcetmp = source.with_name(".docker.sources.dt-master.tmp")
-    sourcetmp.write_text(f"Types: deb\\nURIs: https://download.docker.com/linux/{distro}\\nSuites: {codename}\\nComponents: stable\\nArchitectures: amd64\\nSigned-By: /etc/apt/keyrings/docker.asc\\n", encoding="utf-8")
+    sourcetmp.write_text(f"Types: deb\nURIs: https://download.docker.com/linux/{distro}\nSuites: {codename}\nComponents: stable\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/docker.asc\n", encoding="utf-8")
     os.chmod(sourcetmp, 0o644)
     os.replace(sourcetmp, source)
     code, _ = _run(["/usr/bin/apt-get", "update"], timeout=300)
