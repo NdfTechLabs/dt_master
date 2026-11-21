@@ -506,15 +506,57 @@
 				card.appendChild(history);
 			}
 			if (operation.result && typeof operation.result === "object") {
+				const failed = ["Failed", "Recovery Required"].includes(operation.execution_state);
 				const resultDetails = document.createElement("details");
 				resultDetails.className = "dt-task-manager__history";
+				// Failure diagnostics must be visible immediately; a collapsed
+				// disclosure made the persisted adapter result look absent.
+				resultDetails.open = failed;
 				const resultSummary = document.createElement("summary");
-				resultSummary.textContent = __("Execution result");
-				const resultBody = document.createElement("pre");
+				resultSummary.textContent = failed ? __("Failure details") : __("Execution result");
+				const resultBody = document.createElement("div");
 				resultBody.className = "dt-task-manager__result";
-				resultBody.textContent = JSON.stringify(operation.result, null, 2);
-				resultBody.style.whiteSpace = "pre-wrap";
-				resultBody.style.overflowWrap = "anywhere";
+				if (failed) {
+					const failure = operation.result.data?.failure;
+					const diagnostics = Array.isArray(operation.result.diagnostics)
+						? operation.result.diagnostics : [];
+					const entries = [];
+					if (failure?.phase) entries.push(__("Phase: {0}", [failure.phase]));
+					if (failure?.reason) entries.push(failure.reason);
+					if (failure?.detail) {
+						entries.push(
+							typeof failure.detail === "object"
+								? JSON.stringify(failure.detail, null, 2)
+								: String(failure.detail)
+						);
+					}
+					if (Array.isArray(failure?.details)) {
+						failure.details.forEach((item) => {
+							if (item?.phase) entries.push(__("Step: {0}", [item.phase]));
+							if (item?.stderr) entries.push(item.stderr);
+							if (item?.reason) entries.push(item.reason);
+							if (item?.exit_code !== undefined) entries.push(__("Exit code: {0}", [item.exit_code]));
+						});
+					}
+					diagnostics.forEach((item) => {
+						if (item?.message) entries.push(item.message);
+					});
+					if (entries.length) {
+						const list = document.createElement("ul");
+						list.className = "dt-task-manager__history-list";
+						entries.forEach((entry) => {
+							const item = document.createElement("li");
+							item.textContent = String(entry);
+							list.appendChild(item);
+						});
+						resultBody.appendChild(list);
+					}
+				}
+				const rawResult = document.createElement("pre");
+				rawResult.textContent = JSON.stringify(operation.result, null, 2);
+				rawResult.style.whiteSpace = "pre-wrap";
+				rawResult.style.overflowWrap = "anywhere";
+				resultBody.appendChild(rawResult);
 				resultDetails.append(resultSummary, resultBody);
 				card.appendChild(resultDetails);
 			}

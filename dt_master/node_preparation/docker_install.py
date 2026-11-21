@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 POLICY_ID = "docker-engine-install"
-POLICY_VERSION = "1.1.0"
+POLICY_VERSION = "1.1.1"
 SIGNING_KEY_POLICY_VERSION = "1.0.0"
 DOCKER_DEB_SIGNING_KEY_FINGERPRINT = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 DOCKER_DEB_SIGNING_KEY_IDENTITY = "Docker Release (CE deb) <docker@docker.com>"
@@ -24,7 +24,7 @@ DOCKER_SIGNING_KEY_ROTATION_POLICY = (
 	"Primary-key rotation requires a reviewed policy-version change; signing-subkey rollover "
 	"under the pinned primary key is permitted after GnuPG validates the key structure."
 )
-PLAN_SCHEMA_VERSION = "1.0.0"
+PLAN_SCHEMA_VERSION = "1.1.0"
 SUPPORTED_HOSTS = frozenset(
 	{
 		("ubuntu", "22.04", "amd64"),
@@ -51,6 +51,47 @@ class DockerInstallPlanError(ValueError):
 
 def _canonical(value: Any) -> str:
 	return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+STATE_FINGERPRINT_VERSION = "1.0.0"
+
+
+def docker_engine_install_state_fingerprint(inventory: dict) -> str:
+	"""Return a stable SHA-256 binding for the host state used by N3.4 install approval.
+
+	Observation timestamps and the continuously aging APT age counter are omitted.
+	Their security meaning is represented by the validated APT freshness status;
+	all package, repository/key, host, storage, service, workload and health evidence
+	remains bound. Callers must validate the inventory with the planner before use.
+	"""
+	if not isinstance(inventory, dict):
+		raise DockerInstallPlanError("Docker Engine inventory must be an object")
+	_safe(inventory)
+	required = {
+		"schema_version",
+		"observed_at",
+		"host_os",
+		"package_manager",
+		"packages",
+		"repository",
+		"apt_metadata",
+		"package_manager_state",
+		"storage",
+		"services",
+		"workloads",
+		"docker_engine_health",
+	}
+	_require_keys(inventory, required, "inventory")
+	apt = inventory.get("apt_metadata")
+	if not isinstance(apt, dict) or set(apt) != {"status", "age_seconds"}:
+		raise DockerInstallPlanError("Invalid APT metadata for state fingerprint")
+	state = {key: value for key, value in inventory.items() if key != "observed_at"}
+	state["apt_metadata"] = {"status": apt["status"]}
+	envelope = {
+		"fingerprint_version": STATE_FINGERPRINT_VERSION,
+		"inventory": state,
+	}
+	return hashlib.sha256(_canonical(envelope).encode("utf-8")).hexdigest()
 
 
 def _safe(value: Any, path: str = "inventory") -> None:
@@ -146,7 +187,7 @@ def _package_map(rows: list[dict]) -> dict[str, dict]:
 
 def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	"""Build a deterministic, non-mutating Engine install plan from fresh inventory."""
-	if not isinstance(node_name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,139}", node_name):
+	if not isinstance(node_name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.()-]{0,139}", node_name):
 		raise DockerInstallPlanError("Invalid Infrastructure Node identity")
 	if not isinstance(inventory, dict):
 		raise DockerInstallPlanError("Docker Engine inventory must be an object")
@@ -283,6 +324,8 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 			reasons.append("ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED")
 	elif workloads["running_containers"] is not None or workloads["total_containers"] is not None:
 		raise DockerInstallPlanError("Unavailable workload evidence must not contain counts")
+	else:
+		reasons.append("WORKLOAD_STATE_UNAVAILABLE")
 
 	installed_engine = [packages.get(name) for name in ENGINE_PACKAGES]
 	conflict_rows = [
@@ -294,6 +337,9 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		row and row["dpkg_status"] not in {"installed", "not-installed"} for row in installed_engine
 	)
 	installed_count = sum(bool(row and row["dpkg_status"] == "installed") for row in installed_engine)
+	# Establish a disposition before evaluating existing-engine postconditions.
+	# A fully installed but unhealthy/untrusted engine is blocked, not a no-op.
+	status = "ready"
 	if conflict_rows:
 		reasons.append("CONFLICTING_PACKAGE_FAMILY")
 	if partial_engine or (installed_count not in {0, len(ENGINE_PACKAGES)}):
@@ -303,12 +349,14 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	if installed_count == len(ENGINE_PACKAGES):
 		if inventory["docker_engine_health"] != "healthy":
 			reasons.append("EXISTING_DOCKER_ENGINE_UNHEALTHY")
+			status = "blocked"
 		elif any(
 			not packages[name]["installed_origin"]
 			or OFFICIAL_REPOSITORY not in packages[name]["installed_origin"]
 			for name in ENGINE_PACKAGES
 		):
 			reasons.append("EXISTING_PACKAGE_ORIGIN_UNVERIFIED")
+			status = "blocked"
 		else:
 			status = "no_op"
 	else:
@@ -348,13 +396,18 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		)
 
 	if reasons:
-		if any(reason.startswith("PACKAGE_INVENTORY_MISSING") for reason in reasons):
+		blocking_reasons = set(reasons) - {"ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED"}
+		if any(reason.startswith("PACKAGE_INVENTORY_MISSING") for reason in blocking_reasons):
 			status = "blocked"
+		elif not blocking_reasons and status != "no_op":
+			# Workload impact is an explicit operator-approval gate, not a
+			# host-readiness failure. The helper enforces the approval value.
+			status = "ready"
 		elif status != "no_op":
 			status = (
 				"preparation_required"
 				if prerequisites
-				and set(reasons).issubset(
+				and blocking_reasons.issubset(
 					{
 						"APT_METADATA_NOT_FRESH",
 						"DOCKER_REPOSITORY_UNTRUSTED",
@@ -366,14 +419,16 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 			)
 		elif status == "no_op" and any(
 			reason not in {"DOCKER_SIGNING_KEY_POLICY_PENDING", "DOCKER_SIGNING_KEY_UNVERIFIED"}
-			for reason in reasons
+			for reason in blocking_reasons
 		):
 			status = "blocked"
 	elif status != "no_op":
 		status = "ready"
 
+	state_fingerprint = docker_engine_install_state_fingerprint(inventory)
 	plan = {
 		"schema_version": PLAN_SCHEMA_VERSION,
+		"state_fingerprint": state_fingerprint,
 		"policy": {"id": POLICY_ID, "version": POLICY_VERSION},
 		"target": {"doctype": "Infrastructure Node", "name": node_name},
 		"status": status,
@@ -417,6 +472,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		"expires_after_seconds": 900,
 	}
 	digest_payload = dict(plan)
+	digest_payload["apt_metadata"] = {"status": apt["status"]}
 	plan["plan_digest"] = hashlib.sha256(_canonical(digest_payload).encode("utf-8")).hexdigest()
 	validate_docker_engine_install_plan(plan)
 	return plan
@@ -428,6 +484,7 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		raise DockerInstallPlanError("Plan must be an object")
 	required = {
 		"schema_version",
+		"state_fingerprint",
 		"policy",
 		"target",
 		"status",
@@ -453,6 +510,10 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		"version": POLICY_VERSION,
 	}:
 		raise DockerInstallPlanError("Unsupported Docker Engine plan policy/schema")
+	if not isinstance(plan["state_fingerprint"], str) or not re.fullmatch(
+		r"[a-f0-9]{64}", plan["state_fingerprint"]
+	):
+		raise DockerInstallPlanError("Invalid Docker Engine plan state fingerprint")
 	if plan["status"] not in {"blocked", "preparation_required", "ready", "no_op"}:
 		raise DockerInstallPlanError("Invalid plan status")
 	if plan["mode"] != "plan_only" or plan["mutation_authorized"] is not False:
@@ -463,5 +524,8 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		raise DockerInstallPlanError("Invalid plan digest")
 	unsigned = dict(plan)
 	digest = unsigned.pop("plan_digest")
+	apt_metadata = unsigned.get("apt_metadata")
+	if isinstance(apt_metadata, dict):
+		unsigned["apt_metadata"] = {"status": apt_metadata.get("status")}
 	if hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest() != digest:
 		raise DockerInstallPlanError("Plan digest mismatch")

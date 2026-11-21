@@ -1,7 +1,7 @@
-"""Registry definitions for Docker privilege bootstrap and read-only observations.
+"""Registry definitions for Docker Engine installation, privilege bootstrap and observations.
 
-Only fixed, server-owned handlers are registered here. Docker package lifecycle
-mutations remain disabled; the privilege bootstrap is the sole enabled mutation.
+Only fixed, server-owned handlers are registered. Engine installation uses the
+existing durable coordinator, worker, node-scoped resource lease and adapter.
 """
 
 from dt_master.operations.docker_lifecycle import (
@@ -47,6 +47,20 @@ def _docker_observation_lock(target, operation):
 	return [f"node-docker-observation:{target.name}"]
 
 
+def _docker_install_engine_handler(context, payload):
+	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
+
+	return invoke_runtime_mutation(
+		context,
+		{
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "install_engine",
+			"payload": payload,
+		},
+	)
+
+
 def _docker_privilege_bootstrap_handler(context, payload):
 	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
 
@@ -82,6 +96,22 @@ for _operation_type, _method in (
 			resource_lock_keys=_docker_observation_lock,
 		)
 	)
+
+
+register_operation(
+	OperationDefinition(
+		operation_type="host.node.docker.install",
+		handler=_docker_install_engine_handler,
+		validate_payload=_docker_payload_validator("host.node.docker.install"),
+		authorize=authorize_docker_lifecycle_node,
+		queue="long",
+		timeout_seconds=1200,
+		max_attempts=1,
+		priority="High",
+		execution_identity="frappe-worker",
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
+	)
+)
 
 
 register_operation(

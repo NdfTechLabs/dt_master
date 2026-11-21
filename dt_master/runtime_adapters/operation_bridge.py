@@ -72,7 +72,15 @@ def invoke_runtime_mutation(execution_context, payload):
         request,
         execution_context=execution_context,
     )
-    return result.to_dict()
+    from dt_master.operations.outcomes import enforce_durable_operation_outcome
+
+    return enforce_durable_operation_outcome(
+        result.to_dict(),
+        failed_code="RUNTIME_MUTATION_FAILED",
+        failed_summary="The runtime adapter reported that the requested mutation failed.",
+        recovery_code="RUNTIME_MUTATION_RECONCILIATION_REQUIRED",
+        recovery_summary="The runtime adapter reported a partial or uncertain mutation; reconcile the target before retrying.",
+    )
 
 
 def validate_runtime_observation_payload(payload):

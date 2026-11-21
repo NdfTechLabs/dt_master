@@ -21,6 +21,7 @@ MUTATING_METHODS = frozenset(
 		"backup",
 		"restore",
 		"bootstrap_privileges",
+		"install_engine",
 	}
 )
 OBSERVATION_METHODS = frozenset(

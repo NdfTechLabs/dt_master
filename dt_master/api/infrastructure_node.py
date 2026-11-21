@@ -1230,6 +1230,23 @@ def bootstrap_docker_privileges(node_name):
 
 
 @frappe.whitelist(methods=["POST"])
+def install_docker_engine(node_name):
+	"""Queue Docker Engine installation through the existing durable Task Manager."""
+	frappe.only_for("System Manager")
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before Docker installation.")
+	return start_operation(
+		operation_type="host.node.docker.install",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={"confirm": True},
+		idempotency_key=f"docker-engine-install:{node.name}:{uuid.uuid4().hex}",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
 def inspect_docker_runtime(node_name):
 	"""Queue read-only Docker inspection through the durable Docker adapter."""
 	frappe.only_for("System Manager")
@@ -1280,8 +1297,8 @@ def test_node_connection(node_name):
 	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
 	node.check_permission("read")
-	if not node.access_verified:
-		frappe.throw("Node SSH access must be verified before testing the connection.")
+	if not (node.ssh_host_alias or (node.ip_address and node.ssh_user)):
+		frappe.throw("Configure an SSH host alias or IP address and SSH user before testing the connection.")
 	return start_operation(
 		operation_type="host.node.connection.check",
 		target_doctype="Infrastructure Node",

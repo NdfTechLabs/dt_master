@@ -3,6 +3,7 @@
 import unittest
 
 from dt_master.operations.execution_context import WorkerExecutionContext
+from dt_master.operations.outcomes import OperationDispositionError
 from dt_master.runtime_adapters.base import RuntimeAdapter
 from dt_master.runtime_adapters.contracts import RuntimeAdapterError
 from dt_master.runtime_adapters.operation_bridge import (
@@ -35,7 +36,7 @@ class MutatingTestAdapter(RuntimeAdapter):
         self.last_request = request
         return self.result_for(
             request,
-            outcome="succeeded",
+            outcome=getattr(self, "start_outcome", "succeeded"),
             observed_state="Running",
             capabilities=self.capabilities(),
             data={"fencing_token": execution_context.resource_leases[0]["fencing_token"]},
@@ -88,6 +89,24 @@ class TestRuntimeOperationBridge(unittest.TestCase):
         self.assertEqual(result["target_name"], "NODE-0001")
         self.assertEqual(result["observed_state"], "Running")
         self.assertEqual(result["data"]["fencing_token"], 17)
+
+    def test_partial_mutation_result_becomes_durable_recovery_required(self):
+        self.adapter.start_outcome = "partial"
+        with self.assertRaises(OperationDispositionError) as raised:
+            invoke_runtime_mutation(context(), payload())
+        self.assertEqual(raised.exception.disposition, "Recovery Required")
+        self.assertEqual(raised.exception.code, "RUNTIME_MUTATION_RECONCILIATION_REQUIRED")
+        self.assertEqual(raised.exception.adapter_result["outcome"], "partial")
+        self.assertEqual(raised.exception.adapter_result["data"]["fencing_token"], 17)
+
+    def test_failed_mutation_result_becomes_durable_failure(self):
+        self.adapter.start_outcome = "failed"
+        with self.assertRaises(OperationDispositionError) as raised:
+            invoke_runtime_mutation(context(), payload())
+        self.assertEqual(raised.exception.disposition, "Failed")
+        self.assertEqual(raised.exception.code, "RUNTIME_MUTATION_FAILED")
+        self.assertEqual(raised.exception.adapter_result["outcome"], "failed")
+        self.assertEqual(raised.exception.adapter_result["data"]["fencing_token"], 17)
 
     def test_durable_observation_uses_worker_identity_and_read_only_method(self):
         observation = {

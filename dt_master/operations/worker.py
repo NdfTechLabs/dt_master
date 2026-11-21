@@ -210,34 +210,65 @@ def execute_operation(operation_id):
             )
             _release_leases(leases)
             frappe.db.commit()
-    except Exception:
+    except Exception as exc:
         frappe.db.rollback()
         _release_leases(leases)
         frappe.db.commit()
         frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
         completed_on = now_datetime()
+
+        from dt_master.operations.outcomes import resolve_operation_disposition
+
+        disposition_fields = resolve_operation_disposition(exc, lease_acquired=bool(leases))
+        disposition = disposition_fields["execution_state"]
+        error_code = disposition_fields["error_code"]
+        error_summary = disposition_fields["error_summary"]
+        recovery_required = disposition_fields["recovery_required"]
+        recovery_reason = disposition_fields["recovery_reason"]
+        failure_result = disposition_fields.get("result_payload")
+        failure_result_json = None
+        if isinstance(failure_result, dict):
+            try:
+                from dt_master.operations.coordinator import _reject_secret_values
+                _reject_secret_values(failure_result, "failure_result")
+                candidate_json = json.dumps(
+                    failure_result, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                )
+                if len(candidate_json.encode("utf-8")) <= 65536:
+                    failure_result_json = candidate_json
+            except Exception:
+                # A diagnostic payload must never prevent the worker from
+                # recording the terminal failure disposition.
+                failure_result_json = None
+        event_status = "recovery_required" if recovery_required else "failed"
+        event_message = (
+            "Operation requires reconciliation before it can be safely retried."
+            if recovery_required else
+            "Operation failed without an uncertain mutation outcome."
+        )
+
         _set_operation_fields(operation_id, {
-            "execution_state": "Recovery Required" if leases else "Failed",
+            "execution_state": disposition,
             "business_state": "Failed",
-            "error_code": "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED",
-            "error_summary": (
-                "Execution stopped after a resource lease or handler failure; reconcile the target before retrying."
-                if leases else
-                "The registered operation handler failed. See the restricted server error log."
-            ),
+            "error_code": error_code,
+            "error_summary": error_summary,
             "completed_on": completed_on,
-            "recovery_required": 1 if leases else 0,
-            "recovery_reason": "Resource lease ownership or execution outcome requires reconciliation." if leases else None,
+            "recovery_required": 1 if recovery_required else 0,
+            "recovery_reason": recovery_reason,
+            "result_payload": failure_result_json,
             "lock_key": None, "lock_owner": None, "lock_expires_on": None,
         })
         record_operation_event(
             operation_id,
-            "recovery_required" if leases else "failed",
+            event_status,
             phase="execution",
-            message=(
-                "Operation requires reconciliation after a lease or execution failure."
-                if leases else "The registered operation handler failed."
-            ),
-            event_data={"error_code": "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED"},
+            message=event_message,
+            event_data={
+                "error_code": error_code,
+                "result_available": failure_result_json is not None,
+                "diagnostic_count": len(failure_result.get("diagnostics", []))
+                if isinstance(failure_result, dict) and isinstance(failure_result.get("diagnostics"), list)
+                else 0,
+            },
         )
         frappe.db.commit()

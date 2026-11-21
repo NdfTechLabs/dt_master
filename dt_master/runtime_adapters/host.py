@@ -65,7 +65,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Host inspection currently requires an Infrastructure Node target")
 		node = frappe.get_doc(request.target_doctype, request.target_name)
 		node.check_permission("read")
-		if not node.access_verified:
+		if request.method != "connection_check" and not node.access_verified:
 			raise ValueError("Infrastructure Node SSH access has not been verified")
 		return node
 
@@ -101,7 +101,9 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			use_sudo=False, timeout_seconds=20, max_output_bytes=1024,
 		)
 		elapsed = min(86400000, int((monotonic() - started) * 1000))
-		if code != 0 or stdout.strip() != "DT_MASTER_SSH_OK":
+		connected = code == 0 and stdout.strip() == "DT_MASTER_SSH_OK"
+		self._persist_connection_evidence(node, request, connected, elapsed)
+		if not connected:
 			return self.result_for(
 				request, outcome="failed", observed_state="Unreachable",
 				capabilities=self.capabilities(),
@@ -114,6 +116,34 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			capabilities=self.capabilities(),
 			data={"connection_status": "Connected", "latency_ms": elapsed, "transport": "SSH"},
 			duration_ms=elapsed,
+		)
+
+	@staticmethod
+	def _persist_connection_evidence(node, request, connected, latency_ms):
+		"""Persist the verified SSH result and advance only the host lifecycle projection."""
+		observed_at = now_datetime()
+		state = "Host Inspection Required" if connected else "Connection Required"
+		evidence = {
+			"schema_version": "1.0.0",
+			"node": node.name,
+			"operation_id": request.operation_id,
+			"observed_at": str(observed_at),
+			"connection_status": "Connected" if connected else "Failed",
+			"latency_ms": latency_ms,
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"access_verified": 1 if connected else 0,
+				"docker_host_state": state,
+				"docker_host_operation": request.operation_id,
+				"docker_host_state_updated_on": observed_at,
+				"docker_host_management_snapshot": json.dumps(
+					evidence, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
 		)
 
 	def _inspect(self, request, execution_context=None):
