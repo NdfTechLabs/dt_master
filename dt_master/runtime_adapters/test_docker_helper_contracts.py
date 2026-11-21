@@ -17,7 +17,7 @@ def install_request():
 		"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
 		"plan": {
 			"schema_version": "1.1.0",
-			"policy_version": "1.1.0",
+			"policy_version": "1.1.1",
 			"plan_digest": "a" * 64,
 			"packages": [
 				{"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"}
