@@ -191,6 +191,14 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             "self_test",
         )
 
+    def test_prepare_repository_request_is_closed_and_accepted(self):
+        self.assertEqual(
+            helper._request(b'{"schema_version":"1.0.0","operation":"prepare_repository"}')["operation"],
+            "prepare_repository",
+        )
+        with self.assertRaises(helper.HelperError):
+            helper._request(b'{"schema_version":"1.0.0","operation":"run_shell"}')
+
     def test_install_request_rejects_unknown_fields_and_duplicate_keys(self):
         value = request()
         value["command"] = "apt install docker"
