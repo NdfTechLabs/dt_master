@@ -404,8 +404,10 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	elif status != "no_op":
 		status = "ready"
 
+	state_fingerprint = docker_engine_install_state_fingerprint(inventory)
 	plan = {
 		"schema_version": PLAN_SCHEMA_VERSION,
+		"state_fingerprint": state_fingerprint,
 		"policy": {"id": POLICY_ID, "version": POLICY_VERSION},
 		"target": {"doctype": "Infrastructure Node", "name": node_name},
 		"status": status,
@@ -460,6 +462,7 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		raise DockerInstallPlanError("Plan must be an object")
 	required = {
 		"schema_version",
+		"state_fingerprint",
 		"policy",
 		"target",
 		"status",
@@ -485,6 +488,10 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		"version": POLICY_VERSION,
 	}:
 		raise DockerInstallPlanError("Unsupported Docker Engine plan policy/schema")
+	if not isinstance(plan["state_fingerprint"], str) or not re.fullmatch(
+		r"[a-f0-9]{64}", plan["state_fingerprint"]
+	):
+		raise DockerInstallPlanError("Invalid Docker Engine plan state fingerprint")
 	if plan["status"] not in {"blocked", "preparation_required", "ready", "no_op"}:
 		raise DockerInstallPlanError("Invalid plan status")
 	if plan["mode"] != "plan_only" or plan["mutation_authorized"] is not False:
