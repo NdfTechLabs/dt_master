@@ -36,7 +36,6 @@ def install_request():
 	}
 
 
-
 def install_result():
 	return {
 		"schema_version": "1.0.0",
@@ -94,7 +93,6 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		build_ssh.assert_not_called()
 		popen.assert_not_called()
 
-
 	def test_install_result_is_parsed_and_correlated(self):
 		import json
 
@@ -113,9 +111,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		for stdout in invalid:
 			with self.subTest(stdout=stdout):
 				with self.assertRaises(TrustedHelperExecutionError) as raised:
-					parse_trusted_install_engine_result(
-						0, stdout, "", expected_operation_id="OP-0001"
-					)
+					parse_trusted_install_engine_result(0, stdout, "", expected_operation_id="OP-0001")
 				self.assertEqual(raised.exception.code, "invalid_helper_result")
 				self.assertTrue(raised.exception.may_have_executed)
 

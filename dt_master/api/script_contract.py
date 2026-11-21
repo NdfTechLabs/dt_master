@@ -367,7 +367,6 @@ class TrustedHelperExecutionError(RuntimeError):
 		self.may_have_executed = bool(may_have_executed)
 
 
-
 def parse_trusted_install_engine_result(return_code, stdout, stderr, *, expected_operation_id):
 	"""Parse and validate one bounded install_engine helper response.
 
@@ -423,6 +422,7 @@ def parse_trusted_install_engine_result(return_code, stdout, stderr, *, expected
 			may_have_executed=True,
 		) from exc
 	return result
+
 
 def run_trusted_helper(
 	node,
