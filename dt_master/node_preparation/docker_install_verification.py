@@ -72,7 +72,6 @@ def evaluate_docker_engine_install_postcondition(
 			services=None,
 			state_fingerprint=None,
 			node_name=node_name,
-			node_name=node_name,
 		)
 
 	if helper["after_state_fingerprint"] != state_fingerprint:
