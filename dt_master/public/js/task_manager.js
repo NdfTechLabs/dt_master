@@ -28,6 +28,9 @@
 		"host.node.docker.preflight": __("Run Docker Preflight"),
 		"host.node.docker.updates.check": __("Check Docker Updates"),
 		"host.node.docker.verify": __("Verify Docker Runtime"),
+		"runtime.adapter.inspect": __("Inspect Runtime Adapter"),
+		"runtime.adapter.mutate": __("Execute Runtime Adapter Mutation"),
+		"test.noop": __("Test Background Operation (No-op)"),
 	});
 	const operationLabel = (operationType) => {
 		if (!operationType) return __("Loading operation…");
