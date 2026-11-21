@@ -49,6 +49,11 @@
   "docker_readiness_evaluation",
   "docker_inspected_on",
   "docker_inspection_snapshot",
+  "docker_host_lifecycle_section",
+  "docker_host_state",
+  "docker_host_operation",
+  "docker_host_state_updated_on",
+  "docker_host_management_snapshot",
   "access_section",
   "hosting_model",
   "ip_address",
@@ -212,6 +217,42 @@
    "options": "JSON",
    "read_only": 1,
    "description": "Versioned, read-only JSON snapshot. Contract: docs/migrations/schemas/infrastructure-node-docker-inspection-v1.schema.json. Inspection history remains in Node Action Log."
+  },
+  {
+   "fieldname": "docker_host_lifecycle_section",
+   "fieldtype": "Section Break",
+   "label": "Docker Host Lifecycle",
+   "description": "Server-managed lifecycle of the system Docker Engine on this host. Separate from Node/Bench lifecycle and Docker workload readiness."
+  },
+  {
+   "fieldname": "docker_host_state",
+   "fieldtype": "Select",
+   "label": "Docker Host State",
+   "options": "Not Evaluated\nConnection Required\nHost Inspection Required\nPrivilege Setup Required\nDocker Inspection Required\nRepository Preparation Required\nReady for Install\nEngine Ready\nOperation In Progress\nReconciliation Required\nFailed",
+   "default": "Not Evaluated",
+   "read_only": 1,
+   "description": "Server-managed projection. Action eligibility is recomputed from current host evidence and active operations."
+  },
+  {
+   "fieldname": "docker_host_operation",
+   "fieldtype": "Data",
+   "label": "Docker Host Operation",
+   "read_only": 1,
+   "description": "Current or most recent durable coordinator operation reference."
+  },
+  {
+   "fieldname": "docker_host_state_updated_on",
+   "fieldtype": "Datetime",
+   "label": "Docker Host State Updated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "docker_host_management_snapshot",
+   "fieldtype": "Code",
+   "label": "Docker Host Management Snapshot",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Versioned, bounded server-managed lifecycle evidence and diagnostics. Never contains credentials or raw command output."
   },
   {
    "fieldname": "access_section",
