@@ -500,6 +500,57 @@ class TestDockerLifecycleHelper(unittest.TestCase):
     def test_exact_version_install_mutation_is_enabled(self):
         self.assertTrue(helper.INSTALL_MUTATION_ENABLED)
 
+    def test_enabled_install_executes_fixed_package_command_and_verifies_versions(self):
+        value = request()
+        version = value["plan"]["packages"][0]["version"]
+        plan = {
+            "plan_digest": "a" * 64,
+            "status": "ready",
+            "mutation_authorized": False,
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "workload_impact": {"operator_impact_approval_required": False},
+            "packages": [
+                {"name": name, "action": "install", "candidate_version": row["version"]}
+                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+            ],
+        }
+        before = {"packages": [{"name": name, "installed_version": None} for name in helper.ENGINE_PACKAGES]}
+        after = {
+            "packages": [{"name": name, "installed_version": version} for name in helper.ENGINE_PACKAGES]
+        }
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=Mock(side_effect=[plan, dict(plan)]),
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "b" * 64, "c" * 64]),
+        )
+        fake_inventory = SimpleNamespace(
+            collect=Mock(side_effect=[
+                {"docker_install_inventory": before},
+                {"docker_install_inventory": before},
+                {"docker_install_inventory": after},
+            ])
+        )
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+            patch.object(helper, "_run", return_value=(0, "")) as run,
+        ):
+            result = helper._install(value)
+
+        simulate.assert_called_once()
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[0], "/usr/bin/apt-get")
+        self.assertIn("--yes", argv)
+        self.assertIn("--no-upgrade", argv)
+        self.assertIn("--no-remove", argv)
+        self.assertEqual(
+            argv[-4:],
+            [f"{name}={version}" for name in helper.ENGINE_PACKAGES],
+        )
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(result["after_state_fingerprint"], "c" * 64)
+        self.assertTrue(all(row["status"] == "installed" for row in result["packages"]))
+
     def test_result_is_correlated_and_reports_unattempted_packages(self):
         value = request()
         result = helper._result(
