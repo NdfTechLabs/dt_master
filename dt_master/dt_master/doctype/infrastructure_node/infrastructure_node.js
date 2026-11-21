@@ -61,16 +61,45 @@ frappe.ui.form.on("Infrastructure Node", {
 		render_docker_readiness_summary(frm);
 
 		if (frappe.user_roles.includes("System Manager")) {
-			frm.add_custom_button(
-				__("Inspect Docker Runtime"),
-				() => {
-					frappe.confirm(
-						__("Run a read-only Docker runtime inspection on this node? This does not change the Host-native Node state or Docker workloads."),
-						() => run_docker_inspection(frm)
-					);
+			const dockerObservations = [
+				{
+					key: "privileges",
+					label: "Check Docker Privileges",
+					description: "Check the trusted helper, ownership, permissions, sudoers policy and root self-test. This is read-only.",
 				},
-				__("Docker")
-			);
+				{
+					key: "inspect",
+					label: "Inspect Docker Runtime",
+					description: "Inspect Docker Engine, Compose and host resources. This is read-only.",
+				},
+				{
+					key: "preflight",
+					label: "Run Docker Preflight",
+					description: "Evaluate whether this node is ready for Docker-backed workloads. This is read-only.",
+				},
+				{
+					key: "updates",
+					label: "Check Docker Updates",
+					description: "Check installed Docker package versions and available updates. This does not install updates.",
+				},
+				{
+					key: "verify",
+					label: "Verify Docker Runtime",
+					description: "Verify Docker CLI, Engine and Compose availability. This is read-only.",
+				},
+			];
+			for (const observation of dockerObservations) {
+				frm.add_custom_button(
+					__(observation.label),
+					() => {
+						frappe.confirm(
+							__(observation.description),
+							() => run_docker_observation(frm, observation.key, observation.label)
+						);
+					},
+					__("Docker")
+				);
+			}
 		}
 
 		if (
@@ -132,23 +161,26 @@ frappe.ui.form.on("Infrastructure Node", {
 	},
 });
 
-function run_docker_inspection(frm) {
+function run_docker_observation(frm, observation, label) {
 	frappe.call({
-		method: "dt_master.api.infrastructure_node.inspect_docker_runtime",
-		args: { node_name: frm.doc.name },
+		method: "dt_master.api.infrastructure_node.run_docker_observation",
+		args: { node_name: frm.doc.name, observation },
 		freeze: true,
-		freeze_message: __("Submitting Docker inspection..."),
+		freeze_message: __("Submitting {0}...", [__(label)]),
 		callback(response) {
 			const operation = response.message || {};
 			frappe.show_alert({
-				message: __("Docker inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+				message: __("{0} queued. Operation: {1}. Follow progress and results in Task Manager.", [
+					__(label),
+					operation.operation_id || __("unknown"),
+				]),
 				indicator: "blue",
 			});
 		},
 		error() {
 			frappe.msgprint({
-				title: __("Docker Inspection Not Started"),
-				message: __("The Docker inspection could not be queued. Check the server error log."),
+				title: __("{0} Not Started", [__(label)]),
+				message: __("The read-only Docker observation could not be queued. Check the server error log."),
 				indicator: "red",
 			});
 		},
