@@ -169,7 +169,7 @@ def _apt_package_rows() -> list[dict]:
                     origin = stripped.split()[1][:512]
                     if candidate and selected_version == candidate and candidate_origin is None:
                         candidate_origin = origin
-                    if installed_version and selected_version == installed_version and installed_origin is None:
+                    if installed_version and selected_version == installed_version and installed_origin is None and DOCKER_SOURCE_DOMAIN in origin:
                         installed_origin = origin
                 elif stripped.startswith("***") or (
                     stripped and stripped[0].isdigit() and len(stripped.split()) >= 2
