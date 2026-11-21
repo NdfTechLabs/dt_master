@@ -120,7 +120,7 @@ class TestDockerHostInventory(TestCase):
             patch.object(PROBE, "datetime") as clock,
         ):
             lists.iterdir.return_value = [FakePath()]
-            clock.clock.now.return_value.timestamp.return_value = 1_000_000 + 90_000
+            clock.now.return_value.timestamp.return_value = 1_000_000 + 90_000
             result = PROBE._apt_metadata()
         self.assertEqual(result, {"status": "Aging", "age_seconds": 90000})
 
