@@ -238,6 +238,15 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertEqual(first, second)
 		self.assertEqual(first["plan_digest"], second["plan_digest"])
 
+	def test_plan_exposes_inventory_state_fingerprint_and_binds_it_into_digest(self):
+		host_inventory = inventory()
+		plan = build_docker_engine_install_plan("NODE-1", host_inventory)
+		self.assertEqual(plan["state_fingerprint"], docker_engine_install_state_fingerprint(host_inventory))
+		tampered = copy.deepcopy(plan)
+		tampered["state_fingerprint"] = "f" * 64
+		with self.assertRaises(DockerInstallPlanError):
+			validate_docker_engine_install_plan(tampered)
+
 	def test_plan_tampering_is_rejected(self):
 		plan = build_docker_engine_install_plan("NODE-1", inventory())
 		tampered = copy.deepcopy(plan)
