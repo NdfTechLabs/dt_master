@@ -66,7 +66,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         inventory_spec.loader.exec_module(inventory_module)
         primary = "A" * 40
         subkey = "B" * 40
-        valid = "\\n".join(
+        valid = "\n".join(
             [
                 "pub:-:4096:1:KEYID:0:0:::::",
                 f"fpr:::::::::{primary}:",
@@ -80,11 +80,11 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         self.assertEqual(keys[0]["fingerprint"], primary)
         self.assertEqual(keys[0]["subkey_fingerprints"], [subkey])
 
-        expired = f"pub:e:4096:1:KEYID:0:0:::::\\nfpr:::::::::{primary}:"
+        expired = f"pub:e:4096:1:KEYID:0:0:::::\nfpr:::::::::{primary}:"
         _fingerprints, expired_keys = inventory_module._parse_gpg_key_inventory(expired)
         self.assertEqual(expired_keys, [])
 
-        revoked_subkey = "\\n".join(
+        revoked_subkey = "\n".join(
             [
                 "pub:-:4096:1:KEYID:0:0:::::",
                 f"fpr:::::::::{primary}:",
@@ -175,7 +175,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             patch.dict(helper.os.environ, {}, clear=True),
         ):
             helper._configure_workload_identity("deploy")
-            self.assertEqual(__import__("os").environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
+            self.assertEqual(helper.os.environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
 
     def test_workload_observation_rejects_root_or_unknown_identity(self):
         with patch.object(helper.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=0)):
@@ -255,7 +255,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
 
     def test_apt_simulation_rejects_duplicate_architecture_rows(self):
         version = "5:29.0.0-1~ubuntu.24.04~noble"
-        output = "\\n".join(
+        output = "\n".join(
             [f"Inst {name} ({version} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
             + [f"Inst docker-ce:arm64 ({version} Docker:stable [arm64])"]
         )
@@ -278,7 +278,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
 
     def test_apt_simulation_rejects_upgrade_even_for_an_allowed_package(self):
         versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
-        output = "\\n".join(
+        output = "\n".join(
             f"Inst {name} [5:28.0.0-1~ubuntu.24.04~noble] ({version} Docker:stable [amd64])"
             for name, version in zip(helper.ENGINE_PACKAGES, versions, strict=True)
         )
