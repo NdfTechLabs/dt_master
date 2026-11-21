@@ -58,7 +58,9 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			with self.subTest(approval=invalid), self.assertRaises(ValueError):
 				validate_docker_lifecycle_payload("host.node.docker.install", bad)
 		with self.assertRaises(ValueError):
-			validate_docker_lifecycle_payload("host.node.docker.install", {**payload, "packages": ["docker.io"]})
+			validate_docker_lifecycle_payload(
+				"host.node.docker.install", {**payload, "packages": ["docker.io"]}
+			)
 
 	def test_upgrade_and_downgrade_require_explicit_version_and_confirmation(self):
 		operations = (

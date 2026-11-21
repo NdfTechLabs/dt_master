@@ -51,7 +51,6 @@ def inventory(**overrides):
 
 
 class TestDockerEngineInstallPlan(unittest.TestCase):
-
 	def test_state_fingerprint_ignores_observation_clock_but_binds_host_state(self):
 		first = inventory()
 		second = copy.deepcopy(first)

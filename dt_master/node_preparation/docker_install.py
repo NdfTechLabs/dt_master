@@ -68,9 +68,18 @@ def docker_engine_install_state_fingerprint(inventory: dict) -> str:
 		raise DockerInstallPlanError("Docker Engine inventory must be an object")
 	_safe(inventory)
 	required = {
-		"schema_version", "observed_at", "host_os", "package_manager", "packages",
-		"repository", "apt_metadata", "package_manager_state", "storage", "services",
-		"workloads", "docker_engine_health",
+		"schema_version",
+		"observed_at",
+		"host_os",
+		"package_manager",
+		"packages",
+		"repository",
+		"apt_metadata",
+		"package_manager_state",
+		"storage",
+		"services",
+		"workloads",
+		"docker_engine_health",
 	}
 	_require_keys(inventory, required, "inventory")
 	apt = inventory.get("apt_metadata")
