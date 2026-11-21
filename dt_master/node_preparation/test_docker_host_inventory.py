@@ -113,14 +113,14 @@ class TestDockerHostInventory(TestCase):
 
             @property
             def name(self):
-                return "example_Packages"
+                return "download.docker.com_linux_ubuntu_Packages"
 
         with (
             patch.object(PROBE, "APT_LISTS") as lists,
             patch.object(PROBE.datetime, "now") as now,
         ):
             lists.iterdir.return_value = [FakePath()]
-            now.return_value.timestamp.return_value = 1_000_000 + 90_000
+            clock.now.return_value.timestamp.return_value = 1_000_000 + 90_000
             result = PROBE._apt_metadata()
         self.assertEqual(result, {"status": "Aging", "age_seconds": 90000})
 
