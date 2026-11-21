@@ -123,7 +123,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			adapter_id="docker-compose-v1",
 			runtime_type="docker",
 			target_doctype="Infrastructure Node",
-			 target_name="NODE-0001",
+			target_name="NODE-0001",
 			method="install_engine",
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
