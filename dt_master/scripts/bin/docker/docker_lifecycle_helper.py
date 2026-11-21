@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pwd
 import re
 import stat
 import subprocess
@@ -348,7 +349,21 @@ def _install(request: dict) -> dict:
     )
 
 
+def _configure_workload_identity(sudo_user: str | None) -> None:
+    """Make root-side workload observations as the invoking SSH identity."""
+    if not isinstance(sudo_user, str) or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", sudo_user):
+        raise HelperError("SUDO_IDENTITY_UNAVAILABLE", "host_validation")
+    try:
+        account = pwd.getpwnam(sudo_user)
+    except KeyError as exc:
+        raise HelperError("SUDO_IDENTITY_UNKNOWN", "host_validation") from exc
+    if account.pw_uid == 0:
+        raise HelperError("SUDO_IDENTITY_INVALID", "host_validation")
+    os.environ["DT_DOCKER_WORKLOAD_USER"] = sudo_user
+
+
 def main() -> int:
+    sudo_user = os.environ.get("SUDO_USER")
     # Ignore caller-controlled Python, locale, APT, and Docker environment.
     os.environ.clear()
     os.environ.update({
@@ -361,6 +376,8 @@ def main() -> int:
     })
     raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
     request = _request(raw)
+    if request["operation"] == "install_engine":
+        _configure_workload_identity(sudo_user)
     if request["operation"] == "self_test":
         response = {
             "schema_version": "1.0.0",
