@@ -22,6 +22,7 @@ COMPOSE_MUTATIONS = frozenset({
 })
 MUTATING_OPERATIONS = ENGINE_MUTATIONS | COMPOSE_MUTATIONS
 READ_ONLY_OPERATIONS = frozenset({
+    "host.node.docker.privileges.check",
     "host.node.docker.inspect",
     "host.node.docker.preflight",
     "host.node.docker.updates.check",
