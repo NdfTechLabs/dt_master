@@ -108,7 +108,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			helper_result,
 			expected_operation_id=request.operation_id,
 		)
-		if helper["status"] != "succeeded":
+		if helper["status"] == "failed_before_mutation":
 			return DockerRuntimeAdapter._interpret_install_engine_result(request, helper)
 
 		verification = evaluate_docker_engine_install_postcondition(
@@ -117,6 +117,19 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			helper,
 			expected_operation_id=request.operation_id,
 		)
+		if helper["status"] != "succeeded":
+			base = DockerRuntimeAdapter._interpret_install_engine_result(request, helper)
+			data = dict(base.data)
+			data["postcondition"] = verification
+			return DockerRuntimeAdapter.result_for(
+				request,
+				outcome="partial",
+				observed_state="Recovery Required",
+				capabilities=(),
+				diagnostics=base.diagnostics,
+				data=data,
+			)
+
 		verified = verification["status"] == "verified"
 		diagnostic_rows = verification["diagnostics"]
 		if verified:
@@ -158,6 +171,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 	def _verify_install_engine_postcondition(self, request, helper_result, execution_context=None):
 		"""Collect a new read-only Node inventory and verify the helper's result."""
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		helper = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		if helper["status"] == "failed_before_mutation":
+			return self._interpret_install_engine_result(request, helper)
+
 		if execution_context is not None:
 			execution_context.heartbeat()
 			execution_context.assert_leases()
@@ -173,12 +197,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			if isinstance(host_inventory, dict):
 				inventory = host_inventory.get("docker_install_inventory")
 
-		result = self._interpret_install_engine_postcondition(request, helper_result, inventory)
+		result = self._interpret_install_engine_postcondition(request, helper, inventory)
 		if execution_context is not None:
 			execution_context.heartbeat()
 			execution_context.assert_leases()
 		return result
-
 	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
