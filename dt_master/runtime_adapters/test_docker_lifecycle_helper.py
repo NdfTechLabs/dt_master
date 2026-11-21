@@ -286,6 +286,56 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_UPGRADE_DETECTED"):
                 helper._simulate_exact_install(versions)
 
+    def test_aging_apt_counter_does_not_invalidate_same_plan_decisions(self):
+        value = request()
+        plan = {
+            "plan_digest": "a" * 64,
+            "schema_version": "1.1.0",
+            "state_fingerprint": "b" * 64,
+            "policy": {"id": "docker-engine-install", "version": "1.1.0"},
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "status": "ready",
+            "mode": "plan_only",
+            "mutation_authorized": False,
+            "package_set": list(helper.ENGINE_PACKAGES),
+            "packages": [
+                {"name": name, "action": "install", "candidate_version": row["version"]}
+                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+            ],
+            "prerequisites": [],
+            "reason_codes": [],
+            "repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
+            "apt_metadata": {"status": "fresh", "age_seconds": 100},
+            "package_manager": {"locked": False, "dpkg_audit_clean": True},
+            "storage": {"root_available_bytes": 10000000000, "apt_cache_available_bytes": 10000000000, "data_root_policy": "preserve"},
+            "services": {"docker": "inactive", "containerd": "inactive"},
+            "workload_impact": {
+                "available": True,
+                "running_containers": 0,
+                "total_containers": 0,
+                "operator_impact_approval_required": False,
+            },
+            "daemon_impact": "Starting Docker may interrupt existing containers; no daemon action is performed by this plan.",
+            "expires_after_seconds": 900,
+        }
+        fresh_plan = dict(plan)
+        fresh_plan["plan_digest"] = "c" * 64
+        fresh_plan["apt_metadata"] = {"status": "fresh", "age_seconds": 101}
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=Mock(side_effect=[plan, fresh_plan]),
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+        )
+        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+        ):
+            result = helper._install(value)
+        simulate.assert_called_once()
+        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+
     def test_state_change_after_simulation_blocks_install(self):
         value = request()
         plan = {
