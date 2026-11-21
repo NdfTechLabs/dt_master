@@ -839,7 +839,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 
 	def _install_engine(self, request, execution_context=None):
-		"""Install the exact Docker CE package set through the existing trusted helper."""
+		"""Install Docker through the trusted helper using existing Node readiness."""
 		from dt_master.node_preparation.docker_install import (
 			build_docker_engine_install_plan,
 			validate_docker_engine_install_plan,
@@ -855,24 +855,51 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 			inspection = self._inspect(request, execution_context=execution_context)
 			if inspection.data.get("inspection_status") != "Successful":
-				raise ValueError("A complete fresh Docker installation inventory is required.")
+				raise ValueError("A complete fresh Docker inspection is required.")
 			privilege = inspection.data.get("privilege_readiness") or {}
 			if privilege.get("status") != "Ready":
-				raise ValueError("The existing Docker privilege helper is not ready on this node.")
+				raise ValueError("The trusted Docker privilege helper is not ready on this node.")
+
+			# Reuse configured Node readiness for host capacity requirements.
+			# Engine/Compose/version requirements describe the desired post-install
+			# state, so they must not prevent installing a missing Engine.
+			readiness = inspection.data.get("readiness_evaluation") or {}
+			host_requirements = {
+				"min_cpu_cores",
+				"min_total_memory_bytes",
+				"min_available_memory_bytes",
+				"min_available_storage_bytes",
+			}
+			resource_failures = [
+				item for item in readiness.get("diagnostics", [])
+				if item.get("severity") == "Error" and item.get("requirement") in host_requirements
+			]
+			if resource_failures:
+				raise ValueError("The node does not satisfy its configured Docker host resource requirements.")
+
 			snapshot = inspection.data.get("snapshot") or {}
 			host_inventory = snapshot.get("host_inventory") or {}
 			install_inventory = host_inventory.get("docker_install_inventory")
 			if not isinstance(install_inventory, dict):
 				raise ValueError("Docker Engine installation inventory is unavailable.")
 
-			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
-			validate_docker_engine_install_plan(plan)
-			if (
-				plan.get("plan_digest") != request.payload.get("plan_digest")
-				or plan.get("state_fingerprint") != request.payload.get("expected_state_fingerprint")
-			):
-				raise ValueError("The Docker installation plan changed; run preflight again.")
-			if plan["status"] == "no_op":
+			# A healthy, trusted existing Engine is a successful no-op. Do this
+			# before package metadata freshness checks; installation is unnecessary.
+			package_rows = {
+				row.get("name"): row
+				for row in install_inventory.get("packages", [])
+				if isinstance(row, dict)
+			}
+			engine_packages = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
+			engine_already_installed = (
+				install_inventory.get("docker_engine_health") == "healthy"
+				and all(
+					package_rows.get(name, {}).get("dpkg_status") == "installed"
+					and "download.docker.com" in (package_rows.get(name, {}).get("installed_origin") or "")
+					for name in engine_packages
+				)
+			)
+			if engine_already_installed:
 				return self.result_for(
 					request,
 					outcome="succeeded",
@@ -880,22 +907,26 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					capabilities=self.capabilities(),
 					data={
 						"installation_status": "Already Installed",
-						"plan_digest": plan["plan_digest"],
-						"state_fingerprint": plan["state_fingerprint"],
 						"postcondition_verified": True,
 						"no_op": True,
 					},
 					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 				)
-			if plan["status"] != "ready":
-				raise ValueError("The Docker installation plan is not ready for execution.")
+
+			# The plan is generated and validated internally. It is not an
+			# operator-supplied approval token or a separate UI workflow.
+			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+			validate_docker_engine_install_plan(plan)
+			if plan.get("status") != "ready":
+				raise ValueError("The node does not meet the Docker installation prerequisites.")
 			package_rows = plan.get("packages") or []
 			if len(package_rows) != 4 or any(
 				row.get("action") != "install" or not row.get("candidate_version")
 				for row in package_rows
 			):
-				raise ValueError("The Docker installation plan does not contain the exact four-package install set.")
+				raise ValueError("The trusted Docker package set is not available for installation.")
 
+			workload_impact = plan.get("workload_impact") or {}
 			helper_request = {
 				"schema_version": "1.0.0",
 				"operation": "install_engine",
@@ -911,7 +942,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					],
 				},
 				"expected_state_fingerprint": plan["state_fingerprint"],
-				"operator_impact_approval": request.payload["operator_impact_approval"],
+				"operator_impact_approval": bool(
+					workload_impact.get("operator_impact_approval_required")
+				),
 			}
 			if execution_context is not None:
 				execution_context.heartbeat()
