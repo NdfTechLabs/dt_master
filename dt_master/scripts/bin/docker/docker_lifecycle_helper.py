@@ -287,7 +287,22 @@ def _install(request: dict) -> dict:
         raise HelperError("EXACT_PACKAGE_PLAN_MISMATCH", "state_validation")
 
     _simulate_exact_install(request_versions)
-    current_versions = _installed_versions(install_inventory)
+
+    # Recollect after simulation so the package-manager lock, candidate
+    # metadata, workload count, and approved state are still current.
+    try:
+        fresh_inventory = inventory_module.collect()["docker_install_inventory"]
+        fresh_plan = policy.build_docker_engine_install_plan(request["target"]["name"], fresh_inventory)
+        fresh_fingerprint = policy.docker_engine_install_state_fingerprint(fresh_inventory)
+    except (TypeError, ValueError, KeyError) as exc:
+        raise HelperError("FRESH_INVENTORY_INVALID", "state_validation") from exc
+    if (
+        fresh_fingerprint != fingerprint
+        or fresh_plan.get("plan_digest") != plan.get("plan_digest")
+        or fresh_plan.get("status") != "ready"
+    ):
+        raise HelperError("STATE_CHANGED_AFTER_SIMULATION", "state_validation")
+    current_versions = _installed_versions(fresh_inventory)
     if not INSTALL_MUTATION_ENABLED:
         return _result(
             request, status="failed_before_mutation", phase="state_validation",
