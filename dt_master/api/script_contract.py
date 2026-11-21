@@ -367,6 +367,63 @@ class TrustedHelperExecutionError(RuntimeError):
 		self.may_have_executed = bool(may_have_executed)
 
 
+
+def parse_trusted_install_engine_result(return_code, stdout, stderr, *, expected_operation_id):
+	"""Parse and validate one bounded install_engine helper response.
+
+	Only a single JSON object on stdout is accepted. Stderr is never surfaced
+	and any content there makes the response untrusted. A dispatched helper
+	with an invalid response has an uncertain outcome and requires recovery.
+	"""
+	from dt_master.runtime_adapters.docker_helper_contracts import (
+		DockerHelperContractError,
+		validate_install_engine_result,
+	)
+
+	def _unique_object(pairs):
+		value = {}
+		for key, item in pairs:
+			if key in value:
+				raise ValueError("Duplicate JSON object key")
+			value[key] = item
+		return value
+
+	def _reject_constant(_value):
+		raise ValueError("Non-finite JSON constant")
+
+	if type(return_code) is not int or return_code != 0:
+		raise TrustedHelperExecutionError(
+			"helper_process_failed",
+			"Trusted helper exited unsuccessfully; remote execution outcome is uncertain.",
+			may_have_executed=True,
+		)
+	if not isinstance(stdout, str) or not stdout.strip() or not isinstance(stderr, str):
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper returned an invalid response.",
+			may_have_executed=True,
+		)
+	if stderr.strip():
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper returned unexpected diagnostic output.",
+			may_have_executed=True,
+		)
+	try:
+		result = json.loads(
+			stdout,
+			object_pairs_hook=_unique_object,
+			parse_constant=_reject_constant,
+		)
+		validate_install_engine_result(result, expected_operation_id=expected_operation_id)
+	except (ValueError, TypeError, json.JSONDecodeError, DockerHelperContractError) as exc:
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper response failed protocol validation; remote execution outcome is uncertain.",
+			may_have_executed=True,
+		) from exc
+	return result
+
 def run_trusted_helper(
 	node,
 	ssh,
