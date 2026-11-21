@@ -271,6 +271,36 @@ class TestDockerLifecycleHelper(unittest.TestCase):
                 helper._install(value)
         simulate.assert_not_called()
 
+    def test_explicit_workload_approval_passes_the_helper_gate(self):
+        value = request()
+        value["operator_impact_approval"] = True
+        plan = {
+            "plan_digest": "a" * 64,
+            "status": "ready",
+            "mutation_authorized": False,
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "workload_impact": {"operator_impact_approval_required": True},
+            "packages": [
+                {"name": name, "action": "install", "candidate_version": row["version"]}
+                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+            ],
+        }
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=lambda _name, _inventory: plan,
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+        )
+        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+        ):
+            result = helper._install(value)
+        simulate.assert_called_once()
+        self.assertEqual(result["status"], "failed_before_mutation")
+        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+
     def test_stale_fingerprint_is_rejected_before_apt_simulation(self):
         value = request()
         fake_policy = SimpleNamespace(
