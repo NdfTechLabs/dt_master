@@ -7,9 +7,11 @@ a separately accepted safety gate establishes maintainer-script behavior.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +26,8 @@ COMMAND_TIMEOUT = 30
 INSTALL_TIMEOUT = 900
 INSTALL_MUTATION_ENABLED = False
 HELPER_DIR = Path("/usr/local/lib/dt-master/docker")
+EXPECTED_POLICY_SHA256 = "23f31009ae54e68550ca9bf3f864d599df6053387812e151b4bc7709f8445f0e"
+EXPECTED_INVENTORY_SHA256 = "99977afa5d7622b11371dcc1e95dd9fbe4d24810ce8cfdda6f07d35b782d5fdf"
 ENGINE_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
 PACKAGE_VERSION = re.compile(r"^(?:[0-9]+:)?[0-9][A-Za-z0-9.+~_-]{0,158}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -136,19 +140,35 @@ def _request(raw: bytes) -> dict:
 
 
 def _load_policy():
-    """Load only root-owned sibling policy artifacts from the fixed helper directory."""
+    """Load only pinned root-owned policy artifacts from the fixed helper directory."""
     if os.geteuid() != 0:
         raise HelperError("ROOT_REQUIRED", "host_validation")
-    for name in ("docker_install_policy.py", "docker_install_inventory.py"):
-        path = HELPER_DIR / name
+    try:
+        directory = HELPER_DIR.lstat()
         if (
-            not path.is_file()
-            or path.is_symlink()
-            or path.stat().st_uid != 0
-            or path.stat().st_gid != 0
-            or (path.stat().st_mode & 0o777) != 0o755
+            not stat.S_ISDIR(directory.st_mode)
+            or directory.st_uid != 0
+            or directory.st_gid != 0
+            or stat.S_IMODE(directory.st_mode) != 0o755
         ):
-            raise HelperError("POLICY_ARTIFACT_UNTRUSTED", "host_validation")
+            raise HelperError("HELPER_DIRECTORY_UNTRUSTED", "host_validation")
+        expected = {
+            "docker_install_policy.py": EXPECTED_POLICY_SHA256,
+            "docker_install_inventory.py": EXPECTED_INVENTORY_SHA256,
+        }
+        for name, digest in expected.items():
+            path = HELPER_DIR / name
+            metadata = path.lstat()
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != 0
+                or metadata.st_gid != 0
+                or stat.S_IMODE(metadata.st_mode) != 0o755
+                or hashlib.sha256(path.read_bytes()).hexdigest() != digest
+            ):
+                raise HelperError("POLICY_ARTIFACT_UNTRUSTED", "host_validation")
+    except OSError as exc:
+        raise HelperError("POLICY_ARTIFACT_UNAVAILABLE", "host_validation") from exc
     import docker_install_inventory
     import docker_install_policy
     return docker_install_inventory, docker_install_policy
