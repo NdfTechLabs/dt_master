@@ -5,12 +5,12 @@ set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="ce1df20d5817df42c45556c867024fe4660461cf31eb71a3806e8d9e8cc6fbc2"
+readonly HELPER_SHA256="91ada1d6e30aae8b810dc073722b4e10e70b97cc1bb03aa14d4da631a8feabb6"
 readonly PREVIOUS_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
 readonly POLICY_NAME="docker_install_policy.py"
 readonly POLICY_SHA256="23f31009ae54e68550ca9bf3f864d599df6053387812e151b4bc7709f8445f0e"
 readonly INVENTORY_NAME="docker_install_inventory.py"
-readonly INVENTORY_SHA256="99977afa5d7622b11371dcc1e95dd9fbe4d24810ce8cfdda6f07d35b782d5fdf"
+readonly INVENTORY_SHA256="d238bac8e052db4a6f626d714701a05d5ada749342624ee112958e72d95712e8"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
 
 fail() {
