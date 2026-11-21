@@ -416,7 +416,7 @@ def parse_trusted_install_engine_result(return_code, stdout, stderr, *, expected
 			parse_constant=_reject_constant,
 		)
 		validate_install_engine_result(result, expected_operation_id=expected_operation_id)
-	except (ValueError, TypeError, json.JSONDecodeError, DockerHelperContractError) as exc:
+	except (ValueError, TypeError) as exc:
 		raise TrustedHelperExecutionError(
 			"invalid_helper_result",
 			"Trusted helper response failed protocol validation; remote execution outcome is uncertain.",
