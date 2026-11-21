@@ -74,7 +74,7 @@ def _os_release() -> dict:
         "version_id": values.get("VERSION_ID") or None,
         "version_codename": values.get("VERSION_CODENAME") or None,
         "pretty_name": values.get("PRETTY_NAME") or platform.platform()[:160],
-        "architecture": platform.machine()[:64] or None,
+        "architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())[:64] or None,
         "kernel_release": platform.release()[:128] or None,
     }
 
@@ -157,20 +157,29 @@ def _apt_package_rows() -> list[dict]:
             dpkg_status = "not-installed"
 
         policy_code, policy = _run(["apt-cache", "policy", name], timeout=6)
-        candidate, candidate_origin = None, None
+        candidate, candidate_origin, installed_origin = None, None, None
+        selected_version = None
         if policy_code == 0:
             for line in policy.splitlines():
                 stripped = line.strip()
                 if stripped.startswith("Candidate:"):
                     value = stripped.partition(":")[2].strip()
                     candidate = value if value not in {"(none)", ""} else None
-                elif candidate and stripped[:1].isdigit() and DOCKER_SOURCE_DOMAIN in stripped:
-                    candidate_origin = stripped.split()[1][:512]
-                    break
+                elif stripped.startswith("***") or (
+                    stripped and stripped[0].isdigit() and len(stripped.split()) >= 2
+                ):
+                    version_tokens = stripped.lstrip("*").split()
+                    selected_version = version_tokens[0] if version_tokens else None
+                elif stripped[:1].isdigit() and DOCKER_SOURCE_DOMAIN in stripped:
+                    origin = stripped.split()[1][:512]
+                    if candidate and selected_version == candidate and candidate_origin is None:
+                        candidate_origin = origin
+                    if installed_version and selected_version == installed_version and installed_origin is None:
+                        installed_origin = origin
         rows.append({
             "name": name,
             "installed_version": installed_version if dpkg_status == "installed" else None,
-            "installed_origin": None,
+            "installed_origin": installed_origin,
             "dpkg_status": dpkg_status,
             "candidate_version": candidate,
             "candidate_origin": candidate_origin,
