@@ -37,6 +37,32 @@ class TestDockerPrivilegeHelper(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("not enabled", result.stderr)
 
+    def test_rejects_all_package_mutation_operations(self):
+        for operation in (
+            "install",
+            "upgrade",
+            "downgrade",
+            "uninstall",
+            "compose_install",
+            "compose_upgrade",
+            "compose_downgrade",
+            "compose_uninstall",
+        ):
+            with self.subTest(operation=operation):
+                result = self.run_helper({"schema_version": "1.0.0", "operation": operation})
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("not enabled", result.stderr)
+
+    def test_rejects_non_object_json(self):
+        result = self.run_helper({}, raw='["self_test"]')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("JSON object", result.stderr)
+
+    def test_rejects_non_standard_json_constants(self):
+        result = self.run_helper({}, raw='{"schema_version":"1.0.0","operation":NaN}')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Invalid JSON constant", result.stderr)
+
     def test_rejects_unknown_fields(self):
         result = self.run_helper({
             "schema_version": "1.0.0",

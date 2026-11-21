@@ -116,6 +116,32 @@ class TestTrustedHelperTransport(unittest.TestCase):
 		self.assertEqual(raised.exception.code, "execution_timeout")
 		self.assertTrue(raised.exception.may_have_executed)
 
+	def test_process_start_failure_is_not_classified_as_remote_execution(self):
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh", "node", "REMOTE"]),
+			patch(
+				"dt_master.api.script_contract.subprocess.Popen",
+				side_effect=OSError("local process unavailable"),
+			),
+		):
+			with self.assertRaises(TrustedHelperExecutionError) as raised:
+				run_trusted_helper(object(), {"host": "node", "user": "deploy"}, self.REQUEST)
+		self.assertEqual(raised.exception.code, "transport_start_failed")
+		self.assertFalse(raised.exception.may_have_executed)
+
+	def test_invalid_utf8_after_process_start_is_uncertain(self):
+		def popen(args, **kwargs):
+			return FakeProcess(args, kwargs, stdout=b"\xff")
+
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh", "node", "REMOTE"]),
+			patch("dt_master.api.script_contract.subprocess.Popen", side_effect=popen),
+		):
+			with self.assertRaises(TrustedHelperExecutionError) as raised:
+				run_trusted_helper(object(), {"host": "node", "user": "deploy"}, self.REQUEST)
+		self.assertEqual(raised.exception.code, "invalid_output_encoding")
+		self.assertTrue(raised.exception.may_have_executed)
+
 
 if __name__ == "__main__":
 	unittest.main()

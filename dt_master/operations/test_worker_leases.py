@@ -139,6 +139,61 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
             with self.assertRaises(frappe.ValidationError):
                 worker._lease_checkpoint("operation-test", 1, [lease])
 
+    def test_docker_bootstrap_handler_failure_enters_recovery_without_retry(self):
+        from contextlib import nullcontext
+
+        operation = self._operation()
+        operation.operation_type = "host.node.docker.privileges.bootstrap"
+        operation.max_attempts = 1
+        target = frappe._dict(doctype="Infrastructure Node", name="NODE-TEST")
+        lease = {
+            "lock_key": "node-docker:NODE-TEST",
+            "operation_id": "operation-test",
+            "attempt": 1,
+            "worker_token": "worker-1",
+            "fencing_token": 1,
+            "expires_on": "2026-11-21 12:01:00",
+        }
+        definition = get_operation(operation.operation_type)
+
+        def uncertain_handler(context, payload):
+            raise TimeoutError("remote outcome is uncertain")
+
+        definition = replace(
+            definition,
+            handler=uncertain_handler,
+            authorize=lambda authorized_target: None,
+        )
+        cursor = MagicMock(rowcount=1)
+        with (
+            patch.object(worker.frappe, "get_doc", side_effect=[operation, target]),
+            patch.object(worker, "get_operation", return_value=definition),
+            patch.object(worker, "as_execution_identity", return_value=nullcontext()),
+            patch.object(worker, "acquire_resource_leases", return_value=[lease]),
+            patch.object(worker, "assert_resource_lease"),
+            patch.object(worker, "_release_leases") as release,
+            patch.object(worker.frappe.db, "sql") as sql,
+            patch.object(worker.frappe.db, "_cursor", cursor),
+            patch.object(worker.frappe.db, "set_value") as set_value,
+            patch.object(worker.frappe.db, "commit"),
+            patch.object(worker.frappe.db, "rollback"),
+            patch.object(worker.frappe, "log_error"),
+            patch.object(worker, "record_operation_event") as event,
+            patch.object(worker, "now_datetime", return_value="2026-11-21 12:00:00"),
+            patch.object(worker.frappe, "set_user"),
+            patch.dict(worker.frappe.session, {"user": "Administrator"}),
+        ):
+            worker.execute_operation("operation-test")
+
+        self.assertIn("attempt_count = attempt_count + 1", sql.call_args.args[0])
+        values = set_value.call_args.args[2]
+        self.assertEqual(values["execution_state"], "Recovery Required")
+        self.assertEqual(values["recovery_required"], 1)
+        self.assertEqual(values["error_code"], "LEASE_OR_HANDLER_FAILED")
+        self.assertEqual(definition.max_attempts, 1)
+        release.assert_called_once_with([lease])
+        self.assertEqual(event.call_args.args[1], "recovery_required")
+
 
 if __name__ == "__main__":
     unittest.main()
