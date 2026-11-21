@@ -335,6 +335,9 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		row and row["dpkg_status"] not in {"installed", "not-installed"} for row in installed_engine
 	)
 	installed_count = sum(bool(row and row["dpkg_status"] == "installed") for row in installed_engine)
+	# Establish a disposition before evaluating existing-engine postconditions.
+	# A fully installed but unhealthy/untrusted engine is blocked, not a no-op.
+	status = "ready"
 	if conflict_rows:
 		reasons.append("CONFLICTING_PACKAGE_FAMILY")
 	if partial_engine or (installed_count not in {0, len(ENGINE_PACKAGES)}):
@@ -344,12 +347,14 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	if installed_count == len(ENGINE_PACKAGES):
 		if inventory["docker_engine_health"] != "healthy":
 			reasons.append("EXISTING_DOCKER_ENGINE_UNHEALTHY")
+			status = "blocked"
 		elif any(
 			not packages[name]["installed_origin"]
 			or OFFICIAL_REPOSITORY not in packages[name]["installed_origin"]
 			for name in ENGINE_PACKAGES
 		):
 			reasons.append("EXISTING_PACKAGE_ORIGIN_UNVERIFIED")
+			status = "blocked"
 		else:
 			status = "no_op"
 	else:
