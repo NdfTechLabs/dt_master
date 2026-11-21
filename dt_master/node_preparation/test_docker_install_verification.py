@@ -36,7 +36,14 @@ def inventory():
 		"repository": {
 			"source_id": "download.docker.com",
 			"keyring_path": "/etc/apt/keyrings/docker.asc",
-			"fingerprints": ["0123456789ABCDEF0123456789ABCDEF01234567"],
+			"fingerprints": ["9DC858229FC7DD38854AE2D88D81803C0EBFCD88"],
+			"primary_keys": [
+				{
+					"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+					"identity": "Docker Release (CE deb) <docker@docker.com>",
+					"subkey_fingerprints": [],
+				}
+			],
 		},
 		"apt_metadata": {"status": "Fresh", "age_seconds": 3600},
 		"package_manager_state": {"locked": False, "dpkg_audit_clean": True},
