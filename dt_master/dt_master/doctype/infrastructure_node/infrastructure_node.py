@@ -131,7 +131,6 @@ class InfrastructureNode(Document):
 				title=frappe._("Invalid Docker Readiness Requirements"),
 			)
 
-
 	def _prevent_direct_docker_host_lifecycle_updates(self):
 		"""Keep Docker host lifecycle projection server-managed."""
 		if getattr(frappe.flags, "docker_host_lifecycle_update", False):
@@ -140,13 +139,15 @@ class InfrastructureNode(Document):
 		previous = self.get_doc_before_save()
 		if previous:
 			changed_fields = [
-				field for field in DOCKER_HOST_LIFECYCLE_FIELDS
+				field
+				for field in DOCKER_HOST_LIFECYCLE_FIELDS
 				if self._normalize_inspection_value(field, self.get(field))
 				!= self._normalize_inspection_value(field, previous.get(field))
 			]
 		else:
 			changed_fields = [
-				field for field, default in DOCKER_HOST_LIFECYCLE_DEFAULTS.items()
+				field
+				for field, default in DOCKER_HOST_LIFECYCLE_DEFAULTS.items()
 				if self.get(field) not in (None, "", default)
 			]
 
@@ -163,20 +164,22 @@ class InfrastructureNode(Document):
 		previous = self.get_doc_before_save()
 		if previous:
 			changed_fields = [
-				field for field in HOST_DISCOVERY_FIELDS
+				field
+				for field in HOST_DISCOVERY_FIELDS
 				if self._normalize_inspection_value(field, self.get(field))
 				!= self._normalize_inspection_value(field, previous.get(field))
 			]
 		else:
 			changed_fields = [
-				field for field, default in HOST_DISCOVERY_DEFAULTS.items()
+				field
+				for field, default in HOST_DISCOVERY_DEFAULTS.items()
 				if self.get(field) not in (None, "", default)
 			]
 		if changed_fields:
 			frappe.throw(
-				frappe._("Host discovery fields are managed by the server-side inspection service: {0}").format(
-					", ".join(changed_fields)
-				),
+				frappe._(
+					"Host discovery fields are managed by the server-side inspection service: {0}"
+				).format(", ".join(changed_fields)),
 				title=frappe._("Read-only Host Discovery Data"),
 			)
 

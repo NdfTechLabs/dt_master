@@ -16,9 +16,10 @@ def _authorize_connection_check(target):
 	"""Authorize the first SSH probe without requiring its result in advance."""
 	frappe.only_for("System Manager")
 	target.check_permission("read")
-	if not (getattr(target, "ssh_host_alias", None) or (
-		getattr(target, "ip_address", None) and getattr(target, "ssh_user", None)
-	)):
+	if not (
+		getattr(target, "ssh_host_alias", None)
+		or (getattr(target, "ip_address", None) and getattr(target, "ssh_user", None))
+	):
 		frappe.throw("Configure an SSH host alias or IP address and SSH user first.", frappe.ValidationError)
 
 
@@ -41,6 +42,7 @@ def _host_observation_handler(method):
 				"payload": {},
 			},
 		)
+
 	return handle
 
 

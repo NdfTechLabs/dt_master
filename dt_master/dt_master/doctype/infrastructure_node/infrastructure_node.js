@@ -274,9 +274,7 @@ function run_docker_engine_install(frm) {
 		error() {
 			frappe.msgprint({
 				title: __("Docker Engine Installation Not Started"),
-				message: __(
-					"The installation could not be queued. Check the server error log."
-				),
+				message: __("The installation could not be queued. Check the server error log."),
 				indicator: "red",
 			});
 		},

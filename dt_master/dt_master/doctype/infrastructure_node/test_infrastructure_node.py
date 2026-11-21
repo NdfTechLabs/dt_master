@@ -5,11 +5,11 @@ import json
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from frappe.utils import get_datetime
 
-from dt_master.dt_master.doctype.infrastructure_node.infrastructure_node import InfrastructureNode
 from dt_master.api.infrastructure_node import _docker_failure_snapshot, _validate_docker_snapshot
 from dt_master.docker_readiness import evaluate_node_docker_readiness
-from frappe.utils import get_datetime
+from dt_master.dt_master.doctype.infrastructure_node.infrastructure_node import InfrastructureNode
 
 # On IntegrationTestCase, the doctype test records and all
 # link-field test record dependencies are recursively loaded
@@ -132,13 +132,10 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
 
-
 	def test_equivalent_inspection_datetime_representations_are_unchanged(self):
 		timestamp = "2026-11-18 11:00:00"
 		self.assertEqual(
-			InfrastructureNode._normalize_inspection_value(
-				"docker_inspected_on", timestamp
-			),
+			InfrastructureNode._normalize_inspection_value("docker_inspected_on", timestamp),
 			get_datetime(timestamp),
 		)
 
@@ -147,10 +144,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.docker_inspected_on = "2026-11-18 11:00:00"
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
-
-
-
-
 
 	def test_new_node_rejects_client_supplied_readiness_evaluation(self):
 		node = self._new_node()
@@ -252,7 +245,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertNotIn("readiness", snapshot)
 		self.assertEqual(_validate_docker_snapshot(snapshot), snapshot)
 
-
 	def test_docker_snapshot_validator_rejects_unexpected_host_package(self):
 		snapshot = _docker_failure_snapshot("Failed", "probe failed")
 		snapshot["host_inventory"]["docker_packages"] = [
@@ -314,8 +306,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertEqual(evaluation["readiness"], "Ready")
 		self.assertTrue(evaluation["requirements_fingerprint"])
 		self.assertEqual(evaluation["inspection_observed_at"], snapshot["observed_at"])
-
-
 
 	def test_new_node_accepts_default_docker_host_lifecycle_state(self):
 		node = self._new_node()

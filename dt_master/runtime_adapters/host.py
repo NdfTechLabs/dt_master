@@ -96,23 +96,40 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		node = self._node_for_request(request)
 		started = monotonic()
 		code, stdout, _stderr = run_remote_script(
-			node, self._ssh_config(node), "node", "test_node_connection.sh", {},
-			"node_connection_check", {"node": node.name, "target": request.target_name},
-			use_sudo=False, timeout_seconds=20, max_output_bytes=1024,
+			node,
+			self._ssh_config(node),
+			"node",
+			"test_node_connection.sh",
+			{},
+			"node_connection_check",
+			{"node": node.name, "target": request.target_name},
+			use_sudo=False,
+			timeout_seconds=20,
+			max_output_bytes=1024,
 		)
 		elapsed = min(86400000, int((monotonic() - started) * 1000))
 		connected = code == 0 and stdout.strip() == "DT_MASTER_SSH_OK"
 		self._persist_connection_evidence(node, request, connected, elapsed)
 		if not connected:
 			return self.result_for(
-				request, outcome="failed", observed_state="Unreachable",
+				request,
+				outcome="failed",
+				observed_state="Unreachable",
 				capabilities=self.capabilities(),
-				diagnostics=({"code": "NODE_SSH_CONNECTION_FAILED", "severity": "error",
-					"message": "The configured SSH connection did not return the expected remote test response."},),
-				data={"connection_status": "Failed", "latency_ms": elapsed}, duration_ms=elapsed,
+				diagnostics=(
+					{
+						"code": "NODE_SSH_CONNECTION_FAILED",
+						"severity": "error",
+						"message": "The configured SSH connection did not return the expected remote test response.",
+					},
+				),
+				data={"connection_status": "Failed", "latency_ms": elapsed},
+				duration_ms=elapsed,
 			)
 		return self.result_for(
-			request, outcome="succeeded", observed_state="Connected",
+			request,
+			outcome="succeeded",
+			observed_state="Connected",
 			capabilities=self.capabilities(),
 			data={"connection_status": "Connected", "latency_ms": elapsed, "transport": "SSH"},
 			duration_ms=elapsed,
@@ -201,7 +218,9 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				"os_version_codename": os_info.get("version_codename"),
 				"os_id_like": os_info.get("id_like"),
 				"raw_architecture": os_info.get("architecture"),
-				"architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(os_info.get("architecture"), os_info.get("architecture")),
+				"architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(
+					os_info.get("architecture"), os_info.get("architecture")
+				),
 				"package_manager": os_info.get("package_manager"),
 				"service_manager": os_info.get("service_manager"),
 				"cpu_cores": compute.get("logical_cpu_cores"),
@@ -214,19 +233,33 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			values = parsed
 
 		required = (
-			"hostname", "os", "os_id", "os_version_id", "os_version_codename",
-			"raw_architecture", "architecture", "package_manager", "service_manager",
-			"cpu_cores", "memory_bytes", "root_available_bytes",
+			"hostname",
+			"os",
+			"os_id",
+			"os_version_id",
+			"os_version_codename",
+			"raw_architecture",
+			"architecture",
+			"package_manager",
+			"service_manager",
+			"cpu_cores",
+			"memory_bytes",
+			"root_available_bytes",
 		)
 		missing = [key for key in required if values.get(key) in (None, "")]
 		if missing:
 			return self.result_for(
-				request, outcome="failed", observed_state="Unknown",
+				request,
+				outcome="failed",
+				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INCOMPLETE", "severity": "error",
-					"message": "Host inspection returned an incomplete observation.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INCOMPLETE",
+						"severity": "error",
+						"message": "Host inspection returned an incomplete observation.",
+					},
+				),
 				data={"inspection_status": "Invalid", "missing_fields": missing},
 				duration_ms=elapsed,
 			)
@@ -242,22 +275,42 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				raise ValueError("negative measurement")
 		except (TypeError, ValueError):
 			return self.result_for(
-				request, outcome="failed", observed_state="Unknown",
+				request,
+				outcome="failed",
+				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INVALID_MEASUREMENT", "severity": "error",
-					"message": "Host inspection returned invalid capacity measurements.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INVALID_MEASUREMENT",
+						"severity": "error",
+						"message": "Host inspection returned invalid capacity measurements.",
+					},
+				),
 				data={"inspection_status": "Invalid"},
 				duration_ms=elapsed,
 			)
 
 		os_support_status = self._os_support(values)
-		bench_available = discovery.get("bench_available", False) if discovery else values.get("bench_available") == "true"
-		tools = discovery.get("tools", {}) if discovery else {
-			key: parsed.get(f"{key}_available") == "true"
-			for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
-		}
+		bench_available = (
+			discovery.get("bench_available", False) if discovery else values.get("bench_available") == "true"
+		)
+		tools = (
+			discovery.get("tools", {})
+			if discovery
+			else {
+				key: parsed.get(f"{key}_available") == "true"
+				for key in (
+					"python3",
+					"node",
+					"npm",
+					"yarn",
+					"nginx",
+					"supervisorctl",
+					"redis_cli",
+					"mariadb",
+				)
+			}
+		)
 		data = {
 			"schema_version": discovery.get("schema_version", "1.0.0") if discovery else "1.0.0",
 			"inspection_status": "Successful",
@@ -309,8 +362,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		disk_bytes = _positive_inventory_int(storage.get("disk_total_bytes"))
 		prefill = {
 			"cpu_cores": _positive_inventory_int(compute.get("logical_cpu_cores")),
-			"ram_gb": memory_bytes // (1024 ** 3) if memory_bytes else None,
-			"storage_gb": disk_bytes // (1024 ** 3) if disk_bytes else None,
+			"ram_gb": memory_bytes // (1024**3) if memory_bytes else None,
+			"storage_gb": disk_bytes // (1024**3) if disk_bytes else None,
 			"os_version": _clean_inventory_text(os_info.get("version_id")),
 		}
 		os_id = _clean_inventory_text(os_info.get("id"))

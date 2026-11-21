@@ -1051,8 +1051,13 @@ def _validate_docker_snapshot(snapshot):
 	if "host_inventory" in snapshot:
 		inventory = snapshot["host_inventory"]
 		legacy_inventory_keys = {
-			"schema_version", "observed_at", "host_os", "package_manager",
-			"docker_packages", "services", "workloads",
+			"schema_version",
+			"observed_at",
+			"host_os",
+			"package_manager",
+			"docker_packages",
+			"services",
+			"workloads",
 		}
 		if frozenset(inventory) not in {
 			frozenset(legacy_inventory_keys),
