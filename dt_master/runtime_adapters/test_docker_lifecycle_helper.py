@@ -1,0 +1,201 @@
+"""Focused tests for the standalone trusted Docker lifecycle helper."""
+
+import importlib.util
+import subprocess
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+HELPER_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "scripts"
+    / "bin"
+    / "docker"
+    / "docker_lifecycle_helper.py"
+)
+SPEC = importlib.util.spec_from_file_location("docker_lifecycle_helper_under_test", HELPER_PATH)
+helper = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(helper)
+
+
+def request():
+    return {
+        "schema_version": "1.0.0",
+        "operation": "install_engine",
+        "operation_id": "OP-0001",
+        "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+        "plan": {
+            "schema_version": "1.1.0",
+            "policy_version": "1.1.0",
+            "plan_digest": "a" * 64,
+            "packages": [
+                {"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"}
+                for name in helper.ENGINE_PACKAGES
+            ],
+        },
+        "expected_state_fingerprint": "b" * 64,
+        "operator_impact_approval": False,
+    }
+
+
+def inventory():
+    return {
+        "packages": [
+            {"name": name, "installed_version": None}
+            for name in helper.ENGINE_PACKAGES
+        ]
+    }
+
+
+class TestDockerLifecycleHelper(unittest.TestCase):
+    def test_self_test_request_is_preserved(self):
+        self.assertEqual(
+            helper._request(b'{"schema_version":"1.0.0","operation":"self_test"}')["operation"],
+            "self_test",
+        )
+
+    def test_install_request_rejects_unknown_fields_and_duplicate_keys(self):
+        value = request()
+        value["command"] = "apt install docker"
+        import json
+        with self.assertRaises(helper.HelperError):
+            helper._request(json.dumps(value).encode())
+        with self.assertRaises(helper.HelperError):
+            helper._request(
+                b'{"schema_version":"1.0.0","operation":"self_test","operation":"install_engine"}'
+            )
+
+    def test_install_request_rejects_bad_package_order_and_boolean_coercion(self):
+        import json
+        value = request()
+        value["plan"]["packages"].reverse()
+        with self.assertRaises(helper.HelperError):
+            helper._request(json.dumps(value).encode())
+        value = request()
+        value["operator_impact_approval"] = 1
+        with self.assertRaises(helper.HelperError):
+            helper._request(json.dumps(value).encode())
+
+    def test_request_size_limit_is_enforced(self):
+        with self.assertRaises(helper.HelperError):
+            helper._request(b" " * (helper.MAX_REQUEST_BYTES + 1))
+
+    def test_apt_simulation_uses_fixed_exact_versions_and_allowlist(self):
+        output = "\n".join(
+            f"Inst {name} (5:29.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
+            for name in helper.ENGINE_PACKAGES
+        )
+        with patch.object(helper, "_run", return_value=(0, output)) as run:
+            helper._simulate_exact_install(
+                ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+            )
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[0], "/usr/bin/apt-get")
+        self.assertIn("--no-upgrade", argv)
+        self.assertIn("--no-remove", argv)
+        self.assertEqual(
+            argv[-4:],
+            [
+                f"{name}=5:29.0.0-1~ubuntu.24.04~noble"
+                for name in helper.ENGINE_PACKAGES
+            ],
+        )
+
+    def test_apt_simulation_rejects_removals_and_unapproved_installs(self):
+        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+        with patch.object(
+            helper, "_run", return_value=(0, "Remv docker.io [24.0]\n")
+        ):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
+                helper._simulate_exact_install(versions)
+        output = "\n".join(
+            [f"Inst {name} ({versions[0]} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
+            + ["Inst libc6 (2.39 Ubuntu:24.04 [amd64])"]
+        )
+        with patch.object(helper, "_run", return_value=(0, output)):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
+                helper._simulate_exact_install(versions)
+
+    def test_apt_simulation_rejects_missing_or_changed_package_versions(self):
+        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+        with patch.object(helper, "_run", return_value=(0, "Inst docker-ce (5:29.0.0-1~ubuntu.24.04~noble)")):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
+                helper._simulate_exact_install(versions)
+        output = "\n".join(
+            f"Inst {name} (5:28.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
+            for name in helper.ENGINE_PACKAGES
+        )
+        with patch.object(helper, "_run", return_value=(0, output)):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_VERSION_MISMATCH"):
+                helper._simulate_exact_install(versions)
+
+    def test_closed_mutation_gate_returns_pre_mutation_failure(self):
+        value = request()
+        plan = {
+            "plan_digest": "a" * 64,
+            "status": "ready",
+            "mutation_authorized": False,
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "workload_impact": {"operator_impact_approval_required": False},
+            "packages": [
+                {"name": name, "action": "install", "candidate_version": row["version"]}
+                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+            ],
+        }
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=lambda _name, _inventory: plan,
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+        )
+        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+        ):
+            result = helper._install(value)
+        simulate.assert_called_once()
+        self.assertEqual(result["status"], "failed_before_mutation")
+        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+        self.assertEqual(result["daemon_action"], "not_requested")
+        self.assertEqual(result["before_state_fingerprint"], "b" * 64)
+        self.assertEqual(result["after_state_fingerprint"], "b" * 64)
+
+    def test_stale_fingerprint_is_rejected_before_apt_simulation(self):
+        value = request()
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=lambda _name, _inventory: {},
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=lambda _inventory: "c" * 64,
+        )
+        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+        ):
+            with self.assertRaisesRegex(helper.HelperError, "STATE_FINGERPRINT_MISMATCH"):
+                helper._install(value)
+        simulate.assert_not_called()
+
+    def test_result_is_correlated_and_reports_unattempted_packages(self):
+        value = request()
+        result = helper._result(
+            value,
+            status="failed_before_mutation",
+            phase="state_validation",
+            before="b" * 64,
+            after="b" * 64,
+            installed={},
+            exit_code=0,
+            daemon_action="not_requested",
+            diagnostics=["INSTALL_EXECUTION_DISABLED"],
+        )
+        self.assertEqual(result["operation_id"], "OP-0001")
+        self.assertEqual(len(result["packages"]), 4)
+        self.assertTrue(all(row["status"] == "not_attempted" for row in result["packages"]))
+        self.assertTrue(all(row["installed_version"] is None for row in result["packages"]))
+
+
+if __name__ == "__main__":
+    unittest.main()
