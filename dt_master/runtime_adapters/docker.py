@@ -26,7 +26,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "docker"
 
 	def capabilities(self):
-		return ("inspect", "preflight", "updates_check", "verify")
+		return ("inspect", "preflight", "updates_check", "verify", "privilege_check")
 
 	@staticmethod
 	def _node_for_request(request):
@@ -235,6 +235,31 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					}
 				],
 			}
+
+	def _privilege_check(self, request, execution_context=None):
+		"""Check the trusted Docker helper and sudoers boundary without changing node state."""
+		started = monotonic()
+		node = self._node_for_request(request)
+		readiness = self._privilege_readiness(node)
+		status = readiness["status"]
+		outcome = "succeeded" if status == "Ready" else ("failed" if status == "Not Ready" else "partial")
+		diagnostics = tuple(
+			{
+				"code": item["code"],
+				"severity": "error" if item["severity"] == "Error" else "warning",
+				"message": sanitize_diagnostic_message(item["message"]),
+			}
+			for item in readiness.get("diagnostics", [])
+		)
+		return self.result_for(
+			request,
+			outcome=outcome,
+			observed_state=status,
+			capabilities=self.capabilities(),
+			diagnostics=diagnostics,
+			data={"privilege_readiness": readiness},
+			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+		)
 
 	def _inspect(self, request, execution_context=None):
 		from dt_master.api.infrastructure_node import (
