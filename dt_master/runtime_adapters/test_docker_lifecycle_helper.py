@@ -59,6 +59,23 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             (root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
         )
 
+    def test_workload_observation_uses_validated_sudo_identity(self):
+        account = SimpleNamespace(pw_uid=1001)
+        with (
+            patch.object(helper.pwd, "getpwnam", return_value=account),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            helper._configure_workload_identity("deploy")
+            self.assertEqual(__import__("os").environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
+
+    def test_workload_observation_rejects_root_or_unknown_identity(self):
+        with patch.object(helper.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=0)):
+            with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_INVALID"):
+                helper._configure_workload_identity("root")
+        with patch.object(helper.pwd, "getpwnam", side_effect=KeyError):
+            with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_UNKNOWN"):
+                helper._configure_workload_identity("missing")
+
     def test_self_test_request_is_preserved(self):
         self.assertEqual(
             helper._request(b'{"schema_version":"1.0.0","operation":"self_test"}')["operation"],
