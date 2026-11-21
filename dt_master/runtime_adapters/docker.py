@@ -156,6 +156,29 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			},
 		)
 
+	def _verify_install_engine_postcondition(self, request, helper_result, execution_context=None):
+		"""Collect a new read-only Node inventory and verify the helper's result."""
+		if execution_context is not None:
+			execution_context.heartbeat()
+			execution_context.assert_leases()
+
+		inspection = self._inspect(request, execution_context=execution_context)
+		if execution_context is not None:
+			execution_context.assert_leases()
+
+		snapshot = inspection.data.get("snapshot") or {}
+		inventory = None
+		if inspection.data.get("inspection_status") not in {"Failed", "Timed Out"}:
+			host_inventory = snapshot.get("host_inventory")
+			if isinstance(host_inventory, dict):
+				inventory = host_inventory.get("docker_install_inventory")
+
+		result = self._interpret_install_engine_postcondition(request, helper_result, inventory)
+		if execution_context is not None:
+			execution_context.heartbeat()
+			execution_context.assert_leases()
+		return result
+
 	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
