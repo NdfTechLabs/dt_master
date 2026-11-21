@@ -1,7 +1,7 @@
-"""Registry definitions for Docker privilege bootstrap and read-only observations.
+"""Registry definitions for Docker Engine installation, privilege bootstrap and observations.
 
-Only fixed, server-owned handlers are registered here. Docker package lifecycle
-mutations remain disabled; the privilege bootstrap is the sole enabled mutation.
+Only fixed, server-owned handlers are registered. Engine installation uses the
+existing durable coordinator, worker, node-scoped resource lease and adapter.
 """
 
 from dt_master.operations.docker_lifecycle import (
@@ -47,7 +47,6 @@ def _docker_observation_lock(target, operation):
 	return [f"node-docker-observation:{target.name}"]
 
 
-
 def _docker_install_engine_handler(context, payload):
 	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
 
@@ -60,7 +59,6 @@ def _docker_install_engine_handler(context, payload):
 			"payload": payload,
 		},
 	)
-
 
 
 def _docker_privilege_bootstrap_handler(context, payload):
@@ -114,7 +112,6 @@ register_operation(
 		resource_lock_keys=docker_lifecycle_resource_lock_keys,
 	)
 )
-
 
 
 register_operation(
