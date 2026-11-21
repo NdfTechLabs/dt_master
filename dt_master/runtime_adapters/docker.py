@@ -944,6 +944,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
 						"message": "Trusted helper repository preparation did not satisfy its success contract.",
 						"exit_code": prepare_code,
+						"stderr": sanitize_diagnostic_message(_prepare_stderr)[:1200],
 						"helper_result": prepare_result if isinstance(prepare_result, dict) else None,
 					}
 					raise ValueError("The trusted helper could not prepare the official Docker repository.")
@@ -1010,6 +1011,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					else None
 				),
 			)
+			failure_detail = {
+				"code": "DOCKER_ENGINE_HELPER_RESPONSE",
+				"exit_code": code,
+				"stderr": sanitize_diagnostic_message(stderr)[:1200],
+			}
 			helper_result = parse_trusted_install_engine_result(
 				code, stdout, stderr, expected_operation_id=request.operation_id
 			)
