@@ -36,6 +36,39 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 					{"confirm": True},
 				)
 
+
+	def test_engine_install_requires_complete_plan_binding_and_impact_decision(self):
+		digest = "a" * 64
+		payload = {
+			"confirm": True,
+			"plan_digest": digest,
+			"expected_state_fingerprint": "b" * 64,
+			"operator_impact_approval": False,
+		}
+		self.assertEqual(validate_docker_lifecycle_payload("host.node.docker.install", payload), payload)
+		for field in ("plan_digest", "expected_state_fingerprint", "operator_impact_approval"):
+			bad = dict(payload)
+			bad.pop(field)
+			with self.subTest(missing=field), self.assertRaises(ValueError):
+				validate_docker_lifecycle_payload("host.node.docker.install", bad)
+		for field in ("plan_digest", "expected_state_fingerprint"):
+			bad = dict(payload)
+			bad[field] = "invalid"
+			with self.subTest(invalid=field), self.assertRaises(ValueError):
+				validate_docker_lifecycle_payload("host.node.docker.install", bad)
+		for invalid in (None, 0, 1, "false"):
+			bad = {**payload, "operator_impact_approval": invalid}
+			with self.subTest(approval=invalid), self.assertRaises(ValueError):
+				validate_docker_lifecycle_payload("host.node.docker.install", bad)
+		with self.assertRaises(ValueError):
+			validate_docker_lifecycle_payload("host.node.docker.install", {**payload, "packages": ["docker.io"]})
+
+	def test_compose_install_keeps_its_separate_existing_payload_contract(self):
+		self.assertEqual(
+			validate_docker_lifecycle_payload("host.node.docker.compose.install", {"confirm": True}),
+			{"confirm": True},
+		)
+
 	def test_upgrade_and_downgrade_require_explicit_version_and_confirmation(self):
 		operations = (
 			"host.node.docker.upgrade",
