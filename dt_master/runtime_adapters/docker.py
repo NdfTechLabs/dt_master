@@ -659,9 +659,34 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 	def _preflight(self, request, execution_context=None):
+		"""Combine runtime readiness with a read-only, deterministic Engine install plan."""
+		from dt_master.node_preparation.docker_install import build_docker_engine_install_plan
+
 		inspection = self._inspect(request, execution_context=execution_context)
 		readiness = inspection.data["readiness"]
 		privilege = inspection.data["privilege_readiness"]["status"]
+		snapshot = inspection.data.get("snapshot") or {}
+		host_inventory = snapshot.get("host_inventory") or {}
+		install_inventory = host_inventory.get("docker_install_inventory")
+		install_plan = None
+		plan_diagnostic = None
+		if inspection.data.get("inspection_status") in {"Failed", "Timed Out"} or not isinstance(
+			install_inventory, dict
+		):
+			plan_diagnostic = {
+				"code": "DOCKER_ENGINE_INSTALL_INVENTORY_UNAVAILABLE",
+				"severity": "warning",
+				"message": "Docker Engine installation inventory was unavailable; no installation plan was produced.",
+			}
+		else:
+			try:
+				install_plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+			except (TypeError, ValueError):
+				plan_diagnostic = {
+					"code": "DOCKER_ENGINE_INSTALL_PLAN_INVALID",
+					"severity": "warning",
+					"message": "Docker Engine installation inventory did not satisfy the planning contract.",
+				}
 		if (
 			inspection.outcome == "failed"
 			or readiness in {"Unknown", "Not Ready"}
@@ -680,7 +705,18 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			}
 			for item in inspection.data["privilege_readiness"].get("diagnostics", [])
 		)
-		diagnostics = tuple(list(inspection.diagnostics) + list(privilege_diagnostics))[:100]
+		diagnostic_rows = list(inspection.diagnostics) + list(privilege_diagnostics)
+		if plan_diagnostic:
+			diagnostic_rows.append(plan_diagnostic)
+		elif install_plan and install_plan["status"] in {"blocked", "preparation_required"}:
+			diagnostic_rows.append(
+				{
+					"code": "DOCKER_ENGINE_INSTALL_PLAN_" + install_plan["status"].upper(),
+					"severity": "warning",
+					"message": "Docker Engine installation plan requires prerequisites or operator review.",
+				}
+			)
+		diagnostics = tuple(diagnostic_rows[:100])
 		return self.result_for(
 			request,
 			outcome=outcome,
@@ -693,6 +729,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"readiness": readiness,
 				"readiness_evaluation": inspection.data["readiness_evaluation"],
 				"privilege_readiness": inspection.data["privilege_readiness"],
+				"docker_engine_install_plan": install_plan,
+				"docker_engine_install_plan_status": install_plan["status"] if install_plan else "unavailable",
 			},
 			duration_ms=inspection.duration_ms,
 		)
