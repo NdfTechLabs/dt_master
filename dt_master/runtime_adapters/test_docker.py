@@ -68,9 +68,14 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"schema_version": "1.0.0",
 				"observed_at": "2026-11-21T10:00:00Z",
 				"host_os": {
-					"id": "ubuntu", "id_like": "debian", "name": "Ubuntu", "version_id": "24.04",
-					"version_codename": "noble", "pretty_name": "Ubuntu 24.04",
-					"architecture": "amd64", "kernel_release": "6.8.0",
+					"id": "ubuntu",
+					"id_like": "debian",
+					"name": "Ubuntu",
+					"version_id": "24.04",
+					"version_codename": "noble",
+					"pretty_name": "Ubuntu 24.04",
+					"architecture": "amd64",
+					"kernel_release": "6.8.0",
 				},
 				"package_manager": "dpkg",
 				"docker_packages": [],
@@ -79,32 +84,50 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"docker_install_inventory": {
 					"schema_version": "1.0.0",
 					"observed_at": "2026-11-21T10:00:00Z",
-					"host_os": {"id": "ubuntu", "version_id": "24.04", "codename": "noble", "architecture": "amd64"},
+					"host_os": {
+						"id": "ubuntu",
+						"version_id": "24.04",
+						"codename": "noble",
+						"architecture": "amd64",
+					},
 					"package_manager": "apt",
 					"packages": [
 						{
-							"name": name, "installed_version": None, "installed_origin": None,
+							"name": name,
+							"installed_version": None,
+							"installed_origin": None,
 							"dpkg_status": "not-installed",
-							"candidate_version": "5:29.0.0-1~ubuntu.24.04~noble" if name in {
-								"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"
-							} else None,
-							"candidate_origin": "https://download.docker.com/linux/ubuntu noble/stable amd64 Packages" if name in {
-								"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"
-							} else None,
+							"candidate_version": "5:29.0.0-1~ubuntu.24.04~noble"
+							if name in {"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"}
+							else None,
+							"candidate_origin": "https://download.docker.com/linux/ubuntu noble/stable amd64 Packages"
+							if name in {"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"}
+							else None,
 							"held": False,
 						}
 						for name in (
-							"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin",
-							"docker.io", "docker-compose", "podman-docker", "containerd", "runc",
+							"docker-ce",
+							"docker-ce-cli",
+							"containerd.io",
+							"docker-buildx-plugin",
+							"docker.io",
+							"docker-compose",
+							"podman-docker",
+							"containerd",
+							"runc",
 						)
 					],
 					"repository": {
-						"source_id": "download.docker.com", "keyring_path": "/etc/apt/keyrings/docker.asc",
+						"source_id": "download.docker.com",
+						"keyring_path": "/etc/apt/keyrings/docker.asc",
 						"fingerprints": ["0123456789ABCDEF0123456789ABCDEF01234567"],
 					},
 					"apt_metadata": {"status": "Fresh", "age_seconds": 3600},
 					"package_manager_state": {"locked": False, "dpkg_audit_clean": True},
-					"storage": {"root_available_bytes": 20 * 1024**3, "apt_cache_available_bytes": 2 * 1024**3},
+					"storage": {
+						"root_available_bytes": 20 * 1024**3,
+						"apt_cache_available_bytes": 2 * 1024**3,
+					},
 					"services": {"docker": "inactive", "containerd": "inactive"},
 					"workloads": {"available": True, "running_containers": 0, "total_containers": 0},
 					"docker_engine_health": "not_installed",
@@ -247,12 +270,20 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_preflight_reports_install_plan_blocked_without_conflating_runtime_readiness(self):
 		snapshot = self._snapshot()
 		snapshot["host_inventory"]["docker_install_inventory"]["workloads"] = {
-			"available": True, "running_containers": 2, "total_containers": 2
+			"available": True,
+			"running_containers": 2,
+			"total_containers": 2,
 		}
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, __import__("json").dumps(snapshot), "")),
-			patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"}),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				return_value=(0, __import__("json").dumps(snapshot), ""),
+			),
+			patch(
+				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
+				return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"},
+			),
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
 			result = self.adapter.invoke("preflight", request("preflight"))
@@ -269,14 +300,22 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		del snapshot["host_inventory"]["docker_install_inventory"]
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, __import__("json").dumps(snapshot), "")),
-			patch("dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"}),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				return_value=(0, __import__("json").dumps(snapshot), ""),
+			),
+			patch(
+				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
+				return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"},
+			),
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
 			result = self.adapter.invoke("preflight", request("preflight"))
 		self.assertEqual(result.data["docker_engine_install_plan_status"], "unavailable")
 		self.assertIsNone(result.data["docker_engine_install_plan"])
-		self.assertIn("DOCKER_ENGINE_INSTALL_INVENTORY_UNAVAILABLE", {item["code"] for item in result.diagnostics})
+		self.assertIn(
+			"DOCKER_ENGINE_INSTALL_INVENTORY_UNAVAILABLE", {item["code"] for item in result.diagnostics}
+		)
 
 	def test_preflight_blocks_unknown_readiness(self):
 		with (
