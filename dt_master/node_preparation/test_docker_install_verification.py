@@ -1,6 +1,5 @@
 """Tests for independent Docker Engine install postcondition evaluation."""
 
-import copy
 import unittest
 
 from dt_master.node_preparation.docker_install import ENGINE_PACKAGES
