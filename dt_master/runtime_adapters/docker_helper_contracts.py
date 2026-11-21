@@ -67,12 +67,20 @@ def _packages(value: Any, *, result: bool) -> list[dict]:
 		if row["name"] != expected:
 			raise DockerHelperContractError("Helper package order differs from policy")
 		if result:
-			for field in ("requested_version", "installed_version"):
-				version = row[field]
-				if not isinstance(version, str) or not _PACKAGE_VERSION.fullmatch(version):
-					raise DockerHelperContractError("Invalid helper package version")
-			if row["status"] not in {"installed", "already_installed"}:
+			requested = row["requested_version"]
+			installed = row["installed_version"]
+			if not isinstance(requested, str) or not _PACKAGE_VERSION.fullmatch(requested):
+				raise DockerHelperContractError("Invalid requested helper package version")
+			if installed is not None and (
+				not isinstance(installed, str) or not _PACKAGE_VERSION.fullmatch(installed)
+			):
+				raise DockerHelperContractError("Invalid installed helper package version")
+			if row["status"] not in {"installed", "already_installed", "not_attempted"}:
 				raise DockerHelperContractError("Invalid helper package status")
+			if row["status"] in {"installed", "already_installed"} and installed != requested:
+				raise DockerHelperContractError("Installed helper package version does not match request")
+			if row["status"] == "not_attempted" and installed is None:
+				continue
 		else:
 			version = row["version"]
 			if not isinstance(version, str) or not _PACKAGE_VERSION.fullmatch(version):
@@ -171,9 +179,16 @@ def validate_install_engine_result(result: dict, *, expected_operation_id: str) 
 		if not isinstance(item, str) or not _DIAGNOSTIC_CODE.fullmatch(item):
 			raise DockerHelperContractError("Invalid helper diagnostic code")
 	if result["status"] == "succeeded" and (
-		code != 0 or result["phase"] != "result_verification" or diagnostics
+		code != 0
+		or result["phase"] != "result_verification"
+		or diagnostics
+		or any(row["status"] not in {"installed", "already_installed"} for row in result["packages"])
 	):
 		raise DockerHelperContractError("Inconsistent successful helper result")
+	if result["status"] == "failed_before_mutation" and any(
+		row["status"] == "installed" for row in result["packages"]
+	):
+		raise DockerHelperContractError("Pre-mutation failure contains an installed package claim")
 	if result["status"] == "failed_before_mutation" and result["phase"] in {
 		"package_install",
 		"result_verification",
