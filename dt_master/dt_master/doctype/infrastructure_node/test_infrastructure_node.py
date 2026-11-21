@@ -315,3 +315,31 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertTrue(evaluation["requirements_fingerprint"])
 		self.assertEqual(evaluation["inspection_observed_at"], snapshot["observed_at"])
 
+
+
+	def test_new_node_accepts_default_docker_host_lifecycle_state(self):
+		node = self._new_node()
+		self.assertEqual(node.docker_host_state, "Not Evaluated")
+		self.assertFalse(node.docker_host_operation)
+		self.assertFalse(node.docker_host_state_updated_on)
+		self.assertFalse(node.docker_host_management_snapshot)
+		node.validate()
+
+	def test_new_node_rejects_client_supplied_docker_host_lifecycle_state(self):
+		node = self._new_node()
+		node.docker_host_state = "Engine Ready"
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+	def test_new_node_rejects_client_supplied_docker_host_lifecycle_snapshot(self):
+		node = self._new_node()
+		node.docker_host_management_snapshot = '{"schema_version":"1.0.0"}'
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+	def test_saved_node_rejects_client_supplied_docker_host_lifecycle_update(self):
+		node = self._new_node()
+		node.insert(ignore_permissions=True)
+		node.docker_host_state = "Engine Ready"
+		with self.assertRaises(frappe.ValidationError):
+			node.save(ignore_permissions=True)
