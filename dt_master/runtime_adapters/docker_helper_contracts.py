@@ -183,10 +183,6 @@ def validate_install_engine_result(result: dict, *, expected_operation_id: str) 
 		or any(row["status"] not in {"installed", "already_installed"} for row in result["packages"])
 	):
 		raise DockerHelperContractError("Inconsistent successful helper result")
-	if result["status"] == "failed_before_mutation" and any(
-		row["status"] == "installed" for row in result["packages"]
-	):
-		raise DockerHelperContractError("Pre-mutation failure contains an installed package claim")
 	if result["status"] == "failed_before_mutation" and result["phase"] in {
 		"package_install",
 		"result_verification",
