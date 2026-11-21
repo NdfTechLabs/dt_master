@@ -112,6 +112,18 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             timeout=8,
         )
 
+    def test_clean_host_without_docker_cli_has_zero_docker_workloads(self):
+        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_clean_test", inventory_path)
+        inventory_module = importlib.util.module_from_spec(inventory_spec)
+        inventory_spec.loader.exec_module(inventory_module)
+        with patch.object(inventory_module.shutil, "which", return_value=None):
+            workloads = inventory_module._workload_summary()
+        self.assertEqual(
+            workloads,
+            {"available": True, "running_containers": 0, "total_containers": 0},
+        )
+
     def test_inventory_fails_closed_when_package_lock_inspector_is_missing(self):
         inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
         inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_lock_test", inventory_path)
