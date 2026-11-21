@@ -182,10 +182,12 @@
 				const current = this.operations.get(operationId) || {};
 				const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 				this.operations.set(operationId, {
-					...operation,
 					...current,
+					...operation,
 					operation_id: operationId,
-					creation: current.creation || operation.creation || operation.started_on || null,
+					// The fetched record is authoritative for identity/target metadata.
+					// Preserve only live execution state and event data from the realtime card.
+					creation: operation.creation || current.creation || operation.started_on || null,
 					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
 					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
 					result: operation.result ?? current.result ?? null,
@@ -312,8 +314,8 @@
 					if (!current) continue;
 					const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 					next.set(operationId, {
-						...operation,
 						...current,
+						...operation,
 						operation_id: operationId,
 						execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
 						event_history: current.event_history || [],
