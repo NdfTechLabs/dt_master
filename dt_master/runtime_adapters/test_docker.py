@@ -262,7 +262,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def test_preflight_reports_missing_install_inventory_without_claiming_plan(self):
 		snapshot = self._snapshot()
-		del snapshot["host_inventory"]["docker_install_inventory"]
+		del snapshot["host_inventory"]
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, __import__("json").dumps(snapshot), "")),
