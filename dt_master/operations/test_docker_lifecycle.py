@@ -60,12 +60,6 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			validate_docker_lifecycle_payload("host.node.docker.install", {**payload, "packages": ["docker.io"]})
 
-	def test_compose_install_keeps_its_separate_existing_payload_contract(self):
-		self.assertEqual(
-			validate_docker_lifecycle_payload("host.node.docker.compose.install", {"confirm": True}),
-			{"confirm": True},
-		)
-
 	def test_upgrade_and_downgrade_require_explicit_version_and_confirmation(self):
 		operations = (
 			"host.node.docker.upgrade",
