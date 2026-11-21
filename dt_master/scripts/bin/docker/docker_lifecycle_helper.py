@@ -239,9 +239,11 @@ def _simulate_exact_install(versions: list[str]) -> None:
     installs = []
     removals = []
     for line in output.splitlines():
-        match = re.match(r"^Inst\s+(\S+)(?:\s+\[[^]]*\])?\s+\((\S+)", line)
+        match = re.match(r"^Inst\s+(\S+)(?:\s+\[([^]]+)\])?\s+\((\S+)", line)
         if match:
-            installs.append((match.group(1).split(":", 1)[0], match.group(2)))
+            if match.group(2):
+                raise HelperError("APT_SIMULATION_UPGRADE_DETECTED", "state_validation")
+            installs.append((match.group(1).split(":", 1)[0], match.group(3)))
         match = re.match(r"^Remv\s+(\S+)", line)
         if match:
             removals.append(match.group(1).split(":", 1)[0])
@@ -399,7 +401,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, OSError):
-        # Never echo request content, host data, or command output.
+    except Exception:
+        # Never echo request content, host data, command output, or tracebacks.
         sys.stderr.write("DOCKER_HELPER_REQUEST_REJECTED\n")
         raise SystemExit(2)
