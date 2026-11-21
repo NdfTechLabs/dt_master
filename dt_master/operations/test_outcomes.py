@@ -26,7 +26,7 @@ class TestOperationOutcomes(unittest.TestCase):
 	def test_failed_adapter_result_becomes_durable_failure(self):
 		with self.assertRaises(OperationDispositionError) as raised:
 			enforce_durable_operation_outcome(
-				{"outcome": "failed"},
+				{"outcome": "failed", "data": {"failure": {"phase": "repository_preparation"}}},
 				failed_code="MUTATION_FAILED",
 				failed_summary="Mutation failed before execution.",
 				recovery_code="MUTATION_UNCERTAIN",
@@ -35,11 +35,12 @@ class TestOperationOutcomes(unittest.TestCase):
 		self.assertEqual(raised.exception.disposition, "Failed")
 		self.assertEqual(raised.exception.code, "MUTATION_FAILED")
 		self.assertIsNone(raised.exception.recovery_reason)
+		self.assertEqual(raised.exception.adapter_result["data"]["failure"]["phase"], "repository_preparation")
 
 	def test_partial_adapter_result_becomes_recovery_required(self):
 		with self.assertRaises(OperationDispositionError) as raised:
 			enforce_durable_operation_outcome(
-				{"outcome": "partial"},
+				{"outcome": "partial", "data": {"failure": {"phase": "package_install"}}},
 				failed_code="MUTATION_FAILED",
 				failed_summary="Mutation failed.",
 				recovery_code="MUTATION_UNCERTAIN",
@@ -48,6 +49,8 @@ class TestOperationOutcomes(unittest.TestCase):
 		self.assertEqual(raised.exception.disposition, "Recovery Required")
 		self.assertEqual(raised.exception.code, "MUTATION_UNCERTAIN")
 		self.assertEqual(raised.exception.recovery_reason, "Mutation requires reconciliation.")
+		fields = resolve_operation_disposition(raised.exception, lease_acquired=True)
+		self.assertEqual(fields["result_payload"]["data"]["failure"]["phase"], "package_install")
 
 	def test_unknown_adapter_outcome_is_rejected(self):
 		with self.assertRaises(ValueError):
