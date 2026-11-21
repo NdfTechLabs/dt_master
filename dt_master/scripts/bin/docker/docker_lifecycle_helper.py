@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -I
 """Root-owned, closed Docker lifecycle helper.
 
 The N3.4.8 implementation validates install requests and independently rebuilds
@@ -169,6 +169,7 @@ def _load_policy():
                 raise HelperError("POLICY_ARTIFACT_UNTRUSTED", "host_validation")
     except OSError as exc:
         raise HelperError("POLICY_ARTIFACT_UNAVAILABLE", "host_validation") from exc
+    sys.path.insert(0, str(HELPER_DIR))
     import docker_install_inventory
     import docker_install_policy
     return docker_install_inventory, docker_install_policy
