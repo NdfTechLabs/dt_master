@@ -264,7 +264,9 @@ def execute_operation(operation_id):
             event_data={
                 "error_code": error_code,
                 "result_available": failure_result_json is not None,
-                "result": failure_result if failure_result_json is not None else None,
+                "diagnostic_count": len(failure_result.get("diagnostics", []))
+                if isinstance(failure_result, dict) and isinstance(failure_result.get("diagnostics"), list)
+                else 0,
             },
         )
         frappe.db.commit()
