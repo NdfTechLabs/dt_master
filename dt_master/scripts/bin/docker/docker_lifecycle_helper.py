@@ -250,7 +250,12 @@ def _simulate_exact_install(versions: list[str]) -> None:
             removals.append(match.group(1).split(":", 1)[0])
     if removals or any(name not in ENGINE_PACKAGES for name, _version in installs):
         raise HelperError("APT_SIMULATION_OUT_OF_POLICY", "state_validation")
-    if set(name for name, _version in installs) != set(ENGINE_PACKAGES):
+    installed_names = [name for name, _version in installs]
+    if (
+        len(installs) != len(ENGINE_PACKAGES)
+        or len(set(installed_names)) != len(installed_names)
+        or set(installed_names) != set(ENGINE_PACKAGES)
+    ):
         raise HelperError("APT_SIMULATION_PACKAGE_SET_MISMATCH", "state_validation")
     for name, version in installs:
         expected = versions[ENGINE_PACKAGES.index(name)]
