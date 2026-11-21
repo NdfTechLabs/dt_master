@@ -94,6 +94,69 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 	@staticmethod
+	def _interpret_install_engine_postcondition(request, helper_result, inventory):
+		"""Require fresh independent inventory before declaring Engine installation successful."""
+		from dt_master.node_preparation.docker_install_verification import (
+			evaluate_docker_engine_install_postcondition,
+		)
+
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		helper = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		if helper["status"] != "succeeded":
+			return DockerRuntimeAdapter._interpret_install_engine_result(request, helper)
+
+		verification = evaluate_docker_engine_install_postcondition(
+			request.target_name,
+			inventory,
+			helper,
+			expected_operation_id=request.operation_id,
+		)
+		verified = verification["status"] == "verified"
+		diagnostic_rows = verification["diagnostics"]
+		if verified:
+			outcome = "succeeded"
+			state = "Verified"
+			diagnostics = ()
+		else:
+			outcome = "partial"
+			state = "Recovery Required"
+			if not diagnostic_rows:
+				diagnostic_rows = [
+					{
+						"code": "DOCKER_INSTALL_POSTCONDITION_NOT_VERIFIED",
+						"message": "Fresh host inspection did not verify the requested Docker Engine installation.",
+					}
+				]
+			diagnostics = tuple(
+				{
+					"code": item["code"],
+					"severity": "error",
+					"message": sanitize_diagnostic_message(item["message"]),
+				}
+				for item in diagnostic_rows[:20]
+			)
+
+		return DockerRuntimeAdapter.result_for(
+			request,
+			outcome=outcome,
+			observed_state=state,
+			capabilities=(),
+			diagnostics=diagnostics,
+			data={
+				"helper_status": helper["status"],
+				"helper_version": helper["helper_version"],
+				"postcondition_verified": verified,
+				"postcondition": verification,
+			},
+		)
+
+	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
 			raise ValueError("Docker inspection currently requires an Infrastructure Node target")
