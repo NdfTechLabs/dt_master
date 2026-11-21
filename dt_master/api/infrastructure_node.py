@@ -1252,20 +1252,33 @@ def inspect_docker_runtime(node_name):
 
 @frappe.whitelist(methods=["POST"])
 def check_system_status(node_name):
-	"""Queue a read-only Host inspection through the durable operation manager."""
+	"""Queue the named, read-only Node inspection operation."""
+	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
 	node.check_permission("read")
 	if not node.access_verified:
 		frappe.throw("Node SSH access must be verified before system inspection.")
 	return start_operation(
-		operation_type="runtime.adapter.inspect",
+		operation_type="host.node.inspect",
 		target_doctype="Infrastructure Node",
 		target_name=node.name,
-		payload={
-			"adapter_id": "host-v1",
-			"runtime_type": "host",
-			"method": "inspect",
-			"payload": {},
-		},
-		idempotency_key=f"host-inspect:{node.name}:{uuid.uuid4()}",
+		payload={},
+		idempotency_key=f"host-inspect:{node.name}:{uuid.uuid4().hex}",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def test_node_connection(node_name):
+	"""Queue a harmless SSH round-trip check for an Infrastructure Node."""
+	frappe.only_for("System Manager")
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before testing the connection.")
+	return start_operation(
+		operation_type="host.node.connection.check",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={},
+		idempotency_key=f"host-connection-check:{node.name}:{uuid.uuid4().hex}",
 	)
