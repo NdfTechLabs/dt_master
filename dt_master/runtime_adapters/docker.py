@@ -1004,7 +1004,25 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 				validate_docker_engine_install_plan(plan)
 			if plan.get("status") != "ready":
-				raise ValueError("The node does not meet the Docker installation prerequisites.")
+				failure_detail = {
+					"code": "DOCKER_INSTALL_PLAN_NOT_READY",
+					"plan_status": plan.get("status"),
+					"reason_codes": plan.get("reason_codes", []),
+					"prerequisites": plan.get("prerequisites", []),
+					"package_candidates": [
+						{
+							"name": row.get("name"),
+							"candidate_version": row.get("candidate_version"),
+						"action": row.get("action"),
+						}
+						for row in plan.get("packages", [])
+						if isinstance(row, dict)
+					],
+				}
+				reasons = ", ".join(failure_detail["reason_codes"]) or "No planner reason codes supplied"
+				raise ValueError(
+					f"Docker installation plan status is '{plan.get('status')}': {reasons}"
+				)
 			package_rows = plan.get("packages") or []
 			if len(package_rows) != 4 or any(
 				row.get("action") != "install" or not row.get("candidate_version")
@@ -1106,10 +1124,16 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				capabilities=(),
 				diagnostics=(
 					{
-						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED" if uncertain else "DOCKER_INSTALL_PRECHECK_FAILED",
+						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED" if uncertain else (
+							failure_detail.get("code") if failure_detail else "DOCKER_INSTALL_PRECHECK_FAILED"
+						),
 						"severity": "error",
 						"message": "The helper may have changed the node; fresh inspection is required."
-						if uncertain else "Docker installation preconditions were not satisfied.",
+						if uncertain else (
+							f"Docker installation plan blocked: {', '.join(failure_detail.get('reason_codes', []))}."
+							if failure_detail and failure_detail.get("reason_codes")
+							else "Docker installation preconditions were not satisfied."
+						),
 					},
 				),
 				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False, "failure": failure},
