@@ -139,7 +139,7 @@ def evaluate_docker_engine_install_postcondition(
 		failures.append("DOCKER_INSTALL_SIGNING_KEY_UNTRUSTED")
 	if inventory["package_manager_state"]["locked"]:
 		incomplete.append("DOCKER_INSTALL_PACKAGE_MANAGER_BUSY")
-	for service_name, service_state in inventory["services"].items():
+	for service_state in inventory["services"].values():
 		if service_state in {"inactive", "failed"}:
 			failures.append("DOCKER_INSTALL_REQUIRED_SERVICE_INACTIVE")
 		elif service_state in {"Unknown", "activating", "deactivating"}:
