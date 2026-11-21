@@ -1272,6 +1272,7 @@ def check_system_status(node_name):
 	"""Backward-compatible alias for the Inspect Node action."""
 	return inspect_node(node_name)
 
+
 @frappe.whitelist(methods=["POST"])
 def test_node_connection(node_name):
 	"""Queue a harmless SSH round-trip check for an Infrastructure Node."""
