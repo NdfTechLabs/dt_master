@@ -52,3 +52,31 @@ def enforce_durable_operation_outcome(
 			recovery_reason=recovery_summary,
 		)
 	raise ValueError("Runtime adapter returned an unsupported durable outcome")
+
+def resolve_operation_disposition(exc: Exception, *, lease_acquired: bool) -> dict:
+	"""Return the bounded durable fields used by the worker's exception path."""
+	if isinstance(exc, OperationDispositionError):
+		recovery_required = exc.disposition == "Recovery Required"
+		return {
+			"execution_state": exc.disposition,
+			"error_code": exc.code,
+			"error_summary": exc.summary,
+			"recovery_required": recovery_required,
+			"recovery_reason": exc.recovery_reason,
+		}
+	recovery_required = bool(lease_acquired)
+	return {
+		"execution_state": "Recovery Required" if recovery_required else "Failed",
+		"error_code": "LEASE_OR_HANDLER_FAILED" if recovery_required else "HANDLER_FAILED",
+		"error_summary": (
+			"Execution stopped after a resource lease or handler failure; reconcile the target before retrying."
+			if recovery_required else
+			"The registered operation handler failed. See the restricted server error log."
+		),
+		"recovery_required": recovery_required,
+		"recovery_reason": (
+			"Resource lease ownership or execution outcome requires reconciliation."
+			if recovery_required else None
+		),
+	}
+
