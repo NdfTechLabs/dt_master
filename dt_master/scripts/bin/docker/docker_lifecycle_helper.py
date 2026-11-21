@@ -385,7 +385,7 @@ def main() -> int:
             except Exception:
                 # Without a fresh independent fingerprint, do not fabricate a
                 # structured pre-mutation result. The caller must reconcile.
-                sys.stderr.write("DOCKER_HELPER_HOST_VALIDATION_UNAVAILABLE\\n")
+                sys.stderr.write("DOCKER_HELPER_HOST_VALIDATION_UNAVAILABLE\n")
                 return 2
             response = _result(
                 request, status="failed_before_mutation", phase=exc.phase,
