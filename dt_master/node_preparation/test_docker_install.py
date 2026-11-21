@@ -1,8 +1,6 @@
 """Tests for the pure N3.2 Docker Engine installation planner."""
 
 import copy
-import hashlib
-import json
 import unittest
 
 from dt_master.node_preparation.docker_install import (
