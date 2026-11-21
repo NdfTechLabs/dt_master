@@ -90,6 +90,31 @@ class TestDockerHostInventory(TestCase):
 		self.assertTrue(all(row["held"] is False for row in rows if row["name"] != "docker-ce"))
 		self.assertTrue(all(argv[0] not in {"apt-get", "apt", "dpkg", "systemctl"} for argv in calls))
 
+	def test_gpg_parser_separates_primary_and_subkey_fingerprints(self):
+		output = "\n".join((
+			"pub:-:4096:1:PRIMARYKEY:1700000000:::",
+			"fpr:::::::::9DC858229FC7DD38854AE2D88D81803C0EBFCD88:",
+			"uid:-::::1700000000::UIDHASH::Docker Release (CE deb) <docker@docker.com>:",
+			"sub:-:4096:1:SUBKEYID:1700000000::::::",
+			"fpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:",
+		))
+		fingerprints, primary_keys = PROBE._parse_gpg_key_inventory(output)
+		self.assertEqual(fingerprints, [
+			"9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+			"0123456789ABCDEF0123456789ABCDEF01234567",
+		])
+		self.assertEqual(primary_keys, [{
+			"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+			"identity": "Docker Release (CE deb) <docker@docker.com>",
+			"subkey_fingerprints": ["0123456789ABCDEF0123456789ABCDEF01234567"],
+		}])
+
+	def test_gpg_parser_does_not_promote_subkey_to_primary_key(self):
+		output = "sub:-:4096:1:SUBKEYID:1700000000::::::\\nfpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:"
+		fingerprints, primary_keys = PROBE._parse_gpg_key_inventory(output)
+		self.assertEqual(fingerprints, ["0123456789ABCDEF0123456789ABCDEF01234567"])
+		self.assertEqual(primary_keys, [])
+
 	def test_non_apt_inventory_fails_closed_with_empty_package_evidence(self):
 		host = {"id": "fedora", "version_id": "42", "version_codename": None, "architecture": "x86_64"}
 		services = {"manager": "systemd", "docker": "Unknown", "containerd": "Unknown"}
