@@ -19,6 +19,26 @@
 		"Cancellation Requested",
 		"Recovery Required",
 	]);
+	// Human-readable names mirror the action labels on the Infrastructure Node form.
+	// Keep operation_type unchanged in storage and APIs; this is presentation only.
+	const OPERATION_LABELS = Object.freeze({
+		"host.node.docker.privileges.bootstrap": __("Install Docker Privilege Helper"),
+		"host.node.docker.privileges.check": __("Check Docker Privileges"),
+		"host.node.docker.inspect": __("Inspect Docker Runtime"),
+		"host.node.docker.preflight": __("Run Docker Preflight"),
+		"host.node.docker.updates.check": __("Check Docker Updates"),
+		"host.node.docker.verify": __("Verify Docker Runtime"),
+		"host.node.inspect": __("Inspect Node"),
+		"host.node.connection.check": __("Test Node Connection"),
+		"runtime.adapter.inspect": __("Inspect Runtime Adapter"),
+		"runtime.adapter.mutate": __("Execute Runtime Adapter Mutation"),
+		"test.noop": __("Test Background Operation (No-op)"),
+	});
+	const operationLabel = (operationType) => {
+		if (!operationType) return __("Loading operation…");
+		if (OPERATION_LABELS[operationType]) return OPERATION_LABELS[operationType];
+		return String(operationType);
+	};
 	const stateClass = (state) => {
 		if (state === "Succeeded") return "success";
 		if (state === "Failed") return "danger";
@@ -120,7 +140,7 @@
 				this.operations.set(operationId, {
 					operation_id: operationId,
 					correlation_id: event.correlation_id,
-					operation_type: __("Background operation"),
+					operation_type: event.operation_type || null,
 					target_doctype: null,
 					target_name: null,
 					execution_state: "Pending Dispatch",
@@ -162,10 +182,12 @@
 				const current = this.operations.get(operationId) || {};
 				const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 				this.operations.set(operationId, {
-					...operation,
 					...current,
+					...operation,
 					operation_id: operationId,
-					creation: current.creation || operation.creation || operation.started_on || null,
+					// The fetched record is authoritative for identity/target metadata.
+					// Preserve only live execution state and event data from the realtime card.
+					creation: operation.creation || current.creation || operation.started_on || null,
 					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
 					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
 					result: operation.result ?? current.result ?? null,
@@ -292,8 +314,8 @@
 					if (!current) continue;
 					const hasLiveEvents = (this.lastSequences.get(operationId) || 0) > 0;
 					next.set(operationId, {
-						...operation,
 						...current,
+						...operation,
 						operation_id: operationId,
 						execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
 						event_history: current.event_history || [],
@@ -415,7 +437,7 @@
 			const line = document.createElement("div");
 			line.className = "dt-task-manager__operation-line";
 			const label = document.createElement("strong");
-			label.textContent = text(operation.operation_type, __("Operation"));
+			label.textContent = operationLabel(operation.operation_type);
 			const badge = document.createElement("span");
 			badge.className = "dt-task-manager__state dt-task-manager__state--" + stateClass(operation.execution_state);
 			badge.textContent = text(operation.execution_state);

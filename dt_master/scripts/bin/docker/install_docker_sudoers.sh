@@ -29,7 +29,7 @@ if sudo -n test -e "$POLICY_FILE"; then
     existing_content="${existing_content%x}"
     if [[ "$existing_content" == "$expected_policy" ]]; then
         sudo -n visudo -cf "$POLICY_FILE" >/dev/null || fail "Existing managed policy is syntactically invalid."
-        sudo -n -l -U "$username" "$HELPER_PATH" >/dev/null 2>&1 || fail "Existing policy does not grant the exact helper command."
+        sudo -n -l -U "$username" "$HELPER_PATH" "" >/dev/null 2>&1 || fail "Existing policy does not grant the exact helper command."
         printf 'DOCKER_SUDOERS_POLICY_ALREADY_CURRENT: %s\n' "$POLICY_FILE"
         exit 0
     fi
@@ -55,6 +55,6 @@ installed_content="$(sudo -n cat "$POLICY_FILE"; printf x)"
 installed_content="${installed_content%x}"
 [[ "$installed_content" == "$expected_policy" ]] || fail "Installed sudoers content verification failed."
 sudo -n visudo -cf "$POLICY_FILE" >/dev/null || fail "Installed sudoers policy failed syntax validation."
-sudo -n -l -U "$username" "$HELPER_PATH" >/dev/null 2>&1 || fail "Effective policy does not grant the exact helper command."
+sudo -n -l -U "$username" "$HELPER_PATH" "" >/dev/null 2>&1 || fail "Effective policy does not grant the exact helper command."
 activated=0
 printf 'DOCKER_SUDOERS_POLICY_INSTALLED: %s\n' "$POLICY_FILE"

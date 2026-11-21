@@ -163,5 +163,8 @@ register_operation(
 )
 
 
+# Register Node-scoped Host observations with stable operation identifiers.
+import dt_master.operations.host_node_registry  # noqa: E402,F401
+
 # Register only Docker lifecycle observations with existing read-only adapter handlers.
 import dt_master.operations.docker_lifecycle_registry  # noqa: E402,F401

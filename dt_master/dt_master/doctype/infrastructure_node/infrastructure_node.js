@@ -42,10 +42,10 @@ frappe.ui.form.on("Infrastructure Node", {
 				method: "dt_master.api.infrastructure_node.stop_project",
 			},
 			check_system_status: {
-				label: "Check System Status",
+				label: "Inspect Node",
 				statuses: ["Provisioning", "Active", "Maintenance"],
 				states: ["SSH Ready", "Healthy", "Running", "Stopped", "Error"],
-				method: "dt_master.api.infrastructure_node.check_system_status",
+				method: "dt_master.api.infrastructure_node.inspect_node",
 			},
 		};
 
@@ -58,19 +58,70 @@ frappe.ui.form.on("Infrastructure Node", {
 				);
 			}
 		});
+		if (frappe.user_roles.includes("System Manager") && frm.doc.access_verified) {
+			frm.add_custom_button(
+				__("Test Node Connection"),
+				() => test_node_connection(frm),
+				__("Node")
+			);
+		}
 		render_docker_readiness_summary(frm);
 
 		if (frappe.user_roles.includes("System Manager")) {
 			frm.add_custom_button(
-				__("Inspect Docker Runtime"),
-				() => {
+				__("Install Docker Privilege Helper"),
+				() =>
 					frappe.confirm(
-						__("Run a read-only Docker runtime inspection on this node? This does not change the Host-native Node state or Docker workloads."),
-						() => run_docker_inspection(frm)
-					);
-				},
+						__(
+							"Install the reviewed Docker helper and its narrowly scoped sudoers rule using this node’s configured SSH identity? Existing non-interactive administrative authority is required."
+						),
+						() => run_docker_privilege_bootstrap(frm)
+					),
 				__("Docker")
 			);
+			const dockerObservations = [
+				{
+					key: "privileges",
+					label: "Check Docker Privileges",
+					description:
+						"Check the trusted helper, ownership, permissions, sudoers policy and root self-test. This is read-only.",
+				},
+				{
+					key: "inspect",
+					label: "Inspect Docker Runtime",
+					description:
+						"Inspect Docker Engine, Compose and host resources. This is read-only.",
+				},
+				{
+					key: "preflight",
+					label: "Run Docker Preflight",
+					description:
+						"Evaluate whether this node is ready for Docker-backed workloads. This is read-only.",
+				},
+				{
+					key: "updates",
+					label: "Check Docker Updates",
+					description:
+						"Check installed Docker package versions and available updates. This does not install updates.",
+				},
+				{
+					key: "verify",
+					label: "Verify Docker Runtime",
+					description:
+						"Verify Docker CLI, Engine and Compose availability. This is read-only.",
+				},
+			];
+			for (const observation of dockerObservations) {
+				frm.add_custom_button(
+					__(observation.label),
+					() => {
+						frappe.confirm(__(observation.description), () =>
+							run_docker_observation(frm, observation.key, observation.label)
+						);
+					},
+					__("Docker")
+				);
+			}
 		}
 
 		if (
@@ -132,23 +183,81 @@ frappe.ui.form.on("Infrastructure Node", {
 	},
 });
 
-function run_docker_inspection(frm) {
+function test_node_connection(frm) {
 	frappe.call({
-		method: "dt_master.api.infrastructure_node.inspect_docker_runtime",
+		method: "dt_master.api.infrastructure_node.test_node_connection",
 		args: { node_name: frm.doc.name },
 		freeze: true,
-		freeze_message: __("Submitting Docker inspection..."),
+		freeze_message: __("Queueing SSH connection test..."),
 		callback(response) {
 			const operation = response.message || {};
 			frappe.show_alert({
-				message: __("Docker inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+				message: __("Node connection test queued. Operation: {0}. Follow progress and results in Task Manager.", [
+					operation.operation_id || __("unknown")
+				]),
 				indicator: "blue",
 			});
 		},
 		error() {
 			frappe.msgprint({
-				title: __("Docker Inspection Not Started"),
-				message: __("The Docker inspection could not be queued. Check the server error log."),
+				title: __("Node Connection Test Not Started"),
+				message: __("The SSH connection test could not be queued. Check the server error log."),
+				indicator: "red",
+			});
+		},
+	});
+}
+
+function run_docker_privilege_bootstrap(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.bootstrap_docker_privileges",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Queueing Docker privilege bootstrap..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __(
+					"Docker privilege bootstrap queued. Operation: {0}. Follow progress and results in Task Manager.",
+					[operation.operation_id || __("unknown")]
+				),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Docker Privilege Bootstrap Not Started"),
+				message: __(
+					"The bootstrap operation could not be queued. Check the server error log."
+				),
+				indicator: "red",
+			});
+		},
+	});
+}
+
+function run_docker_observation(frm, observation, label) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.run_docker_observation",
+		args: { node_name: frm.doc.name, observation },
+		freeze: true,
+		freeze_message: __("Submitting {0}...", [__(label)]),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __(
+					"{0} queued. Operation: {1}. Follow progress and results in Task Manager.",
+					[__(label), operation.operation_id || __("unknown")]
+				),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("{0} Not Started", [__(label)]),
+				message: __(
+					"The read-only Docker observation could not be queued. Check the server error log."
+				),
 				indicator: "red",
 			});
 		},
@@ -163,12 +272,13 @@ function render_docker_readiness_summary(frm) {
 	const evaluation = parse_json_field(frm.doc.docker_readiness_evaluation);
 	const readiness = frm.doc.docker_readiness || "Unknown";
 	const inspection = frm.doc.docker_inspection_status || "Not Inspected";
-	const indicator = {
-		Ready: "green",
-		Degraded: "orange",
-		"Not Ready": "red",
-		Unknown: "gray",
-	}[readiness] || "gray";
+	const indicator =
+		{
+			Ready: "green",
+			Degraded: "orange",
+			"Not Ready": "red",
+			Unknown: "gray",
+		}[readiness] || "gray";
 
 	const rows = [
 		[__("Inspection Status"), inspection],
@@ -204,19 +314,27 @@ function render_docker_readiness_summary(frm) {
 	const rows_html = rows
 		.map(
 			([label, value]) =>
-				`<tr><th class="text-muted" style="width: 38%">${escape_html(label)}</th><td>${escape_html(value)}</td></tr>`
+				`<tr><th class="text-muted" style="width: 38%">${escape_html(
+					label
+				)}</th><td>${escape_html(value)}</td></tr>`
 		)
 		.join("");
 
 	const evaluated_at = evaluation?.evaluated_at
-		? `<div class="text-muted small mt-2">${__("Evaluated")}: ${escape_html(evaluation.evaluated_at)} · ${__("Evaluator")}: ${escape_html(evaluation.evaluator_version || __("Unknown"))}</div>`
+		? `<div class="text-muted small mt-2">${__("Evaluated")}: ${escape_html(
+				evaluation.evaluated_at
+		  )} · ${__("Evaluator")}: ${escape_html(
+				evaluation.evaluator_version || __("Unknown")
+		  )}</div>`
 		: "";
 
 	field.$wrapper.html(
 		`<div class="border rounded p-3">
 			<div class="mb-3">
 				<span class="indicator-pill ${indicator}">${escape_html(readiness)}</span>
-				<span class="text-muted ml-2">${__("Docker readiness is evaluated independently of the Host-native Node state.")}</span>
+				<span class="text-muted ml-2">${__(
+					"Docker readiness is evaluated independently of the Host-native Node state."
+				)}</span>
 			</div>
 			<table class="table table-bordered table-sm mb-3"><tbody>${rows_html}</tbody></table>
 			<div class="font-weight-bold mb-2">${__("Readiness Diagnostics")}</div>
@@ -258,7 +376,9 @@ function run_bench_operation(frm, method, args = {}) {
 		args: { node_name: frm.doc.name, ...args },
 		callback: () => frm.reload_doc(),
 		error: () => {
-			frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
+			frappe.msgprint(
+				__("The operation request failed. Check the Node Action Log for details.")
+			);
 			frm.reload_doc();
 		},
 	});
@@ -286,27 +406,34 @@ function create_log_dialog(title) {
 		height: "400px",
 		"overflow-y": "scroll",
 	});
-	dialog.log_el.append(`<div id="log-wait" style="color:#888">${__("Waiting for remote execution output...")}</div>`);
+	dialog.log_el.append(
+		`<div id="log-wait" style="color:#888">${__(
+			"Waiting for remote execution output..."
+		)}</div>`
+	);
 	return dialog;
 }
 
 function run_node_action(frm, label, method) {
-	if (method === "dt_master.api.infrastructure_node.check_system_status") {
+	if (method === "dt_master.api.infrastructure_node.inspect_node") {
 		frappe.call({
 			method,
 			args: { node_name: frm.doc.name },
 			freeze: true,
-			freeze_message: __("Submitting Host inspection..."),
+			freeze_message: __("Queueing Node inspection..."),
 			callback(response) {
 				const operation = response.message || {};
 				frappe.show_alert({
-					message: __("System inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+					message: __(
+						"Node inspection queued. Operation: {0}. View progress and results in Task Manager.",
+						[operation.operation_id || __("unknown")]
+					),
 					indicator: "blue",
 				});
 			},
 			error() {
 				frappe.msgprint({
-					title: __("System Inspection Not Started"),
+					title: __("Node Inspection Not Started"),
 					message: __("The inspection could not be queued. Check the server error log."),
 					indicator: "red",
 				});
@@ -324,7 +451,9 @@ function run_node_action(frm, label, method) {
 			frm.reload_doc();
 		},
 		error() {
-			frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
+			frappe.msgprint(
+				__("The operation request failed. Check the Node Action Log for details.")
+			);
 			frm.reload_doc();
 		},
 	});
@@ -356,4 +485,3 @@ function start_execution_log_stream(dialog, node_name) {
 		}
 	});
 }
-

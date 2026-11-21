@@ -67,22 +67,19 @@ def main():
             parents_ok = False
     record("trusted_directories", parents_ok, "A trusted helper parent directory is missing, symlinked, incorrectly owned, or writable by group/others.")
 
-    policy_ok = False
-    try:
-        st = POLICY.lstat()
-        content = POLICY.read_text(encoding="utf-8")
-        expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\n'
-        policy_ok = (
-            stat.S_ISREG(st.st_mode) and st.st_uid == 0 and st.st_gid == 0
-            and stat.S_IMODE(st.st_mode) == 0o440 and content == expected
-        )
-    except OSError:
-        content = ""
+    # The managed policy is intentionally root:root 0440. Inspect it through
+    # the node's pre-existing administrative sudo authority; never weaken its mode.
+    metadata = run(["sudo", "-n", "stat", "-c", "%u:%g:%a", str(POLICY)])
+    policy_content = run(["sudo", "-n", "cat", str(POLICY)])
+    expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\n'
+    policy_ok = (
+        metadata is not None and metadata.returncode == 0 and metadata.stdout.strip() == "0:0:440"
+        and policy_content is not None and policy_content.returncode == 0
+        and policy_content.stdout == expected
+    )
     record("sudoers_policy", policy_ok, "Managed sudoers file is missing or does not match the exact root-owned 0440 policy.")
 
-    visudo = run(["/usr/sbin/visudo", "-cf", str(POLICY)])
-    if visudo is None:
-        visudo = run(["visudo", "-cf", str(POLICY)])
+    visudo = run(["sudo", "-n", "visudo", "-cf", str(POLICY)])
     syntax_ok = visudo is not None and visudo.returncode == 0
     record("sudoers_syntax", syntax_ok, "visudo could not validate the managed sudoers policy.")
 
