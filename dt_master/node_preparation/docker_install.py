@@ -53,6 +53,38 @@ def _canonical(value: Any) -> str:
 	return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+STATE_FINGERPRINT_VERSION = "1.0.0"
+
+
+def docker_engine_install_state_fingerprint(inventory: dict) -> str:
+	"""Return a stable SHA-256 binding for the host state used by N3.4 install approval.
+
+	Observation timestamps and the continuously aging APT age counter are omitted.
+	Their security meaning is represented by the validated APT freshness status;
+	all package, repository/key, host, storage, service, workload and health evidence
+	remains bound. Callers must validate the inventory with the planner before use.
+	"""
+	if not isinstance(inventory, dict):
+		raise DockerInstallPlanError("Docker Engine inventory must be an object")
+	_safe(inventory)
+	required = {
+		"schema_version", "observed_at", "host_os", "package_manager", "packages",
+		"repository", "apt_metadata", "package_manager_state", "storage", "services",
+		"workloads", "docker_engine_health",
+	}
+	_require_keys(inventory, required, "inventory")
+	apt = inventory.get("apt_metadata")
+	if not isinstance(apt, dict) or set(apt) != {"status", "age_seconds"}:
+		raise DockerInstallPlanError("Invalid APT metadata for state fingerprint")
+	state = {key: value for key, value in inventory.items() if key != "observed_at"}
+	state["apt_metadata"] = {"status": apt["status"]}
+	envelope = {
+		"fingerprint_version": STATE_FINGERPRINT_VERSION,
+		"inventory": state,
+	}
+	return hashlib.sha256(_canonical(envelope).encode("utf-8")).hexdigest()
+
+
 def _safe(value: Any, path: str = "inventory") -> None:
 	if isinstance(value, dict):
 		for key, item in value.items():
