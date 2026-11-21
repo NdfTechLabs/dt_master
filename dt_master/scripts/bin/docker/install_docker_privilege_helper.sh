@@ -82,8 +82,9 @@ check_existing() {
         metadata="$(sudo -n stat -c '%u:%g:%a' "$target")"
         [[ "$metadata" == "0:0:755" ]] || fail "Existing helper artifact has unsafe ownership or mode: $name"
         digest="$(sudo -n sha256sum "$target" | awk '{print $1}')"
-        [[ "$digest" == "$expected" || ( -n "$previous" && "$digest" == "$previous" ) || ( -n "$previous_legacy" && "$digest" == "$previous_legacy" ) ]] \
-            || fail "Refusing to overwrite an unrecognized helper artifact: $name"
+        if [[ "$digest" != "$expected" && "$digest" != "$previous" && "$digest" != "$previous_legacy" ]]; then
+            fail "Refusing to overwrite an unrecognized helper artifact: $name"
+        fi
     fi
 }
 
