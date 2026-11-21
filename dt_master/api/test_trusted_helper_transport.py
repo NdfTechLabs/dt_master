@@ -131,7 +131,7 @@ class TestTrustedHelperTransport(unittest.TestCase):
 
 	def test_invalid_utf8_after_process_start_is_uncertain(self):
 		def popen(args, **kwargs):
-			return FakeProcess(args, kwargs, stdout=b"\\xff")
+			return FakeProcess(args, kwargs, stdout=b"\xff")
 
 		with (
 			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh", "node", "REMOTE"]),
