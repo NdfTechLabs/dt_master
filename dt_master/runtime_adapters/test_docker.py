@@ -537,7 +537,20 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def test_preflight_reports_install_plan_blocked_without_conflating_runtime_readiness(self):
 		snapshot = self._snapshot()
-		snapshot["host_inventory"]["docker_install_inventory"]["workloads"] = {
+		inventory = snapshot["host_inventory"]["docker_install_inventory"]
+		# Isolate the workload-impact approval gate: signing-key evidence must
+		# already satisfy policy so it does not independently require preparation.
+		inventory["repository"]["fingerprints"] = [
+			"9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+		]
+		inventory["repository"]["primary_keys"] = [
+			{
+				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+				"identity": "Docker Release (CE deb) <docker@docker.com>",
+				"subkey_fingerprints": [],
+			}
+		]
+		inventory["workloads"] = {
 			"available": True,
 			"running_containers": 2,
 			"total_containers": 2,
