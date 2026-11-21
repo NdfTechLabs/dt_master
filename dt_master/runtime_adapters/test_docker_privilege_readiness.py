@@ -163,7 +163,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		self.assertIn('["sudo", "-n", "stat"', content)
 		self.assertIn('["sudo", "-n", "cat"', content)
 		self.assertIn('["sudo", "-n", "visudo"', content)
-		self.assertIn(r'""\\n', content)
+		self.assertIn(r'""\n', content)
 		self.assertNotIn(r'""\\\\n', content)
 		self.assertIn("helper_self_test", content)
 		for forbidden in ("apt-get install", "apt install", "chmod ", "chown "):
