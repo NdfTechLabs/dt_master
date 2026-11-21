@@ -38,7 +38,18 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 				["node-docker-observation:NODE-01"],
 			)
 
-	def test_mutating_operations_are_not_registered(self):
+ 
+	def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
+		definition = get_operation("host.node.docker.privileges.bootstrap")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 240)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(definition.validate_payload({}), {})
+		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
+		operation = SimpleNamespace(operation_type="host.node.docker.privileges.bootstrap")
+		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
+
+	def test_docker_package_lifecycle_mutations_are_not_registered(self):
 		types = set(registered_operation_types())
 		for operation_type in (
 			"host.node.docker.install",

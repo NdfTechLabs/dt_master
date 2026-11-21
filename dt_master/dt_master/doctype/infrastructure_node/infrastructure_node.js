@@ -61,6 +61,14 @@ frappe.ui.form.on("Infrastructure Node", {
 		render_docker_readiness_summary(frm);
 
 		if (frappe.user_roles.includes("System Manager")) {
+			frm.add_custom_button(
+				__("Install Docker Privilege Helper"),
+				() => frappe.confirm(
+					__("Install the reviewed Docker helper and its narrowly scoped sudoers rule using this node’s configured SSH identity? Existing non-interactive administrative authority is required."),
+					() => run_docker_privilege_bootstrap(frm)
+				),
+				__("Docker")
+			);
 			const dockerObservations = [
 				{
 					key: "privileges",
@@ -164,6 +172,29 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 	},
 });
+
+function run_docker_privilege_bootstrap(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.bootstrap_docker_privileges",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Queueing Docker privilege bootstrap..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __("Docker privilege bootstrap queued. Operation: {0}. Follow progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Docker Privilege Bootstrap Not Started"),
+				message: __("The bootstrap operation could not be queued. Check the server error log."),
+				indicator: "red",
+			});
+		},
+	});
+}
 
 function run_docker_observation(frm, observation, label) {
 	frappe.call({

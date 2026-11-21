@@ -23,7 +23,8 @@ COMPOSE_MUTATIONS = frozenset(
 		"host.node.docker.compose.uninstall",
 	}
 )
-MUTATING_OPERATIONS = ENGINE_MUTATIONS | COMPOSE_MUTATIONS
+PRIVILEGE_BOOTSTRAP_OPERATIONS = frozenset({"host.node.docker.privileges.bootstrap"})
+MUTATING_OPERATIONS = ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS
 READ_ONLY_OPERATIONS = frozenset(
 	{
 		"host.node.docker.privileges.check",
@@ -92,7 +93,7 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 	"""Return a normalized payload for one known Docker lifecycle operation."""
 	if operation_type not in DOCKER_LIFECYCLE_OPERATIONS:
 		raise ValueError("Unsupported Docker lifecycle operation")
-	if operation_type in READ_ONLY_OPERATIONS:
+	if operation_type in READ_ONLY_OPERATIONS or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS:
 		return _empty(payload)
 	if operation_type.endswith(".install"):
 		return _install(payload)
@@ -104,7 +105,7 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 
 
 def docker_lifecycle_resource_lock_keys(target, operation):
-	"""Serialize all Docker package/service mutations on one Infrastructure Node."""
+	"""Serialize Docker host mutations on one Infrastructure Node."""
 	operation_type = getattr(operation, "operation_type", None)
 	if operation_type not in MUTATING_OPERATIONS:
 		raise ValueError("Only Docker lifecycle mutations acquire the Docker lifecycle lock")

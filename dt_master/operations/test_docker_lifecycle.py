@@ -14,10 +14,10 @@ from dt_master.operations.docker_lifecycle import (
 
 
 class TestDockerLifecycleContracts(unittest.TestCase):
-    def test_catalogue_contains_expected_read_only_and_mutating_operations(self):
-        self.assertEqual(len(READ_ONLY_OPERATIONS), 4)
-        self.assertEqual(len(MUTATING_OPERATIONS), 8)
-        self.assertEqual(len(DOCKER_LIFECYCLE_OPERATIONS), 12)
+    def test_catalogue_contains_expected_observation_and_mutation_operations(self):
+        self.assertEqual(len(READ_ONLY_OPERATIONS), 5)
+        self.assertEqual(len(MUTATING_OPERATIONS), 9)
+        self.assertEqual(len(DOCKER_LIFECYCLE_OPERATIONS), 14)
 
     def test_read_only_operations_accept_only_empty_payload(self):
         for operation in READ_ONLY_OPERATIONS:

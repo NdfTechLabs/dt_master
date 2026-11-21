@@ -20,6 +20,7 @@ MUTATING_METHODS = frozenset(
 		"storage_prepare",
 		"backup",
 		"restore",
+		"bootstrap_privileges",
 	}
 )
 OBSERVATION_METHODS = frozenset(

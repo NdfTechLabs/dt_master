@@ -1,8 +1,8 @@
-"""Read-only Docker runtime adapter for Infrastructure Nodes.
+"""Docker runtime adapter for Infrastructure Nodes.
 
-This adapter reuses the established system-socket inspection script and the
-Node readiness evaluator. Compose and container lifecycle mutations belong to
-M4.3.5 and are deliberately not exposed here.
+The adapter supports read-only observations and the constrained initial
+privilege bootstrap. Docker package and container lifecycle mutations remain
+disabled until their later acceptance increments.
 """
 
 import json
@@ -26,7 +26,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "docker"
 
 	def capabilities(self):
-		return ("inspect", "preflight", "updates_check", "verify", "privilege_check")
+		return ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
 
 	@staticmethod
 	def _node_for_request(request):
@@ -435,6 +435,76 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			capabilities=self.capabilities(),
 			data={"update_check": payload},
 			duration_ms=elapsed,
+		)
+
+	def _bootstrap_privileges(self, request, execution_context=None):
+		"""Install the fixed helper and sudoers policy through the existing SSH runner."""
+		started = monotonic()
+		node = self._node_for_request(request)
+		if not node.ssh_user:
+			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
+
+		def run_installer(script_name):
+			code, _stdout, _stderr = run_remote_script(
+				node, self._ssh_config(node), "docker", script_name, {},
+				"script_execution_log", {"execution": script_name, "node": node.name},
+				use_sudo=False, timeout_seconds=90, max_output_bytes=16384,
+			)
+			return "completed" if code == 0 else "failed"
+
+		helper_status = "failed"
+		sudoers_status = "skipped"
+		try:
+			helper_status = run_installer("install_docker_privilege_helper.sh")
+		except Exception:
+			helper_status = "failed"
+		if helper_status == "completed":
+			try:
+				sudoers_status = run_installer("install_docker_sudoers.sh")
+			except Exception:
+				sudoers_status = "failed"
+
+		try:
+			code, stdout, _stderr = run_remote_script(
+				node, self._ssh_config(node), "docker", "check_docker_privilege_readiness.sh",
+				{"EXPECTED_SSH_USER": node.ssh_user}, "script_execution_log",
+				{"execution": "check_docker_privilege_readiness.sh", "node": node.name},
+				use_sudo=False, timeout_seconds=20, max_output_bytes=8192,
+			)
+			if code != 0:
+				raise ValueError("Docker privilege readiness probe failed")
+			readiness = self._validate_privilege_readiness(json.loads(stdout.strip()))
+		except Exception:
+			return self.result_for(
+				request, outcome="partial", observed_state="Incomplete", capabilities=self.capabilities(),
+				diagnostics=({"code": "DOCKER_PRIVILEGE_BOOTSTRAP_INCOMPLETE", "severity": "warning",
+					"message": "The Docker privilege bootstrap did not return a valid verification result."},),
+				data={"bootstrap_status": "Incomplete", "helper_install": helper_status,
+					"sudoers_install": sudoers_status},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+
+		steps_ready = helper_status == "completed" and sudoers_status == "completed"
+		ready = steps_ready and readiness["status"] == "Ready"
+		diagnostics = [
+			{"code": item["code"], "severity": "error" if item["severity"] == "Error" else "warning",
+			 "message": sanitize_diagnostic_message(item["message"])}
+			for item in readiness.get("diagnostics", [])
+		]
+		if helper_status != "completed":
+			diagnostics.append({"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_FAILED", "severity": "error",
+				"message": "The trusted Docker helper installer did not complete successfully."})
+		if sudoers_status != "completed":
+			diagnostics.append({"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_FAILED", "severity": "error",
+				"message": "The scoped Docker sudoers installer did not complete successfully."})
+		return self.result_for(
+			request, outcome="succeeded" if ready else ("failed" if readiness["status"] == "Not Ready" or not steps_ready else "partial"),
+			observed_state="Ready" if ready else ("Not Ready" if readiness["status"] == "Not Ready" else "Incomplete"),
+			capabilities=self.capabilities(), diagnostics=tuple(diagnostics[:100]),
+			data={"bootstrap_status": "Succeeded" if ready else "Failed",
+				"helper_install": helper_status, "sudoers_install": sudoers_status,
+				"privilege_readiness": readiness},
+			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 		)
 
 	def _verify(self, request, execution_context=None):
