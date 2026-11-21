@@ -236,7 +236,9 @@ def execute_operation(operation_id):
                 )
                 if len(candidate_json.encode("utf-8")) <= 65536:
                     failure_result_json = candidate_json
-            except (TypeError, ValueError):
+            except Exception:
+                # A diagnostic payload must never prevent the worker from
+                # recording the terminal failure disposition.
                 failure_result_json = None
         event_status = "recovery_required" if recovery_required else "failed"
         event_message = (
