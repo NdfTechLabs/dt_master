@@ -1050,21 +1050,22 @@ def _validate_docker_snapshot(snapshot):
 
 	if "host_inventory" in snapshot:
 		inventory = snapshot["host_inventory"]
-		exact_keys(
-			inventory,
-			(
-				"schema_version",
-				"observed_at",
-				"host_os",
-				"package_manager",
-				"docker_packages",
-				"services",
-				"workloads",
-			),
-			"host_inventory",
-		)
+		legacy_inventory_keys = {
+			"schema_version", "observed_at", "host_os", "package_manager",
+			"docker_packages", "services", "workloads",
+		}
+		if frozenset(inventory) not in {
+			frozenset(legacy_inventory_keys),
+			frozenset(legacy_inventory_keys | {"docker_install_inventory"}),
+		}:
+			raise ValueError("Invalid Docker host inventory section")
 		if inventory["schema_version"] != "1.0.0":
 			raise ValueError("Unsupported Docker host inventory schema")
+		if "docker_install_inventory" in inventory:
+			if not isinstance(inventory["docker_install_inventory"], dict):
+				raise ValueError("Invalid Docker Engine installation inventory")
+			if inventory["docker_install_inventory"].get("schema_version") != "1.0.0":
+				raise ValueError("Unsupported Docker Engine installation inventory schema")
 		if inventory["observed_at"] is not None and not isinstance(inventory["observed_at"], str):
 			raise ValueError("Invalid host inventory timestamp")
 		exact_keys(
