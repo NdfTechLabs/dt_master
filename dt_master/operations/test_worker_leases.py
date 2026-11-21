@@ -179,6 +179,7 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
             patch.object(worker.frappe.db, "rollback"),
             patch.object(worker.frappe, "log_error"),
             patch.object(worker, "record_operation_event") as event,
+            patch.object(worker, "now_datetime", return_value="2026-11-21 12:00:00"),
             patch.object(worker.frappe, "set_user"),
             patch.dict(worker.frappe.session, {"user": "Administrator"}),
         ):
