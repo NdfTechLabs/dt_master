@@ -77,8 +77,12 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertIn("DOCKER_SIGNING_KEY_POLICY_PENDING", plan["reason_codes"])
 		self.assertNotEqual(plan["status"], "ready")
 
-	def test_structured_primary_and_subkey_evidence_is_accepted_without_trusting_it_yet(self):
+	def test_structured_key_matching_reviewed_policy_is_trusted(self):
 		repository = copy.deepcopy(inventory()["repository"])
+		repository["fingerprints"] = [
+			"9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+			"0123456789ABCDEF0123456789ABCDEF01234567",
+		]
 		repository["primary_keys"] = [
 			{
 				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
@@ -87,8 +91,56 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 			}
 		]
 		plan = build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
-		self.assertIn("DOCKER_SIGNING_KEY_POLICY_PENDING", plan["reason_codes"])
-		self.assertNotEqual(plan["status"], "ready")
+		self.assertNotIn("DOCKER_SIGNING_KEY_MISMATCH", plan["reason_codes"])
+		self.assertNotIn("DOCKER_SIGNING_KEY_UNVERIFIED", plan["reason_codes"])
+		self.assertTrue(plan["repository"]["signing_key_policy"]["trusted"])
+		self.assertEqual(plan["repository"]["signing_key_policy"]["version"], "1.0.0")
+		self.assertEqual(
+			plan["repository"]["signing_key_policy"]["key_url"],
+			"https://download.docker.com/linux/ubuntu/gpg",
+		)
+
+	def test_structured_key_with_wrong_primary_fingerprint_is_rejected(self):
+		repository = copy.deepcopy(inventory()["repository"])
+		repository["primary_keys"] = [
+			{
+				"fingerprint": "0123456789ABCDEF0123456789ABCDEF01234567",
+				"identity": "Docker Release (CE deb) <docker@docker.com>",
+				"subkey_fingerprints": [],
+			}
+		]
+		plan = build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
+		self.assertIn("DOCKER_SIGNING_KEY_MISMATCH", plan["reason_codes"])
+		self.assertEqual(plan["status"], "blocked")
+
+	def test_structured_key_with_wrong_identity_is_rejected(self):
+		repository = copy.deepcopy(inventory()["repository"])
+		repository["primary_keys"] = [
+			{
+				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+				"identity": "Untrusted identity",
+				"subkey_fingerprints": [],
+			}
+		]
+		plan = build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
+		self.assertIn("DOCKER_SIGNING_KEY_MISMATCH", plan["reason_codes"])
+
+	def test_multiple_primary_keys_are_rejected(self):
+		repository = copy.deepcopy(inventory()["repository"])
+		repository["primary_keys"] = [
+			{
+				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+				"identity": "Docker Release (CE deb) <docker@docker.com>",
+				"subkey_fingerprints": [],
+			},
+			{
+				"fingerprint": "0123456789ABCDEF0123456789ABCDEF01234567",
+				"identity": "Unexpected key",
+				"subkey_fingerprints": [],
+			},
+		]
+		plan = build_docker_engine_install_plan("NODE-1", inventory(repository=repository))
+		self.assertIn("DOCKER_SIGNING_KEY_MISMATCH", plan["reason_codes"])
 
 	def test_malformed_structured_key_evidence_is_rejected(self):
 		repository = copy.deepcopy(inventory()["repository"])
