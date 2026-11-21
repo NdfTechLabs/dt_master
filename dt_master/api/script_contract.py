@@ -358,7 +358,6 @@ def run_remote_script(
 	return return_code, "\n".join(output["stdout"]), "\n".join(output["stderr"])
 
 
-
 class TrustedHelperExecutionError(RuntimeError):
 	"""Safe error for the fixed trusted-helper transport."""
 
@@ -406,12 +405,13 @@ def run_trusted_helper(
 
 	# The empty argument is intentional: it matches the exact sudoers rule
 	# rendered and verified by the N2.4.3/N2.4.4 privilege boundary.
-	remote_command = f"sudo -n {shlex.quote(helper_path)} \"\""
+	remote_command = f'sudo -n {shlex.quote(helper_path)} ""'
 	try:
 		command = build_ssh_argv(ssh, remote_command)
 	except Exception as exc:
 		raise TrustedHelperExecutionError(
-			"transport_setup_failed", "Trusted helper SSH configuration is invalid.",
+			"transport_setup_failed",
+			"Trusted helper SSH configuration is invalid.",
 			may_have_executed=False,
 		) from exc
 
@@ -432,7 +432,8 @@ def run_trusted_helper(
 			)
 		except (OSError, subprocess.SubprocessError) as exc:
 			raise TrustedHelperExecutionError(
-				"transport_start_failed", "Trusted helper SSH process could not be started.",
+				"transport_start_failed",
+				"Trusted helper SSH process could not be started.",
 				may_have_executed=False,
 			) from exc
 
@@ -468,7 +469,8 @@ def run_trusted_helper(
 			or proc.returncode == -getattr(signal, "SIGXFSZ", 25)
 		):
 			raise TrustedHelperExecutionError(
-				"output_limit_exceeded", "Trusted helper output exceeded its configured limit.",
+				"output_limit_exceeded",
+				"Trusted helper output exceeded its configured limit.",
 				may_have_executed=True,
 			)
 		stdout_file.seek(0)
@@ -478,7 +480,8 @@ def run_trusted_helper(
 			stderr = stderr_file.read(max_output_bytes + 1).decode("utf-8")
 		except UnicodeDecodeError as exc:
 			raise TrustedHelperExecutionError(
-				"invalid_output_encoding", "Trusted helper returned non-UTF-8 output.",
+				"invalid_output_encoding",
+				"Trusted helper returned non-UTF-8 output.",
 				may_have_executed=True,
 			) from exc
 
