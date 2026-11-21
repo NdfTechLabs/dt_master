@@ -8,7 +8,15 @@ class OperationDispositionError(RuntimeError):
 
 	DISPOSITIONS = frozenset({"Failed", "Recovery Required"})
 
-	def __init__(self, disposition: str, code: str, summary: str, *, recovery_reason: str | None = None, adapter_result: dict | None = None):
+	def __init__(
+		self,
+		disposition: str,
+		code: str,
+		summary: str,
+		*,
+		recovery_reason: str | None = None,
+		adapter_result: dict | None = None,
+	):
 		if disposition not in self.DISPOSITIONS:
 			raise ValueError("Unsupported operation disposition")
 		if not isinstance(code, str) or not code.isupper() or not code.replace("_", "").isalnum():
