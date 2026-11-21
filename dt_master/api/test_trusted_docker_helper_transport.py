@@ -2,7 +2,7 @@
 
 import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dt_master.api.script_contract import (
 	TrustedHelperExecutionError,
@@ -94,7 +94,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 			process = popen.return_value
 			process.poll.side_effect = [None, 0]
 			process.wait.side_effect = [subprocess.TimeoutExpired("ssh", 15), 0]
-			heartbeat = unittest.mock.Mock()
+			heartbeat = Mock()
 			run_trusted_helper(
 				None, {}, install_request(), timeout_seconds=30, heartbeat=heartbeat
 			)
