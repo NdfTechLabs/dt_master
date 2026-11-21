@@ -230,6 +230,38 @@ def _apt_package_rows() -> list[dict]:
 	return rows
 
 
+def _parse_gpg_key_inventory(output: str) -> tuple[list[str], list[dict]]:
+	"""Parse GnuPG colon output while distinguishing primary keys from subkeys."""
+	fingerprints = []
+	primary_keys = []
+	current_primary = None
+	current_record = None
+
+	for line in output.splitlines():
+		fields = line.split(":")
+		record = fields[0]
+		if record == "pub":
+			current_primary = {"fingerprint": None, "identity": None, "subkey_fingerprints": []}
+			primary_keys.append(current_primary)
+			current_record = "pub"
+		elif record == "sub":
+			current_record = "sub" if current_primary is not None else None
+		elif record == "fpr" and len(fields) > 9:
+			fingerprint = fields[9].upper()
+			if not fingerprint:
+				continue
+			fingerprints.append(fingerprint)
+			if current_record == "pub" and current_primary is not None:
+				current_primary["fingerprint"] = fingerprint
+			elif current_record == "sub" and current_primary is not None:
+				current_primary["subkey_fingerprints"].append(fingerprint)
+			current_record = None
+		elif record == "uid" and current_primary is not None and len(fields) > 9:
+			if current_primary["identity"] is None:
+				current_primary["identity"] = fields[9]
+
+	return fingerprints[:8], primary_keys[:8]
+
 def _repository_evidence() -> dict:
 	source_text = ""
 	for path in (
@@ -251,6 +283,7 @@ def _repository_evidence() -> dict:
 					signed_by = token.split("=", 1)[1].strip("[]")
 					break
 	fingerprints = []
+	primary_keys = []
 	if Path(DOCKER_KEYRING).is_file() and shutil.which("gpg"):
 		code, output = _run(
 			[
@@ -264,17 +297,14 @@ def _repository_evidence() -> dict:
 			timeout=8,
 		)
 		if code == 0:
-			fingerprints = [
-				line.split(":")[9].upper()
-				for line in output.splitlines()
-				if line.startswith("fpr:") and len(line.split(":")) > 9
-			][:8]
+			fingerprints, primary_keys = _parse_gpg_key_inventory(output)
 	return {
 		"source_id": DOCKER_SOURCE_DOMAIN if source_configured else None,
 		"keyring_path": signed_by
 		if signed_by
 		else (DOCKER_KEYRING if Path(DOCKER_KEYRING).is_file() else None),
 		"fingerprints": fingerprints,
+		"primary_keys": primary_keys,
 	}
 
 
