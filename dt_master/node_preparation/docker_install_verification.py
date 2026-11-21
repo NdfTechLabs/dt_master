@@ -75,6 +75,17 @@ def evaluate_docker_engine_install_postcondition(
 			node_name=node_name,
 		)
 
+	if helper["after_state_fingerprint"] != state_fingerprint:
+		return _result(
+			"failed",
+			"DOCKER_INSTALL_POSTCONDITION_STATE_FINGERPRINT_MISMATCH",
+			"Fresh host state does not match the trusted helper's post-mutation fingerprint.",
+			packages=[],
+			services=dict(inventory["services"]),
+			state_fingerprint=state_fingerprint,
+			node_name=node_name,
+		)
+
 	rows = {row["name"]: row for row in inventory["packages"]}
 	helper_rows = {row["name"]: row for row in helper["packages"]}
 	package_results = []
