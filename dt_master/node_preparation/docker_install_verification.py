@@ -71,6 +71,7 @@ def evaluate_docker_engine_install_postcondition(
 			packages=[],
 			services=None,
 			state_fingerprint=None,
+			node_name=node_name,
 		)
 
 	rows = {row["name"]: row for row in inventory["packages"]}
