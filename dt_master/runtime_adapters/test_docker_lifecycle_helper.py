@@ -209,6 +209,16 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
                 helper._simulate_exact_install(versions)
 
+    def test_apt_simulation_rejects_duplicate_architecture_rows(self):
+        version = "5:29.0.0-1~ubuntu.24.04~noble"
+        output = "\\n".join(
+            [f"Inst {name} ({version} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
+            + [f"Inst docker-ce:arm64 ({version} Docker:stable [arm64])"]
+        )
+        with patch.object(helper, "_run", return_value=(0, output)):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
+                helper._simulate_exact_install([version] * 4)
+
     def test_apt_simulation_rejects_missing_or_changed_package_versions(self):
         versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
         with patch.object(helper, "_run", return_value=(0, "Inst docker-ce (5:29.0.0-1~ubuntu.24.04~noble)")):
