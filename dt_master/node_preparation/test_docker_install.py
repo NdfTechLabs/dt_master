@@ -18,6 +18,7 @@ def inventory(**overrides):
         packages.append({
             "name": name,
             "installed_version": None,
+            "installed_origin": None,
             "dpkg_status": "not-installed",
             "candidate_version": "5:29.0.0-1~ubuntu.24.04~noble" if name in ENGINE_PACKAGES else None,
             "candidate_origin": "https://download.docker.com/linux/ubuntu noble/stable amd64 Packages" if name in ENGINE_PACKAGES else None,
