@@ -65,6 +65,35 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			get=lambda field: None,
 		)
 
+	def test_postcondition_flow_runs_separate_read_only_inspection(self):
+		from dt_master.node_preparation.test_docker_install_verification import (
+			helper_result,
+			inventory,
+		)
+
+		inspection = SimpleNamespace(
+			data={
+				"inspection_status": "Successful",
+				"snapshot": {"host_inventory": {"docker_install_inventory": inventory()}},
+			}
+		)
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		with patch.object(self.adapter, "_inspect", return_value=inspection) as inspect:
+			result = self.adapter._verify_install_engine_postcondition(
+				request_obj, helper_result()
+			)
+		inspect.assert_called_once_with(request_obj, execution_context=None)
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertTrue(result.data["postcondition_verified"])
+
 	def test_install_postcondition_verification_is_required_for_success(self):
 		from dt_master.node_preparation.test_docker_install_verification import (
 			helper_result,
