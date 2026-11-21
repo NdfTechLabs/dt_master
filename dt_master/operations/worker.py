@@ -211,8 +211,6 @@ def execute_operation(operation_id):
             _release_leases(leases)
             frappe.db.commit()
     except Exception as exc:
-        from dt_master.operations.outcomes import OperationDispositionError
-
         frappe.db.rollback()
         _release_leases(leases)
         frappe.db.commit()
