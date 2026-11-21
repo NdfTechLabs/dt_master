@@ -2,7 +2,10 @@
 
 import unittest
 
-from dt_master.node_preparation.docker_install import ENGINE_PACKAGES
+from dt_master.node_preparation.docker_install import (
+	ENGINE_PACKAGES,
+	docker_engine_install_state_fingerprint,
+)
 from dt_master.node_preparation.docker_install_verification import (
 	evaluate_docker_engine_install_postcondition,
 )
@@ -63,7 +66,7 @@ def helper_result():
 		"status": "succeeded",
 		"phase": "result_verification",
 		"before_state_fingerprint": "a" * 64,
-		"after_state_fingerprint": "b" * 64,
+		"after_state_fingerprint": docker_engine_install_state_fingerprint(inventory()),
 		"packages": [
 			{
 				"name": name,
@@ -92,6 +95,18 @@ class TestDockerEngineInstallPostcondition(unittest.TestCase):
 		self.assertTrue(all(row["status"] == "verified" for row in result["packages"]))
 		self.assertEqual(result["services"], {"docker": "active", "containerd": "active"})
 		self.assertEqual(len(result["state_fingerprint"]), 64)
+
+	def test_helper_after_state_fingerprint_must_match_fresh_inventory(self):
+		helper = helper_result()
+		helper["after_state_fingerprint"] = "f" * 64
+		result = evaluate_docker_engine_install_postcondition(
+			"NODE-0001", inventory(), helper, expected_operation_id="OP-0001"
+		)
+		self.assertEqual(result["status"], "failed")
+		self.assertEqual(
+			result["diagnostics"][0]["code"],
+			"DOCKER_INSTALL_POSTCONDITION_STATE_FINGERPRINT_MISMATCH",
+		)
 
 	def test_version_mismatch_fails_postcondition(self):
 		observed = inventory()
