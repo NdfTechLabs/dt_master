@@ -57,7 +57,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "host"
 
 	def capabilities(self):
-		return ("inspect", "preflight")
+		return ("inspect", "preflight", "connection_check")
 
 	@staticmethod
 	def _node_for_request(request):
@@ -92,6 +92,29 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			return "Unknown"
 		return "Supported" if identity in SUPPORTED_OS_RELEASES else "Unsupported"
 
+	def _connection_check(self, request, execution_context=None):
+		node = self._node_for_request(request)
+		started = monotonic()
+		code, stdout, stderr = run_remote_script(
+			node, self._ssh_config(node), "node", "test_node_connection.sh", {},
+			"node_connection_check", {"node": node.name, "target": request.target_name},
+			use_sudo=False, timeout_seconds=20, max_output_bytes=1024,
+		)
+		elapsed = min(86400000, int((monotonic() - started) * 1000))
+		if code != 0 or stdout.strip() != "DT_MASTER_SSH_OK":
+			return self.result_for(
+				request, outcome="failed", observed_state="Unreachable",
+				capabilities=self.capabilities(),
+				diagnostics=({"code": "NODE_SSH_CONNECTION_FAILED", "severity": "error",
+					"message": "The configured SSH connection did not return the expected remote test response."},),
+				data={"connection_status": "Failed", "latency_ms": elapsed}, duration_ms=elapsed,
+			)
+		return self.result_for(
+			request, outcome="succeeded", observed_state="Connected",
+			capabilities=self.capabilities(),
+			data={"connection_status": "Connected", "latency_ms": elapsed, "transport": "SSH"},
+			duration_ms=elapsed,
+		)
 	def _inspect(self, request, execution_context=None):
 		node = self._node_for_request(request)
 		started = monotonic()
