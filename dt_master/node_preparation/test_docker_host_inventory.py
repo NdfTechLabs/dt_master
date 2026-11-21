@@ -59,7 +59,7 @@ class TestDockerHostInventory(TestCase):
             if argv[0] == "apt-cache":
                 name = argv[-1]
                 if name == "docker-ce":
-                    return 0, "docker-ce:\n  Installed: 5:29.0.0-1\n  Candidate: 5:29.1.0-1\n  Version table:\n     5:29.1.0-1 500\n        500 https://download.docker.com/linux/ubuntu noble/stable amd64 Packages"
+                    return 0, "docker-ce:\n  Installed: 5:29.0.0-1\n  Candidate: 5:29.1.0-1\n  Version table:\n     5:29.1.0-1 500\n        500 https://download.docker.com/linux/ubuntu noble/stable amd64 Packages\n *** 5:29.0.0-1 100\n        100 /var/lib/dpkg/status"
                 return 0, f"{name}:\n  Candidate: (none)\n"
             self.fail(f"Unexpected probe command: {argv[0]}")
 
@@ -71,7 +71,7 @@ class TestDockerHostInventory(TestCase):
         self.assertEqual(docker_ce["dpkg_status"], "installed")
         self.assertEqual(docker_ce["installed_version"], "5:29.0.0-1")
         self.assertEqual(docker_ce["candidate_version"], "5:29.1.0-1")
-        self.assertEqual(docker_ce["candidate_origin"], "https://download.docker.com/linux/ubuntu")
+        self.assertEqual(docker_ce["candidate_origin"], "https://download.docker.com/linux/ubuntu")\n        self.assertEqual(docker_ce["installed_origin"], "/var/lib/dpkg/status")
         self.assertTrue(docker_ce["held"])
         self.assertTrue(all(row["held"] is False for row in rows if row["name"] != "docker-ce"))
         self.assertTrue(all(argv[0] not in {"apt-get", "apt", "dpkg", "systemctl"} for argv in calls))
