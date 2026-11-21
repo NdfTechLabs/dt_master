@@ -23,7 +23,7 @@ def request(method="inspect"):
 def helper_install_result(status="succeeded", phase="result_verification", exit_code=0):
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.1.0",
+		"helper_version": "0.2.0",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": status,
