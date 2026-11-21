@@ -211,8 +211,21 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertEqual(plan["status"], "blocked")
 
 	def test_active_workloads_require_impact_approval(self):
+		repository = copy.deepcopy(inventory()["repository"])
+		repository["fingerprints"] = ["9DC858229FC7DD38854AE2D88D81803C0EBFCD88"]
+		repository["primary_keys"] = [
+			{
+				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+				"identity": "Docker Release (CE deb) <docker@docker.com>",
+				"subkey_fingerprints": [],
+			}
+		]
 		plan = build_docker_engine_install_plan(
-			"NODE-1", inventory(workloads={"available": True, "running_containers": 2, "total_containers": 3})
+			"NODE-1",
+			inventory(
+				repository=repository,
+				workloads={"available": True, "running_containers": 2, "total_containers": 3},
+			),
 		)
 		self.assertIn("ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED", plan["reason_codes"])
 		self.assertTrue(plan["workload_impact"]["operator_impact_approval_required"])
