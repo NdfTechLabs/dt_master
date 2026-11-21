@@ -55,12 +55,12 @@ class TestDockerHostInventory(TestCase):
                 return 0, "docker-ce\n"
             if argv[0] == "dpkg-query":
                 name = argv[-1]
-                return (0, "5:29.0.0-1\\tinstalled") if name == "docker-ce" else (1, "")
+                return (0, "5:29.0.0-1\tinstalled") if name == "docker-ce" else (1, "")
             if argv[0] == "apt-cache":
                 name = argv[-1]
                 if name == "docker-ce":
-                    return 0, "docker-ce:\\n  Installed: 5:29.0.0-1\\n  Candidate: 5:29.1.0-1\\n  Version table:\\n     5:29.1.0-1 500\\n        500 https://download.docker.com/linux/ubuntu noble/stable amd64 Packages"
-                return 0, f"{name}:\\n  Candidate: (none)\\n"
+                    return 0, "docker-ce:\n  Installed: 5:29.0.0-1\n  Candidate: 5:29.1.0-1\n  Version table:\n     5:29.1.0-1 500\n        500 https://download.docker.com/linux/ubuntu noble/stable amd64 Packages"
+                return 0, f"{name}:\n  Candidate: (none)\n"
             self.fail(f"Unexpected probe command: {argv[0]}")
 
         with patch.object(PROBE, "_run", side_effect=fake_run):
@@ -93,7 +93,7 @@ class TestDockerHostInventory(TestCase):
     def test_workload_probe_returns_counts_only(self):
         with (
             patch.object(PROBE.shutil, "which", return_value="/usr/bin/docker"),
-            patch.object(PROBE, "_run", side_effect=[(0, "abc123\\ndef456\\n"), (0, "abc123\\n")]),
+            patch.object(PROBE, "_run", side_effect=[(0, "abc123\ndef456\n"), (0, "abc123\n")]),
         ):
             result = PROBE._workload_summary()
         self.assertEqual(result, {"available": True, "running_containers": 1, "total_containers": 2})
@@ -117,10 +117,10 @@ class TestDockerHostInventory(TestCase):
 
         with (
             patch.object(PROBE, "APT_LISTS") as lists,
-            patch.object(PROBE.datetime, "now") as now,
+            patch.object(PROBE, "datetime") as clock,
         ):
             lists.iterdir.return_value = [FakePath()]
-            clock.now.return_value.timestamp.return_value = 1_000_000 + 90_000
+            clock.clock.now.return_value.timestamp.return_value = 1_000_000 + 90_000
             result = PROBE._apt_metadata()
         self.assertEqual(result, {"status": "Aging", "age_seconds": 90000})
 
