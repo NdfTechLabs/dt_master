@@ -1142,7 +1142,7 @@ def run_docker_observation(node_name, observation):
 		target_doctype="Infrastructure Node",
 		target_name=node.name,
 		payload={},
-		idempotency_key=f"docker-{observation}:{node.name}:{uuid.uuid4()}",
+		idempotency_key=f"docker-{observation}:{uuid.uuid4().hex}",
 	)
 
 
