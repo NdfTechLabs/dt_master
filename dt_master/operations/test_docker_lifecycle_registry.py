@@ -9,6 +9,7 @@ from dt_master.operations.registry import get_operation, registered_operation_ty
 class TestDockerLifecycleRegistry(unittest.TestCase):
     def test_inspect_and_preflight_are_registered_with_read_only_handlers(self):
         for operation_type in (
+            "host.node.docker.privileges.check",
             "host.node.docker.inspect",
             "host.node.docker.preflight",
             "host.node.docker.updates.check",
