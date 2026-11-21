@@ -15,6 +15,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HELPER_VERSION = "0.3.0"
@@ -202,19 +203,27 @@ def _prepare_repository() -> dict:
     if code:
         raise HelperError("APT_PREREQUISITES_FAILED", "repository_prepare")
     key_url = f"https://download.docker.com/linux/{distro}/gpg"
-    code, _ = _run(["/usr/bin/curl", "--fail", "--silent", "--show-error", "--location", "--proto", "=https", "--tlsv1.2", "--max-time", "30", key_url, "--output", "/tmp/dt-docker-release.asc"], timeout=45)
-    if code:
-        raise HelperError("DOCKER_KEY_DOWNLOAD_FAILED", "repository_prepare")
-    code, key_output = _run(["/usr/bin/gpg", "--batch", "--show-keys", "--with-colons", "/tmp/dt-docker-release.asc"])
-    fingerprints = [fields[9] for line in key_output.splitlines() if (fields := line.split(":"))[0] == "fpr" and len(fields) > 9]
-    if code or not fingerprints or fingerprints[0] != "9DC858229FC7DD38854AE2D88D81803C0EBFCD88":
-        raise HelperError("DOCKER_SIGNING_KEY_FINGERPRINT_MISMATCH", "repository_prepare")
-    keydir = Path("/etc/apt/keyrings")
-    keydir.mkdir(mode=0o755, parents=True, exist_ok=True)
-    keytmp = keydir / ".docker.asc.dt-master.tmp"
-    keytmp.write_bytes(Path("/tmp/dt-docker-release.asc").read_bytes())
-    os.chmod(keytmp, 0o644)
-    os.replace(keytmp, keydir / "docker.asc")
+    key_fd, key_download = tempfile.mkstemp(prefix="dt-docker-release-", dir="/run")
+    os.close(key_fd)
+    try:
+        code, _ = _run(["/usr/bin/curl", "--fail", "--silent", "--show-error", "--location", "--proto", "=https", "--tlsv1.2", "--max-time", "30", key_url, "--output", key_download], timeout=45)
+        if code:
+            raise HelperError("DOCKER_KEY_DOWNLOAD_FAILED", "repository_prepare")
+        code, key_output = _run(["/usr/bin/gpg", "--batch", "--show-keys", "--with-colons", key_download])
+        fingerprints = [fields[9] for line in key_output.splitlines() if (fields := line.split(":"))[0] == "fpr" and len(fields) > 9]
+        if code or not fingerprints or fingerprints[0] != "9DC858229FC7DD38854AE2D88D81803C0EBFCD88":
+            raise HelperError("DOCKER_SIGNING_KEY_FINGERPRINT_MISMATCH", "repository_prepare")
+        keydir = Path("/etc/apt/keyrings")
+        keydir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        keytmp = keydir / ".docker.asc.dt-master.tmp"
+        keytmp.write_bytes(Path(key_download).read_bytes())
+        os.chmod(keytmp, 0o644)
+        os.replace(keytmp, keydir / "docker.asc")
+    finally:
+        try:
+            os.unlink(key_download)
+        except OSError:
+            pass
     source = Path("/etc/apt/sources.list.d/docker.sources")
     sourcetmp = source.with_name(".docker.sources.dt-master.tmp")
     sourcetmp.write_text(f"Types: deb\\nURIs: https://download.docker.com/linux/{distro}\\nSuites: {codename}\\nComponents: stable\\nArchitectures: amd64\\nSigned-By: /etc/apt/keyrings/docker.asc\\n", encoding="utf-8")
