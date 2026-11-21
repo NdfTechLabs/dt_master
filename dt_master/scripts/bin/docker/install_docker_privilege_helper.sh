@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Install the reviewed, fixed Docker lifecycle helper into a root-owned path.
-# This is a bootstrap operation and requires pre-existing non-interactive sudo.
+# Install the reviewed, fixed Docker lifecycle helper and its root-side policy
+# artifacts. This bootstrap requires pre-existing non-interactive sudo.
 set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
+readonly HELPER_SHA256="ac3fec9b642627c89a01ff1e3d11f90083897461640d8460d542ee408475ea71"
+readonly PREVIOUS_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
+readonly POLICY_NAME="docker_install_policy.py"
+readonly POLICY_SHA256="23f31009ae54e68550ca9bf3f864d599df6053387812e151b4bc7709f8445f0e"
+readonly INVENTORY_NAME="docker_install_inventory.py"
+readonly INVENTORY_SHA256="99977afa5d7622b11371dcc1e95dd9fbe4d24810ce8cfdda6f07d35b782d5fdf"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
-readonly DEST_FILE="${DEST_DIR}/${HELPER_NAME}"
 
 fail() {
     printf 'DOCKER_PRIVILEGE_INSTALL_FAILED: %s\n' "$1" >&2
@@ -22,11 +26,17 @@ done
 sudo -n true >/dev/null 2>&1 || fail "Non-interactive sudo is required for initial bootstrap."
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-source_file="${script_dir}/${HELPER_NAME}"
-[[ -f "$source_file" && ! -L "$source_file" ]] || fail "Trusted helper source is missing or is a symlink."
+for name in "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
+    source_file="${script_dir}/${name}"
+    [[ -f "$source_file" && ! -L "$source_file" ]] || fail "Trusted helper artifact is missing or is a symlink: $name"
+done
 
-actual_sha="$(sha256sum "$source_file" | awk '{print $1}')"
-[[ "$actual_sha" == "$HELPER_SHA256" ]] || fail "Trusted helper digest does not match the installer-pinned digest."
+[[ "$(sha256sum "${script_dir}/${HELPER_NAME}" | awk '{print $1}')" == "$HELPER_SHA256" ]] \
+    || fail "Trusted helper digest does not match the installer-pinned digest."
+[[ "$(sha256sum "${script_dir}/${POLICY_NAME}" | awk '{print $1}')" == "$POLICY_SHA256" ]] \
+    || fail "Install policy digest does not match the installer-pinned digest."
+[[ "$(sha256sum "${script_dir}/${INVENTORY_NAME}" | awk '{print $1}')" == "$INVENTORY_SHA256" ]] \
+    || fail "Install inventory digest does not match the installer-pinned digest."
 
 # Trusted parent directories must not be symlinks, non-root-owned, or writable
 # by group/other. Do not silently repair an unsafe system path.
@@ -40,8 +50,6 @@ for path in /usr /usr/local /usr/local/lib; do
     (( (permissions & 0022) == 0 )) || fail "Trusted parent directory is group/world writable: $path"
 done
 
-# Create only the application-owned directory. Existing paths are accepted
-# only when they are real directories with the required ownership and mode.
 if sudo -n test -e /usr/local/lib/dt-master; then
     sudo -n test -d /usr/local/lib/dt-master && ! sudo -n test -L /usr/local/lib/dt-master \
         || fail "Managed parent exists but is not a real directory."
@@ -62,38 +70,65 @@ else
         || fail "Could not create helper directory."
 fi
 
-tmp_file="$(sudo -n mktemp "${DEST_DIR}/.helper.XXXXXX")" \
-    || fail "Could not stage helper in destination directory."
+# Refuse unknown pre-existing artifacts. The only accepted helper predecessor
+# is the previously deployed self-test-only N2.4 helper.
+check_existing() {
+    local name="$1" expected="$2" previous="${3:-}"
+    local target="${DEST_DIR}/${name}" metadata digest
+    if sudo -n test -e "$target"; then
+        sudo -n test -f "$target" && ! sudo -n test -L "$target" \
+            || fail "Existing helper artifact is not a regular file: $name"
+        metadata="$(sudo -n stat -c '%u:%g:%a' "$target")"
+        [[ "$metadata" == "0:0:755" ]] || fail "Existing helper artifact has unsafe ownership or mode: $name"
+        digest="$(sudo -n sha256sum "$target" | awk '{print $1}')"
+        [[ "$digest" == "$expected" || ( -n "$previous" && "$digest" == "$previous" ) ]] \
+            || fail "Refusing to overwrite an unrecognized helper artifact: $name"
+    fi
+}
+
+check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256"
+check_existing "$POLICY_NAME" "$POLICY_SHA256"
+check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256"
+
+stage_dir="$(sudo -n mktemp -d "${DEST_DIR}/.helper.XXXXXX")" \
+    || fail "Could not stage helper artifacts in destination directory."
 cleanup() {
-    if [[ -n "${tmp_file:-}" ]]; then
-        sudo -n rm -f -- "$tmp_file" >/dev/null 2>&1 || true
+    if [[ -n "${stage_dir:-}" ]]; then
+        sudo -n rm -rf -- "$stage_dir" >/dev/null 2>&1 || true
     fi
 }
 trap cleanup EXIT
 
-if sudo -n test -e "$DEST_FILE"; then
-    sudo -n test -f "$DEST_FILE" && ! sudo -n test -L "$DEST_FILE" \
-        || fail "Existing helper is not a regular file."
-    existing_owner="$(sudo -n stat -c '%u:%g:%a' "$DEST_FILE")"
-    existing_sha="$(sudo -n sha256sum "$DEST_FILE" | awk '{print $1}')"
-    [[ "$existing_owner" == "0:0:755" ]] || fail "Existing helper has unexpected ownership or permissions."
-    [[ "$existing_sha" == "$HELPER_SHA256" ]] || fail "Refusing to overwrite an unrecognized helper version."
-    printf 'DOCKER_PRIVILEGE_HELPER_ALREADY_CURRENT: %s\n' "$DEST_FILE"
-    exit 0
-fi
+for name in "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
+    sudo -n install -o root -g root -m 0755 "${script_dir}/${name}" "${stage_dir}/${name}" \
+        || fail "Could not stage trusted helper artifact: $name"
+done
 
-sudo -n install -o root -g root -m 0755 "$source_file" "$tmp_file" \
-    || fail "Could not stage trusted helper."
-staged_sha="$(sudo -n sha256sum "$tmp_file" | awk '{print $1}')"
-[[ "$staged_sha" == "$HELPER_SHA256" ]] || fail "Staged helper digest verification failed."
+[[ "$(sudo -n sha256sum "${stage_dir}/${HELPER_NAME}" | awk '{print $1}')" == "$HELPER_SHA256" ]] \
+    || fail "Staged helper digest verification failed."
+[[ "$(sudo -n sha256sum "${stage_dir}/${POLICY_NAME}" | awk '{print $1}')" == "$POLICY_SHA256" ]] \
+    || fail "Staged install policy digest verification failed."
+[[ "$(sudo -n sha256sum "${stage_dir}/${INVENTORY_NAME}" | awk '{print $1}')" == "$INVENTORY_SHA256" ]] \
+    || fail "Staged install inventory digest verification failed."
 
-# Atomic rename within the same destination filesystem.
-sudo -n mv -- "$tmp_file" "$DEST_FILE" || fail "Could not activate trusted helper."
-tmp_file=""
+# Install support artifacts first and activate the new helper last. A failed
+# partial staging can never expose the new helper without its dependencies.
+for name in "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
+    sudo -n mv -f -- "${stage_dir}/${name}" "${DEST_DIR}/${name}" \
+        || fail "Could not activate trusted helper artifact: $name"
+done
+sudo -n rmdir "$stage_dir" || fail "Could not remove helper staging directory."
+stage_dir=""
 
-installed_owner="$(sudo -n stat -c '%u:%g:%a' "$DEST_FILE")"
-installed_sha="$(sudo -n sha256sum "$DEST_FILE" | awk '{print $1}')"
-[[ "$installed_owner" == "0:0:755" ]] || fail "Installed helper ownership/mode verification failed."
-[[ "$installed_sha" == "$HELPER_SHA256" ]] || fail "Installed helper digest verification failed."
+for name in "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
+    metadata="$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${name}")"
+    [[ "$metadata" == "0:0:755" ]] || fail "Installed helper artifact ownership/mode verification failed: $name"
+done
+[[ "$(sudo -n sha256sum "${DEST_DIR}/${HELPER_NAME}" | awk '{print $1}')" == "$HELPER_SHA256" ]] \
+    || fail "Installed helper digest verification failed."
+[[ "$(sudo -n sha256sum "${DEST_DIR}/${POLICY_NAME}" | awk '{print $1}')" == "$POLICY_SHA256" ]] \
+    || fail "Installed install policy digest verification failed."
+[[ "$(sudo -n sha256sum "${DEST_DIR}/${INVENTORY_NAME}" | awk '{print $1}')" == "$INVENTORY_SHA256" ]] \
+    || fail "Installed install inventory digest verification failed."
 
-printf 'DOCKER_PRIVILEGE_HELPER_INSTALLED: %s\n' "$DEST_FILE"
+printf 'DOCKER_PRIVILEGE_HELPER_INSTALLED: %s\n' "${DEST_DIR}/${HELPER_NAME}"
