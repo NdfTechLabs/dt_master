@@ -19,7 +19,7 @@ def install_request():
 		"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
 		"plan": {
 			"schema_version": "1.1.0",
-			"policy_version": "1.1.0",
+			"policy_version": "1.1.1",
 			"plan_digest": "a" * 64,
 			"packages": [
 				{"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"}
@@ -39,7 +39,7 @@ def install_request():
 def install_result():
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.1.0",
+		"helper_version": "0.2.0",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": "succeeded",
@@ -67,18 +67,23 @@ def install_result():
 
 
 class TestTrustedDockerHelperTransport(unittest.TestCase):
-	def test_valid_install_request_is_validated_but_not_dispatched(self):
+	def test_valid_install_request_is_dispatched_through_fixed_transport(self):
 		with (
-			patch("dt_master.api.script_contract.build_ssh_argv") as build_ssh,
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]) as build_ssh,
 			patch("dt_master.api.script_contract.subprocess.Popen") as popen,
 		):
-			with self.assertRaises(TrustedHelperExecutionError) as raised:
-				run_trusted_helper(None, {}, install_request())
+			process = popen.return_value
+			process.poll.return_value = 0
+			process.returncode = 0
+			code, stdout, stderr = run_trusted_helper(
+				None, {}, install_request(), timeout_seconds=2
+			)
 
-		self.assertEqual(raised.exception.code, "operation_disabled")
-		self.assertFalse(raised.exception.may_have_executed)
-		build_ssh.assert_not_called()
-		popen.assert_not_called()
+		self.assertEqual((code, stdout, stderr), (0, "", ""))
+		build_ssh.assert_called_once()
+		popen.assert_called_once()
+		process.stdin.write.assert_called_once()
+		process.stdin.close.assert_called_once()
 
 	def test_invalid_install_request_is_rejected_before_transport(self):
 		request = install_request()
