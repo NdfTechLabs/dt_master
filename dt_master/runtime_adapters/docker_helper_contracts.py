@@ -150,7 +150,7 @@ def validate_install_engine_result(result: dict, *, expected_operation_id: str) 
     if result["schema_version"] != HELPER_RESULT_SCHEMA_VERSION:
         raise DockerHelperContractError("Unsupported helper result schema")
     if not isinstance(result["helper_version"], str) or not re.fullmatch(
-        r"[0-9]+\\.[0-9]+\\.[0-9]+", result["helper_version"]
+        r"[0-9]+\.[0-9]+\.[0-9]+", result["helper_version"]
     ):
         raise DockerHelperContractError("Invalid helper version")
     if result["operation"] != "install_engine":
