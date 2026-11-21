@@ -472,6 +472,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		"expires_after_seconds": 900,
 	}
 	digest_payload = dict(plan)
+	digest_payload["apt_metadata"] = {"status": apt["status"]}
 	plan["plan_digest"] = hashlib.sha256(_canonical(digest_payload).encode("utf-8")).hexdigest()
 	validate_docker_engine_install_plan(plan)
 	return plan
@@ -523,5 +524,8 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		raise DockerInstallPlanError("Invalid plan digest")
 	unsigned = dict(plan)
 	digest = unsigned.pop("plan_digest")
+	apt_metadata = unsigned.get("apt_metadata")
+	if isinstance(apt_metadata, dict):
+		unsigned["apt_metadata"] = {"status": apt_metadata.get("status")}
 	if hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest() != digest:
 		raise DockerInstallPlanError("Plan digest mismatch")
