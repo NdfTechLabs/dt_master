@@ -57,6 +57,7 @@ def evaluate_docker_engine_install_postcondition(
 			packages=[],
 			services=None,
 			state_fingerprint=None,
+			node_name=node_name,
 		)
 
 	try:
