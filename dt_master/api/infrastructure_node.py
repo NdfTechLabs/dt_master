@@ -1054,7 +1054,7 @@ def _validate_docker_snapshot(snapshot):
 			"schema_version", "observed_at", "host_os", "package_manager",
 			"docker_packages", "services", "workloads",
 		}
-		if set(inventory) not in {
+		if frozenset(inventory) not in {
 			frozenset(legacy_inventory_keys),
 			frozenset(legacy_inventory_keys | {"docker_install_inventory"}),
 		}:
