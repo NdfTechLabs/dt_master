@@ -5,12 +5,12 @@ set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="fbec347eeebe3a2212e620b487d7003e3069fb9e7c8fbadfec5681e552a6d124"
+readonly HELPER_SHA256="b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b"
 readonly PREVIOUS_HELPER_SHA256="1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe"
 readonly LEGACY_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
 readonly OLDER_LEGACY_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
 readonly POLICY_NAME="docker_install_policy.py"
-readonly POLICY_SHA256="3e8c76d16f41bc8b2acf1b79abeef41fdd8005966f66cdc5a157f69a24649377"
+readonly POLICY_SHA256="99a98c694e26d8fa39f82d8e5b8071103db61970d23f659145d7a1de9ff0ac47"
 readonly INVENTORY_NAME="docker_install_inventory.py"
 readonly INVENTORY_SHA256="99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
