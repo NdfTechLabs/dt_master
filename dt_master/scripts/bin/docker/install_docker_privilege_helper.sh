@@ -10,7 +10,7 @@ readonly PREVIOUS_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d
 readonly POLICY_NAME="docker_install_policy.py"
 readonly POLICY_SHA256="23f31009ae54e68550ca9bf3f864d599df6053387812e151b4bc7709f8445f0e"
 readonly INVENTORY_NAME="docker_install_inventory.py"
-readonly INVENTORY_SHA256="d238bac8e052db4a6f626d714701a05d5ada749342624ee112958e72d95712e8"
+readonly INVENTORY_SHA256="c45e0eb34cfdc1763b820740396f58804e4dae8b34e6d1cc4e777988c6986812"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
 
 fail() {
