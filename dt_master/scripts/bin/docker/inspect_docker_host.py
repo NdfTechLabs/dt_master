@@ -262,6 +262,7 @@ def _parse_gpg_key_inventory(output: str) -> tuple[list[str], list[dict]]:
 
 	return fingerprints[:8], primary_keys[:8]
 
+
 def _repository_evidence() -> dict:
 	source_text = ""
 	for path in (
