@@ -83,7 +83,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script",
-				return_value=(0, "DT_MASTER_SSH_OK\\n", ""),
+				return_value=(0, "DT_MASTER_SSH_OK\n", ""),
 			) as run,
 		):
 			result = self.adapter.invoke("connection_check", request("connection_check"))
@@ -98,7 +98,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 	def test_connection_check_fails_when_remote_marker_is_missing(self):
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, "unexpected\\n", "")),
+			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, "unexpected\n", "")),
 		):
 			result = self.adapter.invoke("connection_check", request("connection_check"))
 		self.assertEqual(result.outcome, "failed")
