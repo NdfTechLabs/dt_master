@@ -192,7 +192,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		snapshot = inspection.data.get("snapshot") or {}
 		inventory = None
-		if inspection.data.get("inspection_status") not in {"Failed", "Timed Out"}:
+		if inspection.data.get("inspection_status") == "Successful":
 			host_inventory = snapshot.get("host_inventory")
 			if isinstance(host_inventory, dict):
 				inventory = host_inventory.get("docker_install_inventory")
