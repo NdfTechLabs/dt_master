@@ -19,6 +19,21 @@
 		"Cancellation Requested",
 		"Recovery Required",
 	]);
+	// Human-readable names mirror the action labels on the Infrastructure Node form.
+	// Keep operation_type unchanged in storage and APIs; this is presentation only.
+	const OPERATION_LABELS = Object.freeze({
+		"host.node.docker.privileges.bootstrap": __("Install Docker Privilege Helper"),
+		"host.node.docker.privileges.check": __("Check Docker Privileges"),
+		"host.node.docker.inspect": __("Inspect Docker Runtime"),
+		"host.node.docker.preflight": __("Run Docker Preflight"),
+		"host.node.docker.updates.check": __("Check Docker Updates"),
+		"host.node.docker.verify": __("Verify Docker Runtime"),
+	});
+	const operationLabel = (operationType) => {
+		if (!operationType) return __("Loading operation…");
+		if (OPERATION_LABELS[operationType]) return OPERATION_LABELS[operationType];
+		return String(operationType);
+	};
 	const stateClass = (state) => {
 		if (state === "Succeeded") return "success";
 		if (state === "Failed") return "danger";
@@ -120,7 +135,7 @@
 				this.operations.set(operationId, {
 					operation_id: operationId,
 					correlation_id: event.correlation_id,
-					operation_type: __("Background operation"),
+					operation_type: event.operation_type || null,
 					target_doctype: null,
 					target_name: null,
 					execution_state: "Pending Dispatch",
@@ -415,7 +430,7 @@
 			const line = document.createElement("div");
 			line.className = "dt-task-manager__operation-line";
 			const label = document.createElement("strong");
-			label.textContent = text(operation.operation_type, __("Operation"));
+			label.textContent = operationLabel(operation.operation_type);
 			const badge = document.createElement("span");
 			badge.className = "dt-task-manager__state dt-task-manager__state--" + stateClass(operation.execution_state);
 			badge.textContent = text(operation.execution_state);
