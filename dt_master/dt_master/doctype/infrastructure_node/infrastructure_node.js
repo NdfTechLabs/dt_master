@@ -192,16 +192,19 @@ function test_node_connection(frm) {
 		callback(response) {
 			const operation = response.message || {};
 			frappe.show_alert({
-				message: __("Node connection test queued. Operation: {0}. Follow progress and results in Task Manager.", [
-					operation.operation_id || __("unknown")
-				]),
+				message: __(
+					"Node connection test queued. Operation: {0}. Follow progress and results in Task Manager.",
+					[operation.operation_id || __("unknown")]
+				),
 				indicator: "blue",
 			});
 		},
 		error() {
 			frappe.msgprint({
 				title: __("Node Connection Test Not Started"),
-				message: __("The SSH connection test could not be queued. Check the server error log."),
+				message: __(
+					"The SSH connection test could not be queued. Check the server error log."
+				),
 				indicator: "red",
 			});
 		},

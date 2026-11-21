@@ -24,7 +24,16 @@ MUTATING_METHODS = frozenset(
 	}
 )
 OBSERVATION_METHODS = frozenset(
-	{"inspect", "preflight", "endpoints", "health", "updates_check", "verify", "privilege_check", "connection_check"}
+	{
+		"inspect",
+		"preflight",
+		"endpoints",
+		"health",
+		"updates_check",
+		"verify",
+		"privilege_check",
+		"connection_check",
+	}
 )
 ADAPTER_METHODS = MUTATING_METHODS | OBSERVATION_METHODS
 RUNTIME_TYPES = frozenset({"host", "docker"})
