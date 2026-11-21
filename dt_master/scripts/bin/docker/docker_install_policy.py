@@ -394,13 +394,18 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		)
 
 	if reasons:
-		if any(reason.startswith("PACKAGE_INVENTORY_MISSING") for reason in reasons):
+		blocking_reasons = set(reasons) - {"ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED"}
+		if any(reason.startswith("PACKAGE_INVENTORY_MISSING") for reason in blocking_reasons):
 			status = "blocked"
+		elif not blocking_reasons and status != "no_op":
+			# Workload impact is an explicit operator-approval gate, not a
+			# host-readiness failure. The helper enforces the approval value.
+			status = "ready"
 		elif status != "no_op":
 			status = (
 				"preparation_required"
 				if prerequisites
-				and set(reasons).issubset(
+				and blocking_reasons.issubset(
 					{
 						"APT_METADATA_NOT_FRESH",
 						"DOCKER_REPOSITORY_UNTRUSTED",
@@ -412,7 +417,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 			)
 		elif status == "no_op" and any(
 			reason not in {"DOCKER_SIGNING_KEY_POLICY_PENDING", "DOCKER_SIGNING_KEY_UNVERIFIED"}
-			for reason in reasons
+			for reason in blocking_reasons
 		):
 			status = "blocked"
 	elif status != "no_op":
