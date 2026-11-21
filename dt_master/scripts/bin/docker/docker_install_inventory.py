@@ -335,8 +335,10 @@ def _package_manager_state() -> dict:
 		Path("/var/lib/apt/lists/lock"),
 		Path("/var/cache/apt/archives/lock"),
 	)
-	locked = False
-	if shutil.which("fuser"):
+	# Fail closed when the lock-inspection utility is unavailable; a missing
+	# observer is not evidence that dpkg/APT is unlocked.
+	locked = not bool(shutil.which("fuser"))
+	if not locked:
 		for lock_path in lock_paths:
 			code, output = _run(["fuser", str(lock_path)], timeout=3)
 			if code == 0 and output.strip():
