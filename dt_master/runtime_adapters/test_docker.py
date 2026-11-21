@@ -138,6 +138,48 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		verify.assert_called_once_with(request_obj, helper_result, execution_context=None)
 		self.assertEqual(result.observed_state, "Verified")
 
+	def test_install_engine_returns_already_installed_without_plan_or_package_action(self):
+		names = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
+		inventory = {
+			"docker_engine_health": "healthy",
+			"packages": [
+				{
+					"name": name,
+					"dpkg_status": "installed",
+					"installed_origin": "https://download.docker.com/linux/ubuntu",
+				}
+				for name in names
+			],
+		}
+		inspection = SimpleNamespace(
+			data={
+				"inspection_status": "Successful",
+				"privilege_readiness": {"status": "Ready"},
+				"readiness_evaluation": {"diagnostics": []},
+				"snapshot": {"host_inventory": {"docker_install_inventory": inventory}},
+			}
+		)
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			payload={"confirm": True},
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch.object(self.adapter, "_inspect", return_value=inspection),
+			patch("dt_master.runtime_adapters.docker.run_trusted_helper") as run_helper,
+		):
+			result = self.adapter._install_engine(request_obj)
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Already Installed")
+		self.assertTrue(result.data["postcondition_verified"])
+		run_helper.assert_not_called()
+
 	def test_postcondition_flow_runs_separate_read_only_inspection(self):
 		from dt_master.node_preparation.test_docker_install_verification import (
 			helper_result,
