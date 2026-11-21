@@ -206,6 +206,14 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertTrue(plan["workload_impact"]["operator_impact_approval_required"])
 		self.assertEqual(plan["status"], "ready")
 
+	def test_unavailable_workload_evidence_blocks_install(self):
+		plan = build_docker_engine_install_plan(
+			"NODE-1",
+			inventory(workloads={"available": False, "running_containers": None, "total_containers": None}),
+		)
+		self.assertIn("WORKLOAD_STATE_UNAVAILABLE", plan["reason_codes"])
+		self.assertEqual(plan["status"], "blocked")
+
 	def test_package_manager_lock_blocks(self):
 		plan = build_docker_engine_install_plan(
 			"NODE-1", inventory(package_manager_state={"locked": True, "dpkg_audit_clean": True})
