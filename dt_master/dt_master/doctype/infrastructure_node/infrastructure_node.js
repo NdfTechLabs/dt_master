@@ -79,6 +79,19 @@ frappe.ui.form.on("Infrastructure Node", {
 					),
 				__("Docker")
 			);
+			if (frm.doc.access_verified) {
+				frm.add_custom_button(
+					__("Install Docker Engine"),
+					() =>
+						frappe.confirm(
+							__(
+								"Install Docker Engine on this node? DT Master will check the existing Docker readiness requirements, use the trusted installer, and verify the result. Existing running containers may be affected."
+							),
+							() => run_docker_engine_install(frm)
+						),
+					__("Docker")
+				);
+			}
 			const dockerObservations = [
 				{
 					key: "privileges",
