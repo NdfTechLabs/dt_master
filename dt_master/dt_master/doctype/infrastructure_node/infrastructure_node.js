@@ -252,6 +252,34 @@ function run_docker_privilege_bootstrap(frm) {
 	});
 }
 
+function run_docker_engine_install(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.install_docker_engine",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Queueing Docker Engine installation..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __(
+					"Docker Engine installation queued. Operation: {0}. Follow progress and verification in Task Manager.",
+					[operation.operation_id || __("unknown")]
+				),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Docker Engine Installation Not Started"),
+				message: __(
+					"The installation could not be queued. Check the server error log."
+				),
+				indicator: "red",
+			});
+		},
+	});
+}
+
 function run_docker_observation(frm, observation, label) {
 	frappe.call({
 		method: "dt_master.api.infrastructure_node.run_docker_observation",
