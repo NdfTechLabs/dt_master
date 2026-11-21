@@ -59,11 +59,27 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             (root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
         )
 
+    def test_root_inventory_runs_workload_queries_as_ssh_identity(self):
+        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_under_test", inventory_path)
+        inventory_module = importlib.util.module_from_spec(inventory_spec)
+        inventory_spec.loader.exec_module(inventory_module)
+        with (
+            patch.dict(helper.os.environ, {"DT_DOCKER_WORKLOAD_USER": "deploy"}),
+            patch.object(inventory_module.shutil, "which", return_value="/usr/sbin/runuser"),
+            patch.object(inventory_module, "_run", return_value=(0, "")) as run,
+        ):
+            inventory_module._docker_query(["docker", "ps", "--quiet"])
+        run.assert_called_once_with(
+            ["runuser", "-u", "deploy", "--", "docker", "ps", "--quiet"],
+            timeout=8,
+        )
+
     def test_workload_observation_uses_validated_sudo_identity(self):
         account = SimpleNamespace(pw_uid=1001)
         with (
             patch.object(helper.pwd, "getpwnam", return_value=account),
-            patch.dict("os.environ", {}, clear=True),
+            patch.dict(helper.os.environ, {}, clear=True),
         ):
             helper._configure_workload_identity("deploy")
             self.assertEqual(__import__("os").environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
