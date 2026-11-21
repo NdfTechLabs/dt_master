@@ -228,7 +228,12 @@ def _repository_evidence() -> dict:
 
 def _apt_metadata() -> dict:
     try:
-        files = [p for p in APT_LISTS.iterdir() if p.is_file() and not p.name.endswith(("lock", "partial"))]
+        files = [
+            p for p in APT_LISTS.iterdir()
+            if p.is_file()
+            and DOCKER_SOURCE_DOMAIN in p.name
+            and not p.name.endswith(("lock", "partial"))
+        ]
         newest = max((p.stat().st_mtime for p in files), default=None)
     except OSError:
         newest = None
