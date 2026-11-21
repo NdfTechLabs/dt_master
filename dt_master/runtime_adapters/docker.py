@@ -848,6 +848,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		started = monotonic()
 		node = self._node_for_request(request)
 		helper_dispatched = False
+		phase = "initial_inspection"
 		try:
 			if execution_context is not None:
 				execution_context.heartbeat()
@@ -915,9 +916,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 			# The plan is generated and validated internally. It is not an
 			# operator-supplied approval token or a separate UI workflow.
+			phase = "install_plan_validation"
 			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 			validate_docker_engine_install_plan(plan)
 			if plan.get("status") == "preparation_required":
+				phase = "repository_preparation"
 				if execution_context is not None:
 					execution_context.heartbeat()
 					execution_context.assert_leases()
@@ -936,10 +939,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					or prepare_result.get("operation") != "prepare_repository"
 					or prepare_result.get("status") != "succeeded"
 					or prepare_result.get("diagnostics") != []):
+					failure = {
+						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
+						"message": "Trusted helper repository preparation did not satisfy its success contract.",
+						"exit_code": prepare_code,
+						"helper_result": prepare_result if isinstance(prepare_result, dict) else None,
+					}
 					raise ValueError("The trusted helper could not prepare the official Docker repository.")
 				if execution_context is not None:
 					execution_context.heartbeat()
 					execution_context.assert_leases()
+				phase = "post_preparation_inspection"
 				inspection = self._inspect(request, execution_context=execution_context)
 				if inspection.data.get("inspection_status") != "Successful":
 					raise ValueError("Fresh inspection failed after Docker repository preparation.")
@@ -959,6 +969,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			):
 				raise ValueError("The trusted Docker package set is not available for installation.")
 
+			phase = "engine_install_dispatch"
 			workload_impact = plan.get("workload_impact") or {}
 			helper_request = {
 				"schema_version": "1.0.0",
@@ -1001,11 +1012,19 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			helper_result = parse_trusted_install_engine_result(
 				code, stdout, stderr, expected_operation_id=request.operation_id
 			)
+			phase = "postcondition_verification"
 			return self._verify_install_engine_postcondition(
 				request, helper_result, execution_context=execution_context
 			)
 		except TrustedHelperExecutionError as exc:
 			uncertain = exc.may_have_executed
+			failure = {
+				"phase": phase,
+				"exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"helper_error_code": getattr(exc, "code", None),
+				"helper_dispatched": helper_dispatched,
+			}
 			return self.result_for(
 				request,
 				outcome="partial" if uncertain else "failed",
@@ -1019,11 +1038,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						if uncertain else "Docker installation could not be dispatched.",
 					},
 				),
-				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False},
+				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False, "failure": failure},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
-		except Exception:
+		except Exception as exc:
 			uncertain = helper_dispatched
+			failure = {
+				"phase": phase,
+				"exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"helper_dispatched": helper_dispatched,
+			}
 			return self.result_for(
 				request,
 				outcome="partial" if uncertain else "failed",
@@ -1037,7 +1062,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						if uncertain else "Docker installation preconditions were not satisfied.",
 					},
 				),
-				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False},
+				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False, "failure": failure},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
 
