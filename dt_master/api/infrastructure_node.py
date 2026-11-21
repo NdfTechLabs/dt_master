@@ -1251,7 +1251,7 @@ def inspect_docker_runtime(node_name):
 
 
 @frappe.whitelist(methods=["POST"])
-def check_system_status(node_name):
+def inspect_node(node_name):
 	"""Queue the named, read-only Node inspection operation."""
 	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
@@ -1266,6 +1266,11 @@ def check_system_status(node_name):
 		idempotency_key=f"host-inspect:{node.name}:{uuid.uuid4().hex}",
 	)
 
+
+@frappe.whitelist(methods=["POST"])
+def check_system_status(node_name):
+	"""Backward-compatible alias for the Inspect Node action."""
+	return inspect_node(node_name)
 
 @frappe.whitelist(methods=["POST"])
 def test_node_connection(node_name):
