@@ -1,5 +1,6 @@
 """Tests for the trusted Docker helper transport operation gate."""
 
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -84,6 +85,21 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		popen.assert_called_once()
 		process.stdin.write.assert_called_once()
 		process.stdin.close.assert_called_once()
+
+	def test_install_transport_heartbeats_while_remote_helper_runs(self):
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]),
+			patch("dt_master.api.script_contract.subprocess.Popen") as popen,
+		):
+			process = popen.return_value
+			process.poll.side_effect = [None, 0]
+			process.wait.side_effect = [subprocess.TimeoutExpired("ssh", 15), 0]
+			heartbeat = unittest.mock.Mock()
+			run_trusted_helper(
+				None, {}, install_request(), timeout_seconds=30, heartbeat=heartbeat
+			)
+
+		heartbeat.assert_called_once_with()
 
 	def test_invalid_install_request_is_rejected_before_transport(self):
 		request = install_request()
