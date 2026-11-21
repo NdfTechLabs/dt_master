@@ -437,6 +437,10 @@ def collect() -> dict:
 	host = _os_release()
 	services = _service_state()
 	workloads = _workload_summary()
+	if not shutil.which("docker") and any(state != "inactive" for state in services.values()):
+		# Do not infer an empty workload set when a Docker/containerd service
+		# may exist but its CLI is unavailable.
+		workloads = {"available": False, "running_containers": None, "total_containers": None}
 	return {
 		"schema_version": SCHEMA_VERSION,
 		"observed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
