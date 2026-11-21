@@ -328,9 +328,15 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertIn("PARTIAL_DOCKER_CE_INSTALLATION", plan["reason_codes"])
 		self.assertEqual(plan["status"], "blocked")
 
+	def test_human_readable_node_name_with_spaces_is_accepted(self):
+		plan = build_docker_engine_install_plan("NDF Tech Labs Contabo", inventory())
+		self.assertEqual(plan["target"]["name"], "NDF Tech Labs Contabo")
+
 	def test_invalid_node_name_is_rejected(self):
-		with self.assertRaises(DockerInstallPlanError):
-			build_docker_engine_install_plan("../node", inventory())
+		for invalid_name in ("../node", "", " NODE-1", "NODE-1\\n"):
+			with self.subTest(node_name=invalid_name):
+				with self.assertRaises(DockerInstallPlanError):
+					build_docker_engine_install_plan(invalid_name, inventory())
 
 
 if __name__ == "__main__":
