@@ -806,7 +806,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.data["failure"]["phase"], "readiness_verification")
-		self.assertIn("permission denied", result.data["failure"]["details"][0]["reason"])
+		self.assertIn("permission denied", result.data["failure"]["details"][0]["stderr"])
 
 	def _verification_snapshot(self):
 		return {
