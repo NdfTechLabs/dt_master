@@ -29,6 +29,71 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		return ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
 
 	@staticmethod
+	def _interpret_install_engine_result(request, helper_result):
+		"""Convert validated helper evidence without declaring package install success.
+
+		A successful privileged helper response is only an intermediate result.
+		The caller must perform independent read-only postcondition inspection
+		before the durable operation can be marked successful.
+		"""
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		result = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		status = result["status"]
+		if status == "failed_before_mutation":
+			outcome, state = "failed", "Install Not Applied"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_INSTALL_REJECTED",
+					"severity": "error",
+					"message": "The trusted helper rejected the request before package mutation.",
+				},
+			)
+		elif status == "succeeded":
+			outcome, state = "partial", "Awaiting Postcondition Verification"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_POSTCONDITION_REQUIRED",
+					"severity": "warning",
+					"message": "The helper completed its package action; independent host inspection is still required.",
+				},
+			)
+		else:
+			outcome, state = "partial", "Recovery Required"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_INSTALL_RECONCILIATION_REQUIRED",
+					"severity": "error",
+					"message": "The helper reported a possible or partial mutation; fresh host reconciliation is required.",
+				},
+			)
+
+		return DockerRuntimeAdapter.result_for(
+			request,
+			outcome=outcome,
+			observed_state=state,
+			capabilities=(),
+			diagnostics=diagnostics,
+			data={
+				"helper_status": status,
+				"helper_phase": result["phase"],
+				"helper_version": result["helper_version"],
+				"before_state_fingerprint": result["before_state_fingerprint"],
+				"after_state_fingerprint": result["after_state_fingerprint"],
+				"packages": result["packages"],
+				"package_manager_exit_code": result["package_manager_exit_code"],
+				"daemon_action": result["daemon_action"],
+				"diagnostic_codes": result["diagnostics"],
+				"postcondition_verified": False,
+			},
+		)
+
+	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
 			raise ValueError("Docker inspection currently requires an Infrastructure Node target")
