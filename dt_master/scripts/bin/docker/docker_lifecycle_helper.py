@@ -120,7 +120,7 @@ def _request(raw: bytes) -> dict:
     plan = value["plan"]
     if not isinstance(plan, dict) or set(plan) != {"schema_version", "policy_version", "plan_digest", "packages"}:
         raise HelperError("INVALID_PLAN_FIELDS", "request_validation")
-    if plan["schema_version"] != "1.1.0" or plan["policy_version"] != "1.1.0":
+    if plan["schema_version"] != "1.1.0" or plan["policy_version"] != "1.1.1":
         raise HelperError("UNSUPPORTED_PLAN_VERSION", "request_validation")
     if not isinstance(plan["plan_digest"], str) or not SHA256.fullmatch(plan["plan_digest"]):
         raise HelperError("INVALID_PLAN_DIGEST", "request_validation")
