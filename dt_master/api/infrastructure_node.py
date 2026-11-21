@@ -1297,8 +1297,8 @@ def test_node_connection(node_name):
 	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
 	node.check_permission("read")
-	if not node.access_verified:
-		frappe.throw("Node SSH access must be verified before testing the connection.")
+	if not (node.ssh_host_alias or (node.ip_address and node.ssh_user)):
+		frappe.throw("Configure an SSH host alias or IP address and SSH user before testing the connection.")
 	return start_operation(
 		operation_type="host.node.connection.check",
 		target_doctype="Infrastructure Node",
