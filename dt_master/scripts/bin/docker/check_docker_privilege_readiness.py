@@ -71,7 +71,7 @@ def main():
     # the node's pre-existing administrative sudo authority; never weaken its mode.
     metadata = run(["sudo", "-n", "stat", "-c", "%u:%g:%a", str(POLICY)])
     policy_content = run(["sudo", "-n", "cat", str(POLICY)])
-    expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\\n'
+    expected = f'{expected_user} ALL=(root) NOPASSWD: {HELPER} ""\n'
     policy_ok = (
         metadata is not None and metadata.returncode == 0 and metadata.stdout.strip() == "0:0:440"
         and policy_content is not None and policy_content.returncode == 0
