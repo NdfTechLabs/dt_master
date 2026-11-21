@@ -128,6 +128,21 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 				target, SimpleNamespace(operation_type="host.node.docker.updates.check")
 			)
 
+	def test_install_engine_is_registered_on_existing_durable_operation_runtime(self):
+		from dt_master.operations.registry import get_operation
+
+		definition = get_operation("host.node.docker.install")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 1200)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(
+			definition.resource_lock_keys(
+				SimpleNamespace(doctype="Infrastructure Node", name="NODE-01"),
+				SimpleNamespace(operation_type="host.node.docker.install"),
+			),
+			["node-docker:NODE-01"],
+		)
+
 	def test_authorization_requires_system_manager_and_verified_ssh(self):
 		target = SimpleNamespace(doctype="Infrastructure Node", access_verified=False)
 		with self.assertRaises(Exception):
