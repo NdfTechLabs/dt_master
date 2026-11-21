@@ -623,8 +623,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		if not node.ssh_user:
 			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
 
-		def run_installer(script_name):
-			code, _stdout, _stderr = run_remote_script(
+		failure_details = []
+		phase = "helper_install"
+
+		def run_installer(script_name, step):
+			code, stdout, stderr = run_remote_script(
 				node,
 				self._ssh_config(node),
 				"docker",
@@ -636,22 +639,53 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				timeout_seconds=90,
 				max_output_bytes=16384,
 			)
-			return "completed" if code == 0 else "failed"
+			step.update({
+				"status": "completed" if code == 0 else "failed",
+				"exit_code": code,
+				"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+				"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+			})
+			if code != 0:
+				failure_details.append({
+					"code": "DOCKER_PRIVILEGE_INSTALLER_FAILED",
+					"phase": script_name,
+					"exit_code": code,
+					"stdout": step["stdout"],
+					"stderr": step["stderr"],
+				})
+			return step["status"]
 
-		helper_status = "failed"
-		sudoers_status = "skipped"
+		helper_install = {"script": "install_docker_privilege_helper.sh", "status": "not_started"}
+		sudoers_install = {"script": "install_docker_sudoers.sh", "status": "skipped"}
+		readiness = None
 		try:
-			helper_status = run_installer("install_docker_privilege_helper.sh")
-		except Exception:
+			helper_status = run_installer(helper_install["script"], helper_install)
+		except Exception as exc:
 			helper_status = "failed"
-		if helper_status == "completed":
-			try:
-				sudoers_status = run_installer("install_docker_sudoers.sh")
-			except Exception:
-				sudoers_status = "failed"
+			helper_install.update({"status": "failed", "exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500]})
+			failure_details.append({"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_EXCEPTION",
+				"phase": phase, "exception_type": type(exc).__name__,
+				"reason": helper_install["reason"]})
 
+		if helper_status == "completed":
+			phase = "sudoers_install"
+			sudoers_install["status"] = "not_started"
+			try:
+				sudoers_status = run_installer(sudoers_install["script"], sudoers_install)
+			except Exception as exc:
+				sudoers_status = "failed"
+				sudoers_install.update({"status": "failed", "exception_type": type(exc).__name__,
+					"reason": sanitize_diagnostic_message(str(exc))[:500]})
+				failure_details.append({"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_EXCEPTION",
+					"phase": phase, "exception_type": type(exc).__name__,
+					"reason": sudoers_install["reason"]})
+		else:
+			sudoers_status = "skipped"
+
+		phase = "readiness_verification"
 		try:
-			code, stdout, _stderr = run_remote_script(
+			code, stdout, stderr = run_remote_script(
 				node,
 				self._ssh_config(node),
 				"docker",
@@ -664,25 +698,38 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				max_output_bytes=8192,
 			)
 			if code != 0:
-				raise ValueError("Docker privilege readiness probe failed")
+				failure_details.append({
+					"code": "DOCKER_PRIVILEGE_READINESS_PROBE_FAILED",
+					"phase": phase,
+					"exit_code": code,
+					"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+					"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+				})
+				raise ValueError("Docker privilege readiness probe returned a non-zero exit code")
 			readiness = self._validate_privilege_readiness(json.loads(stdout.strip()))
-		except Exception:
+		except Exception as exc:
+			failure_details.append({
+				"code": "DOCKER_PRIVILEGE_READINESS_VERIFICATION_FAILED",
+				"phase": phase,
+				"exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500],
+			})
 			return self.result_for(
 				request,
 				outcome="partial",
 				observed_state="Incomplete",
 				capabilities=self.capabilities(),
-				diagnostics=(
-					{
-						"code": "DOCKER_PRIVILEGE_BOOTSTRAP_INCOMPLETE",
-						"severity": "warning",
-						"message": "The Docker privilege bootstrap did not return a valid verification result.",
-					},
-				),
+				diagnostics=tuple({
+					"code": item["code"],
+					"severity": "error",
+					"message": item.get("reason") or item.get("stderr") or
+						"Privileged Docker bootstrap verification failed.",
+				} for item in failure_details[:20]),
 				data={
 					"bootstrap_status": "Incomplete",
-					"helper_install": helper_status,
-					"sudoers_install": sudoers_status,
+					"helper_install": helper_install,
+					"sudoers_install": sudoers_install,
+					"failure": {"phase": phase, "details": failure_details[:20]},
 				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
@@ -697,37 +744,31 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			}
 			for item in readiness.get("diagnostics", [])
 		]
-		if helper_status != "completed":
-			diagnostics.append(
-				{
-					"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_FAILED",
+		for label, step in (("helper", helper_install), ("sudoers", sudoers_install)):
+			if step["status"] == "failed":
+				diagnostics.append({
+					"code": "DOCKER_PRIVILEGE_" + label.upper() + "_INSTALL_FAILED",
 					"severity": "error",
-					"message": "The trusted Docker helper installer did not complete successfully.",
-				}
-			)
-		if sudoers_status != "completed":
-			diagnostics.append(
-				{
-					"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_FAILED",
-					"severity": "error",
-					"message": "The scoped Docker sudoers installer did not complete successfully.",
-				}
-			)
+					"message": step.get("stderr") or step.get("reason") or
+						f"The Docker {label} installer failed (exit code {step.get('exit_code', 'unknown')}).",
+				})
+		if not steps_ready:
+			failure_details.append({
+				"code": "DOCKER_PRIVILEGE_BOOTSTRAP_STEP_FAILED",
+				"phase": "installer_execution",
+			})
 		return self.result_for(
 			request,
-			outcome="succeeded"
-			if ready
-			else ("failed" if readiness["status"] == "Not Ready" or not steps_ready else "partial"),
-			observed_state="Ready"
-			if ready
-			else ("Not Ready" if readiness["status"] == "Not Ready" else "Incomplete"),
+			outcome="succeeded" if ready else ("failed" if readiness["status"] == "Not Ready" or not steps_ready else "partial"),
+			observed_state="Ready" if ready else ("Not Ready" if readiness["status"] == "Not Ready" else "Incomplete"),
 			capabilities=self.capabilities(),
 			diagnostics=tuple(diagnostics[:100]),
 			data={
 				"bootstrap_status": "Succeeded" if ready else "Failed",
-				"helper_install": helper_status,
-				"sudoers_install": sudoers_status,
+				"helper_install": helper_install,
+				"sudoers_install": sudoers_install,
 				"privilege_readiness": readiness,
+				"failure": {"phase": "installer_execution", "details": failure_details[:20]} if failure_details else None,
 			},
 			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 		)
