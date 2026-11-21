@@ -37,7 +37,7 @@ def install_request():
 def install_result():
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.1.0",
+		"helper_version": "0.2.0",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": "succeeded",
@@ -115,6 +115,20 @@ class TestDockerHelperContracts(unittest.TestCase):
 		self.assertEqual(
 			validate_install_engine_result(install_result(), expected_operation_id="OP-0001")["status"],
 			"succeeded",
+		)
+
+	def test_pre_mutation_result_allows_not_attempted_packages(self):
+		result = install_result()
+		result["status"] = "failed_before_mutation"
+		result["phase"] = "state_validation"
+		result["daemon_action"] = "not_requested"
+		result["diagnostics"] = ["INSTALL_EXECUTION_DISABLED"]
+		for row in result["packages"]:
+			row["status"] = "not_attempted"
+			row["installed_version"] = None
+		self.assertEqual(
+			validate_install_engine_result(result, expected_operation_id="OP-0001")["status"],
+			"failed_before_mutation",
 		)
 
 	def test_result_rejects_unknown_fields_and_correlation_mismatch(self):
