@@ -1060,11 +1060,16 @@ def _validate_docker_snapshot(snapshot):
 				"docker_packages",
 				"services",
 				"workloads",
+				"docker_install_inventory",
 			),
 			"host_inventory",
 		)
 		if inventory["schema_version"] != "1.0.0":
 			raise ValueError("Unsupported Docker host inventory schema")
+		if not isinstance(inventory["docker_install_inventory"], dict):
+			raise ValueError("Invalid Docker Engine installation inventory")
+		if inventory["docker_install_inventory"].get("schema_version") != "1.0.0":
+			raise ValueError("Unsupported Docker Engine installation inventory schema")
 		if inventory["observed_at"] is not None and not isinstance(inventory["observed_at"], str):
 			raise ValueError("Invalid host inventory timestamp")
 		exact_keys(
