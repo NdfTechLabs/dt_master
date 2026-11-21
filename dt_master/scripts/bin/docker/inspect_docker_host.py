@@ -166,7 +166,9 @@ def _docker_query(argv: list[str]) -> tuple[int, str]:
 
 def _workload_summary() -> dict:
 	if not shutil.which("docker"):
-		return {"available": False, "running_containers": None, "total_containers": None}
+		# A missing Docker CLI on a host without a partial Engine install means
+		# there is no Docker CLI workload inventory to enumerate.
+		return {"available": True, "running_containers": 0, "total_containers": 0}
 	# Count only; never collect container names, IDs, labels, images, environment or logs.
 	code, output = _docker_query(["docker", "ps", "--all", "--quiet"])
 	if code != 0:
