@@ -112,6 +112,18 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             timeout=8,
         )
 
+    def test_inventory_fails_closed_when_package_lock_inspector_is_missing(self):
+        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_lock_test", inventory_path)
+        inventory_module = importlib.util.module_from_spec(inventory_spec)
+        inventory_spec.loader.exec_module(inventory_module)
+        with (
+            patch.object(inventory_module.shutil, "which", return_value=None),
+            patch.object(inventory_module, "_run", return_value=(0, "")),
+        ):
+            state = inventory_module._package_manager_state()
+        self.assertTrue(state["locked"])
+
     def test_workload_observation_uses_validated_sudo_identity(self):
         account = SimpleNamespace(pw_uid=1001)
         with (
