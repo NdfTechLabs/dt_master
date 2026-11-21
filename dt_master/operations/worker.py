@@ -210,34 +210,61 @@ def execute_operation(operation_id):
             )
             _release_leases(leases)
             frappe.db.commit()
-    except Exception:
+    except Exception as exc:
+        from dt_master.operations.outcomes import OperationDispositionError
+
         frappe.db.rollback()
         _release_leases(leases)
         frappe.db.commit()
         frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
         completed_on = now_datetime()
-        _set_operation_fields(operation_id, {
-            "execution_state": "Recovery Required" if leases else "Failed",
-            "business_state": "Failed",
-            "error_code": "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED",
-            "error_summary": (
+
+        if isinstance(exc, OperationDispositionError):
+            disposition = exc.disposition
+            error_code = exc.code
+            error_summary = exc.summary
+            recovery_required = disposition == "Recovery Required"
+            recovery_reason = exc.recovery_reason
+            event_status = "recovery_required" if recovery_required else "failed"
+            event_message = (
+                "Operation requires reconciliation based on its explicit execution disposition."
+                if recovery_required else
+                "Operation was rejected or failed before an uncertain mutation outcome."
+            )
+        else:
+            recovery_required = bool(leases)
+            disposition = "Recovery Required" if recovery_required else "Failed"
+            error_code = "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED"
+            error_summary = (
                 "Execution stopped after a resource lease or handler failure; reconcile the target before retrying."
                 if leases else
                 "The registered operation handler failed. See the restricted server error log."
-            ),
+            )
+            recovery_reason = (
+                "Resource lease ownership or execution outcome requires reconciliation."
+                if recovery_required else None
+            )
+            event_status = "recovery_required" if recovery_required else "failed"
+            event_message = (
+                "Operation requires reconciliation after a lease or execution failure."
+                if recovery_required else "The registered operation handler failed."
+            )
+
+        _set_operation_fields(operation_id, {
+            "execution_state": disposition,
+            "business_state": "Failed",
+            "error_code": error_code,
+            "error_summary": error_summary,
             "completed_on": completed_on,
-            "recovery_required": 1 if leases else 0,
-            "recovery_reason": "Resource lease ownership or execution outcome requires reconciliation." if leases else None,
+            "recovery_required": 1 if recovery_required else 0,
+            "recovery_reason": recovery_reason,
             "lock_key": None, "lock_owner": None, "lock_expires_on": None,
         })
         record_operation_event(
             operation_id,
-            "recovery_required" if leases else "failed",
+            event_status,
             phase="execution",
-            message=(
-                "Operation requires reconciliation after a lease or execution failure."
-                if leases else "The registered operation handler failed."
-            ),
-            event_data={"error_code": "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED"},
+            message=event_message,
+            event_data={"error_code": error_code},
         )
         frappe.db.commit()
