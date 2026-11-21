@@ -35,7 +35,10 @@ class TestOperationOutcomes(unittest.TestCase):
 		self.assertEqual(raised.exception.disposition, "Failed")
 		self.assertEqual(raised.exception.code, "MUTATION_FAILED")
 		self.assertIsNone(raised.exception.recovery_reason)
-		self.assertEqual(raised.exception.adapter_result["data"]["failure"]["phase"], "repository_preparation")
+		self.assertEqual(
+			raised.exception.adapter_result["data"]["failure"]["phase"],
+			"repository_preparation",
+		)
 
 	def test_partial_adapter_result_becomes_recovery_required(self):
 		with self.assertRaises(OperationDispositionError) as raised:
