@@ -1,8 +1,8 @@
 """Docker runtime adapter for Infrastructure Nodes.
 
-The adapter supports read-only observations and the constrained initial
-privilege bootstrap. Docker package and container lifecycle mutations remain
-disabled until their later acceptance increments.
+The adapter reuses the durable operation bridge and trusted helper for the
+initial exact-version Docker Engine installation, alongside read-only
+observations and the existing constrained privilege bootstrap.
 """
 
 import json
