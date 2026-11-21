@@ -27,7 +27,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "docker"
 
 	def capabilities(self):
-		return ("bootstrap_privileges", "install_engine", "inspect", "preflight", "updates_check", "verify", "privilege_check")
+		return (
+			"bootstrap_privileges", "install_engine", "inspect", "preflight", "updates_check", "verify", "privilege_check"
+		)
 
 	@staticmethod
 	def _interpret_install_engine_result(request, helper_result):
