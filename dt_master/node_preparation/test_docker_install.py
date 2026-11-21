@@ -9,6 +9,7 @@ from dt_master.node_preparation.docker_install import (
 	ENGINE_PACKAGES,
 	DockerInstallPlanError,
 	build_docker_engine_install_plan,
+	docker_engine_install_state_fingerprint,
 	validate_docker_engine_install_plan,
 )
 
@@ -52,6 +53,40 @@ def inventory(**overrides):
 
 
 class TestDockerEngineInstallPlan(unittest.TestCase):
+
+	def test_state_fingerprint_ignores_observation_clock_but_binds_host_state(self):
+		first = inventory()
+		second = copy.deepcopy(first)
+		second["observed_at"] = "2026-11-21T11:00:00Z"
+		second["apt_metadata"]["age_seconds"] = 7200
+		self.assertEqual(
+			docker_engine_install_state_fingerprint(first),
+			docker_engine_install_state_fingerprint(second),
+		)
+
+	def test_state_fingerprint_changes_when_package_or_workload_state_changes(self):
+		original = inventory()
+		package_change = copy.deepcopy(original)
+		package_change["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
+		workload_change = copy.deepcopy(original)
+		workload_change["workloads"]["running_containers"] = 1
+		self.assertNotEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(package_change),
+		)
+		self.assertNotEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(workload_change),
+		)
+
+	def test_state_fingerprint_rejects_unknown_or_sensitive_inventory_fields(self):
+		bad = inventory()
+		bad["ssh_host"] = "host.example"
+		with self.assertRaises(DockerInstallPlanError):
+			docker_engine_install_state_fingerprint(bad)
+		with self.assertRaises(DockerInstallPlanError):
+			docker_engine_install_state_fingerprint({"schema_version": "1.0.0"})
+
 	def test_supported_platforms_are_accepted(self):
 		for os_id, version in (("ubuntu", "22.04"), ("ubuntu", "24.04"), ("debian", "12")):
 			host = {"id": os_id, "version_id": version, "codename": "stable", "architecture": "amd64"}
