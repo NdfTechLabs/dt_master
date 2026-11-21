@@ -289,6 +289,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		allowed_checks = {
 			"execution_identity",
 			"helper_integrity",
+			"policy_integrity",
+			"inventory_integrity",
 			"trusted_directories",
 			"sudoers_policy",
 			"sudoers_syntax",
