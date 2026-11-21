@@ -225,6 +225,19 @@ def execute_operation(operation_id):
         error_summary = disposition_fields["error_summary"]
         recovery_required = disposition_fields["recovery_required"]
         recovery_reason = disposition_fields["recovery_reason"]
+        failure_result = disposition_fields.get("result_payload")
+        failure_result_json = None
+        if isinstance(failure_result, dict):
+            try:
+                from dt_master.operations.coordinator import _reject_secret_values
+                _reject_secret_values(failure_result, "failure_result")
+                candidate_json = json.dumps(
+                    failure_result, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                )
+                if len(candidate_json.encode("utf-8")) <= 65536:
+                    failure_result_json = candidate_json
+            except (TypeError, ValueError):
+                failure_result_json = None
         event_status = "recovery_required" if recovery_required else "failed"
         event_message = (
             "Operation requires reconciliation before it can be safely retried."
@@ -240,6 +253,7 @@ def execute_operation(operation_id):
             "completed_on": completed_on,
             "recovery_required": 1 if recovery_required else 0,
             "recovery_reason": recovery_reason,
+            "result_payload": failure_result_json,
             "lock_key": None, "lock_owner": None, "lock_expires_on": None,
         })
         record_operation_event(
@@ -247,6 +261,10 @@ def execute_operation(operation_id):
             event_status,
             phase="execution",
             message=event_message,
-            event_data={"error_code": error_code},
+            event_data={
+                "error_code": error_code,
+                "result_available": failure_result_json is not None,
+                "result": failure_result if failure_result_json is not None else None,
+            },
         )
         frappe.db.commit()
