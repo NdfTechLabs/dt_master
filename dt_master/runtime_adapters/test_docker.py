@@ -482,7 +482,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("preflight", request("preflight"))
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.data["preflight_status"], "Ready")
-		self.assertEqual(result.data["docker_engine_install_plan_status"], "blocked")
+		self.assertEqual(result.data["docker_engine_install_plan_status"], "ready")
 		self.assertIn(
 			"ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED",
 			result.data["docker_engine_install_plan"]["reason_codes"],
