@@ -74,7 +74,7 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		plan = build_docker_engine_install_plan("NODE-1", inventory())
 		self.assertFalse(plan["mutation_authorized"])
 		self.assertEqual(plan["mode"], "plan_only")
-		self.assertIn("DOCKER_SIGNING_KEY_POLICY_PENDING", plan["reason_codes"])
+		self.assertIn("DOCKER_SIGNING_KEY_UNVERIFIED", plan["reason_codes"])
 		self.assertNotEqual(plan["status"], "ready")
 
 	def test_structured_key_matching_reviewed_policy_is_trusted(self):
