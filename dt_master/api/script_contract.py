@@ -386,10 +386,7 @@ def run_trusted_helper(
 
 	operation = request.get("operation")
 	if operation == "self_test":
-		if (
-			set(request) != {"schema_version", "operation"}
-			or request.get("schema_version") != "1.0.0"
-		):
+		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
 			raise ValueError("Unsupported trusted Docker helper request")
 	elif operation == "install_engine":
 		# Validate the proposed protocol at the protected boundary, but do not
