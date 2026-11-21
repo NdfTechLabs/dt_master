@@ -6,8 +6,9 @@ umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
 readonly HELPER_SHA256="fbec347eeebe3a2212e620b487d7003e3069fb9e7c8fbadfec5681e552a6d124"
-readonly PREVIOUS_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
-readonly LEGACY_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
+readonly PREVIOUS_HELPER_SHA256="1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe"
+readonly LEGACY_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
+readonly OLDER_LEGACY_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
 readonly POLICY_NAME="docker_install_policy.py"
 readonly POLICY_SHA256="3e8c76d16f41bc8b2acf1b79abeef41fdd8005966f66cdc5a157f69a24649377"
 readonly INVENTORY_NAME="docker_install_inventory.py"
@@ -74,7 +75,7 @@ fi
 # Refuse unknown pre-existing artifacts. Accept the previously deployed N3.4.8
 # validation-only helper and the earlier self-test-only helper during upgrade.
 check_existing() {
-    local name="$1" expected="$2" previous="${3:-}" previous_legacy="${4:-}"
+    local name="$1" expected="$2" previous="${3:-}" previous_legacy="${4:-}" older_legacy="${5:-}"
     local target="${DEST_DIR}/${name}" metadata digest
     if sudo -n test -e "$target"; then
         sudo -n test -f "$target" && ! sudo -n test -L "$target" \
@@ -82,13 +83,13 @@ check_existing() {
         metadata="$(sudo -n stat -c '%u:%g:%a' "$target")"
         [[ "$metadata" == "0:0:755" ]] || fail "Existing helper artifact has unsafe ownership or mode: $name"
         digest="$(sudo -n sha256sum "$target" | awk '{print $1}')"
-        if [[ "$digest" != "$expected" && "$digest" != "$previous" && "$digest" != "$previous_legacy" ]]; then
+        if [[ "$digest" != "$expected" && "$digest" != "$previous" && "$digest" != "$previous_legacy" && "$digest" != "$older_legacy" ]]; then
             fail "Refusing to overwrite an unrecognized helper artifact: $name"
         fi
     fi
 }
 
-check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGACY_HELPER_SHA256"
+check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGACY_HELPER_SHA256" "$OLDER_LEGACY_HELPER_SHA256"
 check_existing "$POLICY_NAME" "$POLICY_SHA256"
 check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256"
 
