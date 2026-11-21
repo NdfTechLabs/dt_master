@@ -26,16 +26,13 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					validate_docker_lifecycle_payload(operation, {"confirm": True})
 
-	def test_install_requires_explicit_confirmation(self):
-		for operation in ("host.node.docker.install", "host.node.docker.compose.install"):
-			with self.subTest(operation=operation):
-				with self.assertRaisesRegex(ValueError, "confirmation"):
-					validate_docker_lifecycle_payload(operation, {})
-				self.assertEqual(
-					validate_docker_lifecycle_payload(operation, {"confirm": True}),
-					{"confirm": True},
-				)
-
+	def test_compose_install_requires_explicit_confirmation(self):
+		with self.assertRaisesRegex(ValueError, "confirmation"):
+			validate_docker_lifecycle_payload("host.node.docker.compose.install", {})
+		self.assertEqual(
+			validate_docker_lifecycle_payload("host.node.docker.compose.install", {"confirm": True}),
+			{"confirm": True},
+		)
 
 	def test_engine_install_requires_complete_plan_binding_and_impact_decision(self):
 		digest = "a" * 64
