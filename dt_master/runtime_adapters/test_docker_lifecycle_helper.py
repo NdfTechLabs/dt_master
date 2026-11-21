@@ -26,7 +26,7 @@ def request():
         "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
         "plan": {
             "schema_version": "1.1.0",
-            "policy_version": "1.1.0",
+            "policy_version": "1.1.1",
             "plan_digest": "a" * 64,
             "packages": [
                 {"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"}
@@ -292,7 +292,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             "plan_digest": "a" * 64,
             "schema_version": "1.1.0",
             "state_fingerprint": "b" * 64,
-            "policy": {"id": "docker-engine-install", "version": "1.1.0"},
+            "policy": {"id": "docker-engine-install", "version": "1.1.1"},
             "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
             "status": "ready",
             "mode": "plan_only",
