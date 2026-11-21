@@ -32,7 +32,7 @@ class TestNodeOperationAPI(unittest.TestCase):
 		self.assertEqual(start.call_args.kwargs["payload"], {})
 
 	def test_inspect_node_queues_named_operation(self):
-		self._assert_queued(infrastructure_node.check_system_status, "host.node.inspect")
+		self._assert_queued(infrastructure_node.inspect_node, "host.node.inspect")
 
 	def test_test_node_connection_queues_named_operation(self):
 		self._assert_queued(infrastructure_node.test_node_connection, "host.node.connection.check")
