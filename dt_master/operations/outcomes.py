@@ -44,7 +44,7 @@ def enforce_durable_operation_outcome(
 	if outcome == "succeeded":
 		return result
 	if outcome == "failed":
-		raise OperationDispositionError("Failed", failed_code, failed_summary)
+		raise OperationDispositionError("Failed", failed_code, failed_summary, adapter_result=result)
 	if outcome == "partial":
 		raise OperationDispositionError(
 			"Recovery Required",
