@@ -111,7 +111,27 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
     host = inventory["host_os"]
     _require_keys(host, {"id", "version_id", "codename", "architecture"}, "host_os")
     repository = inventory["repository"]
-    _require_keys(repository, {"source_id", "keyring_path", "fingerprints"}, "repository")
+    if not isinstance(repository, dict) or set(repository) not in (
+    {"source_id", "keyring_path", "fingerprints"},
+    {"source_id", "keyring_path", "fingerprints", "primary_keys"},
+):
+    raise DockerInstallPlanError("repository has missing or unsupported fields")
+if "primary_keys" in repository:
+    if not isinstance(repository["primary_keys"], list) or len(repository["primary_keys"]) > 8:
+        raise DockerInstallPlanError("Invalid primary-key inventory")
+    for key in repository["primary_keys"]:
+        _require_keys(key, {"fingerprint", "identity", "subkey_fingerprints"}, "repository.primary_keys[]")
+        if key["fingerprint"] is not None and (
+            not isinstance(key["fingerprint"], str) or not _FINGERPRINT.fullmatch(key["fingerprint"])
+        ):
+            raise DockerInstallPlanError("Invalid primary-key fingerprint")
+        if key["identity"] is not None and (not isinstance(key["identity"], str) or len(key["identity"]) > 512):
+            raise DockerInstallPlanError("Invalid primary-key identity")
+        subkeys = key["subkey_fingerprints"]
+        if not isinstance(subkeys, list) or len(subkeys) > 8 or any(
+            not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in subkeys
+        ):
+            raise DockerInstallPlanError("Invalid subkey fingerprint inventory")
     apt = inventory["apt_metadata"]
     _require_keys(apt, {"status", "age_seconds"}, "apt_metadata")
     pm = inventory["package_manager_state"]
