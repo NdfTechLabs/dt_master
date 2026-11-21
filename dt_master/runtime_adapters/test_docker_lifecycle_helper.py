@@ -4,7 +4,7 @@ import importlib.util
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 HELPER_PATH = (
     Path(__file__).resolve().parents[1]
@@ -48,6 +48,17 @@ def inventory():
 
 
 class TestDockerLifecycleHelper(unittest.TestCase):
+    def test_root_side_policy_artifacts_match_authoritative_sources(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertEqual(
+            (root / "node_preparation" / "docker_install.py").read_bytes(),
+            (root / "scripts" / "bin" / "docker" / "docker_install_policy.py").read_bytes(),
+        )
+        self.assertEqual(
+            (root / "scripts" / "bin" / "docker" / "inspect_docker_host.py").read_bytes(),
+            (root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
+        )
+
     def test_self_test_request_is_preserved(self):
         self.assertEqual(
             helper._request(b'{"schema_version":"1.0.0","operation":"self_test"}')["operation"],
@@ -128,6 +139,45 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         with patch.object(helper, "_run", return_value=(0, output)):
             with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_VERSION_MISMATCH"):
                 helper._simulate_exact_install(versions)
+
+    def test_apt_simulation_rejects_upgrade_even_for_an_allowed_package(self):
+        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+        output = "\\n".join(
+            f"Inst {name} [5:28.0.0-1~ubuntu.24.04~noble] ({version} Docker:stable [amd64])"
+            for name, version in zip(helper.ENGINE_PACKAGES, versions, strict=True)
+        )
+        with patch.object(helper, "_run", return_value=(0, output)):
+            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_UPGRADE_DETECTED"):
+                helper._simulate_exact_install(versions)
+
+    def test_state_change_after_simulation_blocks_install(self):
+        value = request()
+        plan = {
+            "plan_digest": "a" * 64,
+            "status": "ready",
+            "mutation_authorized": False,
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "workload_impact": {"operator_impact_approval_required": False},
+            "packages": [
+                {"name": name, "action": "install", "candidate_version": row["version"]}
+                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+            ],
+        }
+        fake_policy = SimpleNamespace(
+            build_docker_engine_install_plan=lambda _name, _inventory: plan,
+            validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "c" * 64]),
+        )
+        fake_inventory = SimpleNamespace(
+            collect=lambda: {"docker_install_inventory": inventory()}
+        )
+        with (
+            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+            patch.object(helper, "_simulate_exact_install") as simulate,
+        ):
+            with self.assertRaisesRegex(helper.HelperError, "STATE_CHANGED_AFTER_SIMULATION"):
+                helper._install(value)
+        simulate.assert_called_once()
 
     def test_closed_mutation_gate_returns_pre_mutation_failure(self):
         value = request()
