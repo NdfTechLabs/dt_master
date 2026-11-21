@@ -221,48 +221,101 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Degraded")
 
- 
 	def test_bootstrap_privileges_runs_existing_installers_then_readiness_probe(self):
-		readiness = {"schema_version": "1.0.0", "observed_at": "2026-11-21T10:00:00Z",
-			"status": "Ready", "execution_identity": "deploy",
-			"helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.1.0", "sha256": "a" * 64},
+		readiness = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-21T10:00:00Z",
+			"status": "Ready",
+			"execution_identity": "deploy",
+			"helper": {
+				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+				"version": "0.1.0",
+				"sha256": "a" * 64,
+			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
-			"checks": [{"name": n, "status": "Passed"} for n in (
-				"execution_identity", "helper_integrity", "trusted_directories", "sudoers_policy",
-				"sudoers_syntax", "effective_command", "helper_self_test")], "diagnostics": []}
+			"checks": [
+				{"name": n, "status": "Passed"}
+				for n in (
+					"execution_identity",
+					"helper_integrity",
+					"trusted_directories",
+					"sudoers_policy",
+					"sudoers_syntax",
+					"effective_command",
+					"helper_self_test",
+				)
+			],
+			"diagnostics": [],
+		}
 		request_obj = request("bootstrap_privileges")
-		with (patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
-				(0, "DOCKER_PRIVILEGE_HELPER_INSTALLED", ""),
-				(0, "DOCKER_SUDOERS_POLICY_INSTALLED", ""),
-				(0, __import__("json").dumps(readiness), ""),
-			]) as remote):
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				side_effect=[
+					(0, "DOCKER_PRIVILEGE_HELPER_INSTALLED", ""),
+					(0, "DOCKER_SUDOERS_POLICY_INSTALLED", ""),
+					(0, __import__("json").dumps(readiness), ""),
+				],
+			) as remote,
+		):
 			result = self.adapter._bootstrap_privileges(request_obj)
 		self.assertEqual((result.outcome, result.observed_state), ("succeeded", "Ready"))
-		self.assertEqual([call.args[3] for call in remote.call_args_list], [
-			"install_docker_privilege_helper.sh", "install_docker_sudoers.sh",
-			"check_docker_privilege_readiness.sh",
-		])
+		self.assertEqual(
+			[call.args[3] for call in remote.call_args_list],
+			[
+				"install_docker_privilege_helper.sh",
+				"install_docker_sudoers.sh",
+				"check_docker_privilege_readiness.sh",
+			],
+		)
 		self.assertTrue(all(call.kwargs["use_sudo"] is False for call in remote.call_args_list))
 
 	def test_bootstrap_privileges_fails_closed_when_initial_authority_is_missing(self):
-		readiness = {"schema_version": "1.0.0", "observed_at": None, "status": "Not Ready",
-			"execution_identity": "deploy", "helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-			"version": None, "sha256": None}, "sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Invalid"},
-			"checks": [{"name": n, "status": "Failed"} for n in (
-				"helper_integrity", "trusted_directories", "sudoers_policy", "sudoers_syntax",
-				"effective_command", "helper_self_test")], "diagnostics": []}
+		readiness = {
+			"schema_version": "1.0.0",
+			"observed_at": None,
+			"status": "Not Ready",
+			"execution_identity": "deploy",
+			"helper": {
+				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+				"version": None,
+				"sha256": None,
+			},
+			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Invalid"},
+			"checks": [
+				{"name": n, "status": "Failed"}
+				for n in (
+					"helper_integrity",
+					"trusted_directories",
+					"sudoers_policy",
+					"sudoers_syntax",
+					"effective_command",
+					"helper_self_test",
+				)
+			],
+			"diagnostics": [],
+		}
 		request_obj = request("bootstrap_privileges")
-		with (patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
-				(1, "", "sudo unavailable"), (0, __import__("json").dumps(readiness), ""),
-			]) as remote):
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				side_effect=[
+					(1, "", "sudo unavailable"),
+					(0, __import__("json").dumps(readiness), ""),
+				],
+			) as remote,
+		):
 			result = self.adapter._bootstrap_privileges(request_obj)
 		self.assertEqual((result.outcome, result.observed_state), ("failed", "Not Ready"))
-		self.assertEqual([call.args[3] for call in remote.call_args_list], [
-			"install_docker_privilege_helper.sh", "check_docker_privilege_readiness.sh",
-		])
+		self.assertEqual(
+			[call.args[3] for call in remote.call_args_list],
+			[
+				"install_docker_privilege_helper.sh",
+				"check_docker_privilege_readiness.sh",
+			],
+		)
 
 	def _verification_snapshot(self):
 		return {
@@ -329,7 +382,15 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			adapter = resolve_adapter("docker")
 			self.assertEqual(adapter.adapter_id, "docker-compose-v1")
 			self.assertEqual(
-				adapter.capabilities(), ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
+				adapter.capabilities(),
+				(
+					"bootstrap_privileges",
+					"inspect",
+					"preflight",
+					"updates_check",
+					"verify",
+					"privilege_check",
+				),
 			)
 		finally:
 			clear_registry_for_tests()

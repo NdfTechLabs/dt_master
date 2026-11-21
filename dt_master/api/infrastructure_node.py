@@ -1208,7 +1208,7 @@ def run_docker_observation(node_name, observation):
 		idempotency_key=f"docker-{observation}:{uuid.uuid4().hex}",
 	)
 
- 
+
 @frappe.whitelist(methods=["POST"])
 def bootstrap_docker_privileges(node_name):
 	"""Queue the fixed Docker privilege bootstrap through the durable coordinator."""
@@ -1221,9 +1221,14 @@ def bootstrap_docker_privileges(node_name):
 		frappe.throw("A configured SSH user is required for Docker privilege bootstrap.")
 	return start_operation(
 		operation_type="host.node.docker.privileges.bootstrap",
-		target_doctype="Infrastructure Node", target_name=node.name,
-		payload={"adapter_id": "docker-compose-v1", "runtime_type": "docker",
-			"method": "bootstrap_privileges", "payload": {}},
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "bootstrap_privileges",
+			"payload": {},
+		},
 		idempotency_key=f"docker-privilege-bootstrap:{node.name}:{uuid.uuid4().hex}",
 	)
 

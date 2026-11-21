@@ -50,10 +50,15 @@ def _docker_observation_lock(target, operation):
 def _docker_privilege_bootstrap_handler(context, payload):
 	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
 
-	return invoke_runtime_mutation(context, {
-		"adapter_id": "docker-compose-v1", "runtime_type": "docker",
-		"method": "bootstrap_privileges", "payload": {},
-	})
+	return invoke_runtime_mutation(
+		context,
+		{
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "bootstrap_privileges",
+			"payload": {},
+		},
+	)
 
 
 for _operation_type, _method in (
@@ -85,7 +90,11 @@ register_operation(
 		handler=_docker_privilege_bootstrap_handler,
 		validate_payload=_docker_payload_validator("host.node.docker.privileges.bootstrap"),
 		authorize=authorize_docker_lifecycle_node,
-		queue="long", timeout_seconds=240, max_attempts=1, priority="High",
-		execution_identity="frappe-worker", resource_lock_keys=docker_lifecycle_resource_lock_keys,
+		queue="long",
+		timeout_seconds=240,
+		max_attempts=1,
+		priority="High",
+		execution_identity="frappe-worker",
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
 	)
 )

@@ -23,7 +23,14 @@ class TestBuiltinRuntimeAdapterConformance(unittest.TestCase):
 				expected_capabilities = (
 					("inspect", "preflight")
 					if runtime_type == "host"
-					else ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
+					else (
+						"bootstrap_privileges",
+						"inspect",
+						"preflight",
+						"updates_check",
+						"verify",
+						"privilege_check",
+					)
 				)
 				self.assertEqual(adapter.capabilities(), expected_capabilities)
 

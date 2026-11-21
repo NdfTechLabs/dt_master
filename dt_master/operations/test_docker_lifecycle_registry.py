@@ -38,7 +38,6 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 				["node-docker-observation:NODE-01"],
 			)
 
- 
 	def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
 		definition = get_operation("host.node.docker.privileges.bootstrap")
 		self.assertEqual(definition.queue, "long")
