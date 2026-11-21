@@ -165,17 +165,17 @@ def _apt_package_rows() -> list[dict]:
                 if stripped.startswith("Candidate:"):
                     value = stripped.partition(":")[2].strip()
                     candidate = value if value not in {"(none)", ""} else None
-                elif stripped.startswith("***") or (
-                    stripped and stripped[0].isdigit() and len(stripped.split()) >= 2
-                ):
-                    version_tokens = stripped.lstrip("*").split()
-                    selected_version = version_tokens[0] if version_tokens else None
                 elif stripped[:1].isdigit() and DOCKER_SOURCE_DOMAIN in stripped:
                     origin = stripped.split()[1][:512]
                     if candidate and selected_version == candidate and candidate_origin is None:
                         candidate_origin = origin
                     if installed_version and selected_version == installed_version and installed_origin is None:
                         installed_origin = origin
+                elif stripped.startswith("***") or (
+                    stripped and stripped[0].isdigit() and len(stripped.split()) >= 2
+                ):
+                    version_tokens = stripped.lstrip("*").split()
+                    selected_version = version_tokens[0] if version_tokens else None
         rows.append({
             "name": name,
             "installed_version": installed_version if dpkg_status == "installed" else None,
