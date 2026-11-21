@@ -768,6 +768,46 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			],
 		)
 
+	def test_bootstrap_privileges_exposes_installer_exit_code_and_stderr(self):
+		readiness = {
+			"schema_version": "1.0.0", "observed_at": None, "status": "Not Ready",
+			"execution_identity": "deploy",
+			"helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+				"version": None, "sha256": None},
+			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
+			"checks": [{"name": "helper_integrity", "status": "Failed"}],
+			"diagnostics": [{"code": "DOCKER_PRIVILEGE_HELPER_INTEGRITY",
+				"severity": "Error", "message": "Trusted helper digest mismatch."}],
+		}
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
+				(1, "installer started", "sha256 verification failed"),
+				(0, __import__("json").dumps(readiness), ""),
+			]) as remote,
+		):
+			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.data["helper_install"]["exit_code"], 1)
+		self.assertIn("sha256 verification failed", result.data["helper_install"]["stderr"])
+		self.assertEqual(result.data["failure"]["phase"], "installer_execution")
+		self.assertTrue(any("sha256 verification failed" in item["message"] for item in result.diagnostics))
+		self.assertEqual(remote.call_count, 2)
+
+	def test_bootstrap_privileges_exposes_readiness_probe_stderr(self):
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
+				(0, "helper installed", ""),
+				(0, "sudoers installed", ""),
+				(2, "", "readiness script: permission denied"),
+			]),
+		):
+			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.data["failure"]["phase"], "readiness_verification")
+		self.assertIn("permission denied", result.data["failure"]["details"][0]["reason"])
+
 	def _verification_snapshot(self):
 		return {
 			"inspection_status": "Successful",
