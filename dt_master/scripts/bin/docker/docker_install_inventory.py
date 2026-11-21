@@ -252,11 +252,20 @@ def _parse_gpg_key_inventory(output: str) -> tuple[list[str], list[dict]]:
 		fields = line.split(":")
 		record = fields[0]
 		if record == "pub":
+			if len(fields) > 1 and fields[1] in {"r", "e", "d", "i", "n"}:
+				current_primary = None
+				current_record = None
+				continue
 			current_primary = {"fingerprint": None, "identity": None, "subkey_fingerprints": []}
 			primary_keys.append(current_primary)
 			current_record = "pub"
 		elif record == "sub":
-			current_record = "sub" if current_primary is not None else None
+			if current_primary is not None and len(fields) > 1 and fields[1] in {"r", "e", "d", "i", "n"}:
+				current_primary["fingerprint"] = None
+				current_primary["identity"] = None
+				current_record = None
+			else:
+				current_record = "sub" if current_primary is not None else None
 		elif record == "fpr" and len(fields) > 9:
 			fingerprint = fields[9].upper()
 			if not fingerprint:
