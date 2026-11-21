@@ -37,7 +37,7 @@ def install_request():
 def install_result():
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.2.0",
+		"helper_version": "0.3.0",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": "succeeded",
