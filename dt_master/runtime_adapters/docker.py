@@ -795,7 +795,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"readiness_evaluation": inspection.data["readiness_evaluation"],
 				"privilege_readiness": inspection.data["privilege_readiness"],
 				"docker_engine_install_plan": install_plan,
-				"docker_engine_install_plan_status": install_plan["status"] if install_plan else "unavailable",
+				"docker_engine_install_plan_status": install_plan["status"]
+				if install_plan
+				else "unavailable",
 			},
 			duration_ms=inspection.duration_ms,
 		)

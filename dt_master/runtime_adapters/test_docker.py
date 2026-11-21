@@ -20,7 +20,6 @@ def request(method="inspect"):
 	)
 
 
-
 def helper_install_result(status="succeeded", phase="result_verification", exit_code=0):
 	return {
 		"schema_version": "1.0.0",
@@ -66,7 +65,6 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			get=lambda field: None,
 		)
 
-
 	def test_helper_success_is_intermediate_until_postcondition_verification(self):
 		request_obj = RuntimeAdapterRequest(
 			adapter_id="docker-compose-v1",
@@ -77,9 +75,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
 		)
-		result = self.adapter._interpret_install_engine_result(
-			request_obj, helper_install_result()
-		)
+		result = self.adapter._interpret_install_engine_result(request_obj, helper_install_result())
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Awaiting Postcondition Verification")
 		self.assertFalse(result.data["postcondition_verified"])
@@ -132,9 +128,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			correlation_id="CORR-0001",
 		)
 		with self.assertRaises(ValueError):
-			self.adapter._interpret_install_engine_result(
-				request_obj, helper_install_result()
-			)
+			self.adapter._interpret_install_engine_result(request_obj, helper_install_result())
 
 	def _snapshot(self, status="Successful"):
 		return {
