@@ -295,6 +295,7 @@ def _install(request: dict) -> dict:
     try:
         fresh_inventory = inventory_module.collect()["docker_install_inventory"]
         fresh_plan = policy.build_docker_engine_install_plan(request["target"]["name"], fresh_inventory)
+        policy.validate_docker_engine_install_plan(fresh_plan)
         fresh_fingerprint = policy.docker_engine_install_state_fingerprint(fresh_inventory)
     except (TypeError, ValueError, KeyError) as exc:
         raise HelperError("FRESH_INVENTORY_INVALID", "state_validation") from exc
