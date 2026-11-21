@@ -431,6 +431,7 @@ def run_trusted_helper(
 	*,
 	timeout_seconds=20,
 	max_output_bytes=8192,
+	heartbeat=None,
 ):
 	"""Invoke only the root-owned Docker helper using its exact sudoers command.
 
@@ -446,28 +447,14 @@ def run_trusted_helper(
 		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
 			raise ValueError("Unsupported trusted Docker helper request")
 	elif operation == "install_engine":
-		# Validate the proposed protocol at the protected boundary, but do not
-		# dispatch it until the helper implementation and operation gate are
-		# separately accepted.
-		from dt_master.runtime_adapters.docker_helper_contracts import (
-			DockerHelperContractError,
-			validate_install_engine_request,
-		)
+		from dt_master.runtime_adapters.docker_helper_contracts import validate_install_engine_request
 
-		try:
-			validate_install_engine_request(request)
-		except DockerHelperContractError:
-			raise
-		raise TrustedHelperExecutionError(
-			"operation_disabled",
-			"Docker Engine installation is not enabled by this helper version.",
-			may_have_executed=False,
-		)
+		validate_install_engine_request(request)
 	else:
 		raise ValueError("Unsupported trusted Docker helper request")
 
-	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 120:
-		raise ValueError("Trusted helper timeout must be between 1 and 120 seconds")
+	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 960:
+		raise ValueError("Trusted helper timeout must be between 1 and 960 seconds")
 	if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 65536:
 		raise ValueError("Trusted helper output limit must be between 1 and 65536 bytes")
 
@@ -514,9 +501,7 @@ def run_trusted_helper(
 				may_have_executed=False,
 			) from exc
 
-		try:
-			proc.communicate(input=request_bytes, timeout=timeout_seconds)
-		except subprocess.TimeoutExpired as exc:
+		def stop_transport():
 			try:
 				os.killpg(proc.pid, signal.SIGTERM)
 			except ProcessLookupError:
@@ -529,9 +514,40 @@ def run_trusted_helper(
 				except ProcessLookupError:
 					pass
 				proc.wait()
+
+		try:
+			proc.stdin.write(request_bytes)
+			proc.stdin.close()
+			deadline = monotonic() + timeout_seconds
+			while proc.poll() is None:
+				remaining = deadline - monotonic()
+				if remaining <= 0:
+					stop_transport()
+					raise TrustedHelperExecutionError(
+						"execution_timeout",
+						"Trusted helper execution timed out; remote execution outcome is uncertain.",
+						may_have_executed=True,
+					)
+				try:
+					proc.wait(timeout=min(15, remaining))
+				except subprocess.TimeoutExpired:
+					if heartbeat is not None:
+						try:
+							heartbeat()
+						except Exception as exc:
+							stop_transport()
+							raise TrustedHelperExecutionError(
+								"lease_lost",
+								"Worker lease was lost during Docker installation; remote outcome requires reconciliation.",
+								may_have_executed=True,
+							) from exc
+		except TrustedHelperExecutionError:
+			raise
+		except (BrokenPipeError, OSError) as exc:
+			stop_transport()
 			raise TrustedHelperExecutionError(
-				"execution_timeout",
-				"Trusted helper execution timed out; remote execution outcome is uncertain.",
+				"transport_io_failed",
+				"Trusted helper transport failed after dispatch; remote execution outcome is uncertain.",
 				may_have_executed=True,
 			) from exc
 
