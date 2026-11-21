@@ -219,36 +219,20 @@ def execute_operation(operation_id):
         frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
         completed_on = now_datetime()
 
-        if isinstance(exc, OperationDispositionError):
-            disposition = exc.disposition
-            error_code = exc.code
-            error_summary = exc.summary
-            recovery_required = disposition == "Recovery Required"
-            recovery_reason = exc.recovery_reason
-            event_status = "recovery_required" if recovery_required else "failed"
-            event_message = (
-                "Operation requires reconciliation based on its explicit execution disposition."
-                if recovery_required else
-                "Operation was rejected or failed before an uncertain mutation outcome."
-            )
-        else:
-            recovery_required = bool(leases)
-            disposition = "Recovery Required" if recovery_required else "Failed"
-            error_code = "LEASE_OR_HANDLER_FAILED" if leases else "HANDLER_FAILED"
-            error_summary = (
-                "Execution stopped after a resource lease or handler failure; reconcile the target before retrying."
-                if leases else
-                "The registered operation handler failed. See the restricted server error log."
-            )
-            recovery_reason = (
-                "Resource lease ownership or execution outcome requires reconciliation."
-                if recovery_required else None
-            )
-            event_status = "recovery_required" if recovery_required else "failed"
-            event_message = (
-                "Operation requires reconciliation after a lease or execution failure."
-                if recovery_required else "The registered operation handler failed."
-            )
+        from dt_master.operations.outcomes import resolve_operation_disposition
+
+        disposition_fields = resolve_operation_disposition(exc, lease_acquired=bool(leases))
+        disposition = disposition_fields["execution_state"]
+        error_code = disposition_fields["error_code"]
+        error_summary = disposition_fields["error_summary"]
+        recovery_required = disposition_fields["recovery_required"]
+        recovery_reason = disposition_fields["recovery_reason"]
+        event_status = "recovery_required" if recovery_required else "failed"
+        event_message = (
+            "Operation requires reconciliation before it can be safely retried."
+            if recovery_required else
+            "Operation failed without an uncertain mutation outcome."
+        )
 
         _set_operation_fields(operation_id, {
             "execution_state": disposition,
