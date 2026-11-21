@@ -849,6 +849,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		node = self._node_for_request(request)
 		helper_dispatched = False
 		phase = "initial_inspection"
+		failure_detail = None
 		try:
 			if execution_context is not None:
 				execution_context.heartbeat()
@@ -939,7 +940,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					or prepare_result.get("operation") != "prepare_repository"
 					or prepare_result.get("status") != "succeeded"
 					or prepare_result.get("diagnostics") != []):
-					failure = {
+					failure_detail = {
 						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
 						"message": "Trusted helper repository preparation did not satisfy its success contract.",
 						"exit_code": prepare_code,
@@ -1022,6 +1023,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"phase": phase,
 				"exception_type": type(exc).__name__,
 				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"detail": failure_detail,
 				"helper_error_code": getattr(exc, "code", None),
 				"helper_dispatched": helper_dispatched,
 			}
@@ -1047,6 +1049,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"phase": phase,
 				"exception_type": type(exc).__name__,
 				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"detail": failure_detail,
 				"helper_dispatched": helper_dispatched,
 			}
 			return self.result_for(
