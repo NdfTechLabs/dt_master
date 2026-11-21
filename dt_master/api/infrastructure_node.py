@@ -959,9 +959,23 @@ def _docker_failure_snapshot(status, message, duration_ms=0):
 		},
 		"permissions": {"execution_identity": None, "inspection_access": "Unknown"},
 		"host_inventory": {
-			"schema_version": "1.0.0", "observed_at": None,
-			"host_os": {key: None for key in ("id", "id_like", "name", "version_id", "version_codename", "pretty_name", "architecture", "kernel_release")},
-			"package_manager": "Unknown", "docker_packages": [],
+			"schema_version": "1.0.0",
+			"observed_at": None,
+			"host_os": {
+				key: None
+				for key in (
+					"id",
+					"id_like",
+					"name",
+					"version_id",
+					"version_codename",
+					"pretty_name",
+					"architecture",
+					"kernel_release",
+				)
+			},
+			"package_manager": "Unknown",
+			"docker_packages": [],
 			"services": {"manager": "Unknown", "docker": "Unknown", "containerd": "Unknown"},
 			"workloads": {"available": False, "running_containers": None, "total_containers": None},
 		},
@@ -1036,12 +1050,37 @@ def _validate_docker_snapshot(snapshot):
 
 	if "host_inventory" in snapshot:
 		inventory = snapshot["host_inventory"]
-		exact_keys(inventory, ("schema_version", "observed_at", "host_os", "package_manager", "docker_packages", "services", "workloads"), "host_inventory")
+		exact_keys(
+			inventory,
+			(
+				"schema_version",
+				"observed_at",
+				"host_os",
+				"package_manager",
+				"docker_packages",
+				"services",
+				"workloads",
+			),
+			"host_inventory",
+		)
 		if inventory["schema_version"] != "1.0.0":
 			raise ValueError("Unsupported Docker host inventory schema")
 		if inventory["observed_at"] is not None and not isinstance(inventory["observed_at"], str):
 			raise ValueError("Invalid host inventory timestamp")
-		exact_keys(inventory["host_os"], ("id", "id_like", "name", "version_id", "version_codename", "pretty_name", "architecture", "kernel_release"), "host_inventory.host_os")
+		exact_keys(
+			inventory["host_os"],
+			(
+				"id",
+				"id_like",
+				"name",
+				"version_id",
+				"version_codename",
+				"pretty_name",
+				"architecture",
+				"kernel_release",
+			),
+			"host_inventory.host_os",
+		)
 		for value in inventory["host_os"].values():
 			if value is not None and not isinstance(value, str):
 				raise ValueError("Invalid host OS inventory value")
@@ -1049,24 +1088,48 @@ def _validate_docker_snapshot(snapshot):
 			raise ValueError("Invalid host inventory package manager")
 		if not isinstance(inventory["docker_packages"], list) or len(inventory["docker_packages"]) > 32:
 			raise ValueError("Invalid Docker package inventory")
-		allowed_packages = {"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin", "docker-compose-plugin", "docker.io", "docker-compose", "docker", "docker-ce-rootless-extras"}
+		allowed_packages = {
+			"docker-ce",
+			"docker-ce-cli",
+			"containerd.io",
+			"docker-buildx-plugin",
+			"docker-compose-plugin",
+			"docker.io",
+			"docker-compose",
+			"docker",
+			"docker-ce-rootless-extras",
+		}
 		for package in inventory["docker_packages"]:
 			exact_keys(package, ("name", "version", "status"), "host_inventory.docker_packages[]")
-			if package["name"] not in allowed_packages or not isinstance(package["version"], str) or package["status"] not in {"installed", "unknown"}:
+			if (
+				package["name"] not in allowed_packages
+				or not isinstance(package["version"], str)
+				or package["status"] not in {"installed", "unknown"}
+			):
 				raise ValueError("Invalid Docker package inventory row")
 		exact_keys(inventory["services"], ("manager", "docker", "containerd"), "host_inventory.services")
-		if inventory["services"]["manager"] not in {"systemd", "Unknown"} or any(inventory["services"][key] not in {"active", "inactive", "failed", "activating", "deactivating", "Unknown"} for key in ("docker", "containerd")):
+		if inventory["services"]["manager"] not in {"systemd", "Unknown"} or any(
+			inventory["services"][key]
+			not in {"active", "inactive", "failed", "activating", "deactivating", "Unknown"}
+			for key in ("docker", "containerd")
+		):
 			raise ValueError("Invalid Docker service inventory")
-		exact_keys(inventory["workloads"], ("available", "running_containers", "total_containers"), "host_inventory.workloads")
+		exact_keys(
+			inventory["workloads"],
+			("available", "running_containers", "total_containers"),
+			"host_inventory.workloads",
+		)
 		if not isinstance(inventory["workloads"]["available"], bool):
 			raise ValueError("Invalid Docker workload availability")
 		for key in ("running_containers", "total_containers"):
 			value = inventory["workloads"][key]
 			if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
 				raise ValueError("Invalid Docker workload count")
-		if inventory["workloads"]["available"] and (inventory["workloads"]["running_containers"] is None or inventory["workloads"]["total_containers"] is None):
+		if inventory["workloads"]["available"] and (
+			inventory["workloads"]["running_containers"] is None
+			or inventory["workloads"]["total_containers"] is None
+		):
 			raise ValueError("Available Docker workload inventory requires both counts")
-
 
 	cpu = snapshot["host"]["cpu"]["logical_cores"]
 	if cpu is not None and (not isinstance(cpu, int) or cpu < 1):

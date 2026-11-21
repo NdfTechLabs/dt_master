@@ -65,36 +65,40 @@ frappe.ui.form.on("Infrastructure Node", {
 				{
 					key: "privileges",
 					label: "Check Docker Privileges",
-					description: "Check the trusted helper, ownership, permissions, sudoers policy and root self-test. This is read-only.",
+					description:
+						"Check the trusted helper, ownership, permissions, sudoers policy and root self-test. This is read-only.",
 				},
 				{
 					key: "inspect",
 					label: "Inspect Docker Runtime",
-					description: "Inspect Docker Engine, Compose and host resources. This is read-only.",
+					description:
+						"Inspect Docker Engine, Compose and host resources. This is read-only.",
 				},
 				{
 					key: "preflight",
 					label: "Run Docker Preflight",
-					description: "Evaluate whether this node is ready for Docker-backed workloads. This is read-only.",
+					description:
+						"Evaluate whether this node is ready for Docker-backed workloads. This is read-only.",
 				},
 				{
 					key: "updates",
 					label: "Check Docker Updates",
-					description: "Check installed Docker package versions and available updates. This does not install updates.",
+					description:
+						"Check installed Docker package versions and available updates. This does not install updates.",
 				},
 				{
 					key: "verify",
 					label: "Verify Docker Runtime",
-					description: "Verify Docker CLI, Engine and Compose availability. This is read-only.",
+					description:
+						"Verify Docker CLI, Engine and Compose availability. This is read-only.",
 				},
 			];
 			for (const observation of dockerObservations) {
 				frm.add_custom_button(
 					__(observation.label),
 					() => {
-						frappe.confirm(
-							__(observation.description),
-							() => run_docker_observation(frm, observation.key, observation.label)
+						frappe.confirm(__(observation.description), () =>
+							run_docker_observation(frm, observation.key, observation.label)
 						);
 					},
 					__("Docker")
@@ -170,17 +174,19 @@ function run_docker_observation(frm, observation, label) {
 		callback(response) {
 			const operation = response.message || {};
 			frappe.show_alert({
-				message: __("{0} queued. Operation: {1}. Follow progress and results in Task Manager.", [
-					__(label),
-					operation.operation_id || __("unknown"),
-				]),
+				message: __(
+					"{0} queued. Operation: {1}. Follow progress and results in Task Manager.",
+					[__(label), operation.operation_id || __("unknown")]
+				),
 				indicator: "blue",
 			});
 		},
 		error() {
 			frappe.msgprint({
 				title: __("{0} Not Started", [__(label)]),
-				message: __("The read-only Docker observation could not be queued. Check the server error log."),
+				message: __(
+					"The read-only Docker observation could not be queued. Check the server error log."
+				),
 				indicator: "red",
 			});
 		},
@@ -195,12 +201,13 @@ function render_docker_readiness_summary(frm) {
 	const evaluation = parse_json_field(frm.doc.docker_readiness_evaluation);
 	const readiness = frm.doc.docker_readiness || "Unknown";
 	const inspection = frm.doc.docker_inspection_status || "Not Inspected";
-	const indicator = {
-		Ready: "green",
-		Degraded: "orange",
-		"Not Ready": "red",
-		Unknown: "gray",
-	}[readiness] || "gray";
+	const indicator =
+		{
+			Ready: "green",
+			Degraded: "orange",
+			"Not Ready": "red",
+			Unknown: "gray",
+		}[readiness] || "gray";
 
 	const rows = [
 		[__("Inspection Status"), inspection],
@@ -236,19 +243,27 @@ function render_docker_readiness_summary(frm) {
 	const rows_html = rows
 		.map(
 			([label, value]) =>
-				`<tr><th class="text-muted" style="width: 38%">${escape_html(label)}</th><td>${escape_html(value)}</td></tr>`
+				`<tr><th class="text-muted" style="width: 38%">${escape_html(
+					label
+				)}</th><td>${escape_html(value)}</td></tr>`
 		)
 		.join("");
 
 	const evaluated_at = evaluation?.evaluated_at
-		? `<div class="text-muted small mt-2">${__("Evaluated")}: ${escape_html(evaluation.evaluated_at)} · ${__("Evaluator")}: ${escape_html(evaluation.evaluator_version || __("Unknown"))}</div>`
+		? `<div class="text-muted small mt-2">${__("Evaluated")}: ${escape_html(
+				evaluation.evaluated_at
+		  )} · ${__("Evaluator")}: ${escape_html(
+				evaluation.evaluator_version || __("Unknown")
+		  )}</div>`
 		: "";
 
 	field.$wrapper.html(
 		`<div class="border rounded p-3">
 			<div class="mb-3">
 				<span class="indicator-pill ${indicator}">${escape_html(readiness)}</span>
-				<span class="text-muted ml-2">${__("Docker readiness is evaluated independently of the Host-native Node state.")}</span>
+				<span class="text-muted ml-2">${__(
+					"Docker readiness is evaluated independently of the Host-native Node state."
+				)}</span>
 			</div>
 			<table class="table table-bordered table-sm mb-3"><tbody>${rows_html}</tbody></table>
 			<div class="font-weight-bold mb-2">${__("Readiness Diagnostics")}</div>
@@ -290,7 +305,9 @@ function run_bench_operation(frm, method, args = {}) {
 		args: { node_name: frm.doc.name, ...args },
 		callback: () => frm.reload_doc(),
 		error: () => {
-			frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
+			frappe.msgprint(
+				__("The operation request failed. Check the Node Action Log for details.")
+			);
 			frm.reload_doc();
 		},
 	});
@@ -318,7 +335,11 @@ function create_log_dialog(title) {
 		height: "400px",
 		"overflow-y": "scroll",
 	});
-	dialog.log_el.append(`<div id="log-wait" style="color:#888">${__("Waiting for remote execution output...")}</div>`);
+	dialog.log_el.append(
+		`<div id="log-wait" style="color:#888">${__(
+			"Waiting for remote execution output..."
+		)}</div>`
+	);
 	return dialog;
 }
 
@@ -332,7 +353,10 @@ function run_node_action(frm, label, method) {
 			callback(response) {
 				const operation = response.message || {};
 				frappe.show_alert({
-					message: __("System inspection queued. Operation: {0}. View progress and results in Task Manager.", [operation.operation_id || __("unknown")]),
+					message: __(
+						"System inspection queued. Operation: {0}. View progress and results in Task Manager.",
+						[operation.operation_id || __("unknown")]
+					),
 					indicator: "blue",
 				});
 			},
@@ -356,7 +380,9 @@ function run_node_action(frm, label, method) {
 			frm.reload_doc();
 		},
 		error() {
-			frappe.msgprint(__("The operation request failed. Check the Node Action Log for details."));
+			frappe.msgprint(
+				__("The operation request failed. Check the Node Action Log for details.")
+			);
 			frm.reload_doc();
 		},
 	});
@@ -388,4 +414,3 @@ function start_execution_log_stream(dialog, node_name) {
 		}
 	});
 }
-
