@@ -59,6 +59,43 @@ class TestDockerLifecycleHelper(unittest.TestCase):
             (root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
         )
 
+    def test_signing_key_inventory_rejects_expired_primary_and_revoked_subkey(self):
+        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_key_test", inventory_path)
+        inventory_module = importlib.util.module_from_spec(inventory_spec)
+        inventory_spec.loader.exec_module(inventory_module)
+        primary = "A" * 40
+        subkey = "B" * 40
+        valid = "\\n".join(
+            [
+                "pub:-:4096:1:KEYID:0:0:::::",
+                f"fpr:::::::::{primary}:",
+                "uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
+                "sub:-:4096:1:SUBKEY:0:0:::::",
+                f"fpr:::::::::{subkey}:",
+            ]
+        )
+        fingerprints, keys = inventory_module._parse_gpg_key_inventory(valid)
+        self.assertEqual(fingerprints, [primary, subkey])
+        self.assertEqual(keys[0]["fingerprint"], primary)
+        self.assertEqual(keys[0]["subkey_fingerprints"], [subkey])
+
+        expired = f"pub:e:4096:1:KEYID:0:0:::::\\nfpr:::::::::{primary}:"
+        _fingerprints, expired_keys = inventory_module._parse_gpg_key_inventory(expired)
+        self.assertEqual(expired_keys, [])
+
+        revoked_subkey = "\\n".join(
+            [
+                "pub:-:4096:1:KEYID:0:0:::::",
+                f"fpr:::::::::{primary}:",
+                "uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
+                "sub:r:4096:1:SUBKEY:0:0:::::",
+                f"fpr:::::::::{subkey}:",
+            ]
+        )
+        _fingerprints, revoked_keys = inventory_module._parse_gpg_key_inventory(revoked_subkey)
+        self.assertIsNone(revoked_keys[0]["fingerprint"])
+
     def test_root_inventory_runs_workload_queries_as_ssh_identity(self):
         inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
         inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_under_test", inventory_path)
