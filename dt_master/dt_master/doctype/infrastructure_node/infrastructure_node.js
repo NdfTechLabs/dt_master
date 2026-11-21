@@ -420,12 +420,12 @@ function run_node_action(frm, label, method) {
 			method,
 			args: { node_name: frm.doc.name },
 			freeze: true,
-			freeze_message: __("Submitting Host inspection..."),
+			freeze_message: __("Queueing Node inspection..."),
 			callback(response) {
 				const operation = response.message || {};
 				frappe.show_alert({
 					message: __(
-						"System inspection queued. Operation: {0}. View progress and results in Task Manager.",
+						"Node inspection queued. Operation: {0}. View progress and results in Task Manager.",
 						[operation.operation_id || __("unknown")]
 					),
 					indicator: "blue",
@@ -433,7 +433,7 @@ function run_node_action(frm, label, method) {
 			},
 			error() {
 				frappe.msgprint({
-					title: __("System Inspection Not Started"),
+					title: __("Node Inspection Not Started"),
 					message: __("The inspection could not be queued. Check the server error log."),
 					indicator: "red",
 				});
