@@ -363,7 +363,7 @@ def _package_manager_state() -> dict:
 	if not locked:
 		for lock_path in lock_paths:
 			code, output = _run(["fuser", str(lock_path)], timeout=3)
-			if code == 0 and output.strip():
+			if code != 1:
 				locked = True
 				break
 	return {"locked": locked, "dpkg_audit_clean": audit_clean}
