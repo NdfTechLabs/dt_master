@@ -159,7 +159,11 @@ class TestWorkerLeaseIntegration(unittest.TestCase):
         def uncertain_handler(context, payload):
             raise TimeoutError("remote outcome is uncertain")
 
-        definition = replace(definition, handler=uncertain_handler)
+        definition = replace(
+            definition,
+            handler=uncertain_handler,
+            authorize=lambda authorized_target: None,
+        )
         cursor = MagicMock(rowcount=1)
         with (
             patch.object(worker.frappe, "get_doc", side_effect=[operation, target]),
