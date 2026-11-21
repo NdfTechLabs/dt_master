@@ -187,7 +187,7 @@ def _package_map(rows: list[dict]) -> dict[str, dict]:
 
 def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	"""Build a deterministic, non-mutating Engine install plan from fresh inventory."""
-	if not isinstance(node_name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.()\-]{0,139}", node_name):
+	if not isinstance(node_name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.()-]{0,139}", node_name):
 		raise DockerInstallPlanError("Invalid Infrastructure Node identity")
 	if not isinstance(inventory, dict):
 		raise DockerInstallPlanError("Docker Engine inventory must be an object")
