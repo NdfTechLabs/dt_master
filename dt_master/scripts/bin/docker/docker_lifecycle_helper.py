@@ -336,7 +336,7 @@ def main() -> int:
             response = _install(request)
         except HelperError as exc:
             # Validation failures are always before the package-manager boundary.
-            fallback = request["expected_state_fingerprint"]
+            fallback = None
             installed = {}
             try:
                 inventory_module, policy = _load_policy()
@@ -344,7 +344,10 @@ def main() -> int:
                 fallback = policy.docker_engine_install_state_fingerprint(current)
                 installed = _installed_versions(current)
             except Exception:
-                pass
+                # Without a fresh independent fingerprint, do not fabricate a
+                # structured pre-mutation result. The caller must reconcile.
+                sys.stderr.write("DOCKER_HELPER_HOST_VALIDATION_UNAVAILABLE\\n")
+                return 2
             response = _result(
                 request, status="failed_before_mutation", phase=exc.phase,
                 before=fallback, after=fallback, installed=installed,
