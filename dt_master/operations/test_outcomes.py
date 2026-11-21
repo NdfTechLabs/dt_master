@@ -5,6 +5,7 @@ import unittest
 from dt_master.operations.outcomes import (
 	OperationDispositionError,
 	enforce_durable_operation_outcome,
+	resolve_operation_disposition,
 )
 
 
@@ -57,6 +58,31 @@ class TestOperationOutcomes(unittest.TestCase):
 				recovery_code="MUTATION_UNCERTAIN",
 				recovery_summary="Mutation requires reconciliation.",
 			)
+
+	def test_explicit_failure_remains_failed_after_lease_acquisition(self):
+		exc = OperationDispositionError("Failed", "PLAN_STALE", "Approved plan is stale.")
+		fields = resolve_operation_disposition(exc, lease_acquired=True)
+		self.assertEqual(fields["execution_state"], "Failed")
+		self.assertFalse(fields["recovery_required"])
+
+	def test_explicit_uncertainty_requires_recovery(self):
+		exc = OperationDispositionError(
+			"Recovery Required",
+			"HELPER_UNCERTAIN",
+			"Helper outcome is uncertain.",
+			recovery_reason="Fresh host reconciliation is required.",
+		)
+		fields = resolve_operation_disposition(exc, lease_acquired=True)
+		self.assertEqual(fields["execution_state"], "Recovery Required")
+		self.assertTrue(fields["recovery_required"])
+
+	def test_unclassified_exception_after_lease_requires_recovery(self):
+		fields = resolve_operation_disposition(RuntimeError("internal"), lease_acquired=True)
+		self.assertEqual(fields["execution_state"], "Recovery Required")
+
+	def test_unclassified_exception_before_lease_is_failed(self):
+		fields = resolve_operation_disposition(RuntimeError("internal"), lease_acquired=False)
+		self.assertEqual(fields["execution_state"], "Failed")
 
 	def test_disposition_contract_is_closed_and_bounded(self):
 		with self.assertRaises(ValueError):
