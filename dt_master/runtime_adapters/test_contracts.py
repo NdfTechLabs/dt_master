@@ -153,6 +153,15 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "coordinator identity"):
             validate_request(mutation_request(operation_id=None))
 
+    def test_install_engine_is_a_durable_mutating_adapter_method(self):
+        request = mutation_request(
+            method="install_engine",
+            target_doctype="Infrastructure Node",
+            target_name="NODE-0001",
+        )
+        validated = validate_request(request)
+        self.assertEqual(validated.method, "install_engine")
+
     def test_request_payload_must_be_json_compatible(self):
         with self.assertRaisesRegex(ValueError, "JSON-compatible"):
             validate_request(observation_request(payload={"not_json": object()}))
