@@ -24,7 +24,7 @@ DOCKER_SIGNING_KEY_ROTATION_POLICY = (
 	"Primary-key rotation requires a reviewed policy-version change; signing-subkey rollover "
 	"under the pinned primary key is permitted after GnuPG validates the key structure."
 )
-PLAN_SCHEMA_VERSION = "1.0.0"
+PLAN_SCHEMA_VERSION = "1.1.0"
 SUPPORTED_HOSTS = frozenset(
 	{
 		("ubuntu", "22.04", "amd64"),
