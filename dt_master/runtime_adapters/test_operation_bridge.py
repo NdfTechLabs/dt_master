@@ -96,6 +96,8 @@ class TestRuntimeOperationBridge(unittest.TestCase):
             invoke_runtime_mutation(context(), payload())
         self.assertEqual(raised.exception.disposition, "Recovery Required")
         self.assertEqual(raised.exception.code, "RUNTIME_MUTATION_RECONCILIATION_REQUIRED")
+        self.assertEqual(raised.exception.adapter_result["outcome"], "partial")
+        self.assertEqual(raised.exception.adapter_result["data"]["fencing_token"], 17)
 
     def test_failed_mutation_result_becomes_durable_failure(self):
         self.adapter.start_outcome = "failed"
@@ -103,6 +105,8 @@ class TestRuntimeOperationBridge(unittest.TestCase):
             invoke_runtime_mutation(context(), payload())
         self.assertEqual(raised.exception.disposition, "Failed")
         self.assertEqual(raised.exception.code, "RUNTIME_MUTATION_FAILED")
+        self.assertEqual(raised.exception.adapter_result["outcome"], "failed")
+        self.assertEqual(raised.exception.adapter_result["data"]["fencing_token"], 17)
 
     def test_durable_observation_uses_worker_identity_and_read_only_method(self):
         observation = {
