@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -153,15 +154,25 @@ def _service_state() -> dict:
 	return {"manager": "systemd", **states}
 
 
+def _docker_query(argv: list[str]) -> tuple[int, str]:
+	"""Observe Docker using the SSH identity so fingerprints match unprivileged inspection."""
+	user = os.environ.get("DT_DOCKER_WORKLOAD_USER")
+	if not user:
+		return _run(argv, timeout=8)
+	if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or not shutil.which("runuser"):
+		return 127, ""
+	return _run(["runuser", "-u", user, "--", *argv], timeout=8)
+
+
 def _workload_summary() -> dict:
 	if not shutil.which("docker"):
 		return {"available": False, "running_containers": None, "total_containers": None}
 	# Count only; never collect container names, IDs, labels, images, environment or logs.
-	code, output = _run(["docker", "ps", "--all", "--quiet"], timeout=8)
+	code, output = _docker_query(["docker", "ps", "--all", "--quiet"])
 	if code != 0:
 		return {"available": False, "running_containers": None, "total_containers": None}
 	total = min(sum(bool(line.strip()) for line in output.splitlines()), 100000)
-	code, output = _run(["docker", "ps", "--quiet"], timeout=8)
+	code, output = _docker_query(["docker", "ps", "--quiet"])
 	if code != 0:
 		return {"available": False, "running_containers": None, "total_containers": None}
 	running = min(sum(bool(line.strip()) for line in output.splitlines()), 100000)
@@ -362,7 +373,7 @@ def _storage() -> dict:
 def _docker_engine_health(services: dict, workloads: dict) -> str:
 	if not shutil.which("docker"):
 		return "not_installed"
-	code, output = _run(["docker", "info", "--format", "{{.ServerVersion}}"], timeout=8)
+	code, output = _docker_query(["docker", "info", "--format", "{{.ServerVersion}}"])
 	if code == 0 and output.strip():
 		return "healthy"
 	return "unhealthy" if services.get("docker") in {"active", "failed", "activating"} else "unavailable"
