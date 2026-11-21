@@ -84,8 +84,10 @@ def helper_result():
 
 class TestDockerEngineInstallPostcondition(unittest.TestCase):
 	def evaluate(self, observed):
+		helper = helper_result()
+		helper["after_state_fingerprint"] = docker_engine_install_state_fingerprint(observed)
 		return evaluate_docker_engine_install_postcondition(
-			"NODE-0001", observed, helper_result(), expected_operation_id="OP-0001"
+			"NODE-0001", observed, helper, expected_operation_id="OP-0001"
 		)
 
 	def test_exact_versions_trusted_origins_and_healthy_engine_verify(self):
