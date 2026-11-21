@@ -13,6 +13,7 @@ import frappe
 
 from dt_master.api.script_contract import (
 	TrustedHelperExecutionError,
+	parse_trusted_install_engine_result,
 	run_remote_script,
 	run_trusted_helper,
 )
@@ -26,7 +27,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "docker"
 
 	def capabilities(self):
-		return ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
+		return ("bootstrap_privileges", "install_engine", "inspect", "preflight", "updates_check", "verify", "privilege_check")
 
 	@staticmethod
 	def _interpret_install_engine_result(request, helper_result):
@@ -833,6 +834,144 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			},
 			duration_ms=inspection.duration_ms,
 		)
+
+
+	def _install_engine(self, request, execution_context=None):
+		"""Install the exact Docker CE package set through the existing trusted helper."""
+		from dt_master.node_preparation.docker_install import (
+			build_docker_engine_install_plan,
+			validate_docker_engine_install_plan,
+		)
+
+		started = monotonic()
+		node = self._node_for_request(request)
+		helper_dispatched = False
+		try:
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+
+			inspection = self._inspect(request, execution_context=execution_context)
+			if inspection.data.get("inspection_status") != "Successful":
+				raise ValueError("A complete fresh Docker installation inventory is required.")
+			privilege = inspection.data.get("privilege_readiness") or {}
+			if privilege.get("status") != "Ready":
+				raise ValueError("The existing Docker privilege helper is not ready on this node.")
+			snapshot = inspection.data.get("snapshot") or {}
+			host_inventory = snapshot.get("host_inventory") or {}
+			install_inventory = host_inventory.get("docker_install_inventory")
+			if not isinstance(install_inventory, dict):
+				raise ValueError("Docker Engine installation inventory is unavailable.")
+
+			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+			validate_docker_engine_install_plan(plan)
+			if (
+				plan.get("plan_digest") != request.payload.get("plan_digest")
+				or plan.get("state_fingerprint") != request.payload.get("expected_state_fingerprint")
+			):
+				raise ValueError("The Docker installation plan changed; run preflight again.")
+			if plan["status"] == "no_op":
+				return self.result_for(
+					request,
+					outcome="succeeded",
+					observed_state="Already Installed",
+					capabilities=self.capabilities(),
+					data={
+						"installation_status": "Already Installed",
+						"plan_digest": plan["plan_digest"],
+						"state_fingerprint": plan["state_fingerprint"],
+						"postcondition_verified": True,
+						"no_op": True,
+					},
+					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+				)
+			if plan["status"] != "ready":
+				raise ValueError("The Docker installation plan is not ready for execution.")
+			package_rows = plan.get("packages") or []
+			if len(package_rows) != 4 or any(
+				row.get("action") != "install" or not row.get("candidate_version")
+				for row in package_rows
+			):
+				raise ValueError("The Docker installation plan does not contain the exact four-package install set.")
+
+			helper_request = {
+				"schema_version": "1.0.0",
+				"operation": "install_engine",
+				"operation_id": request.operation_id,
+				"target": {"doctype": request.target_doctype, "name": request.target_name},
+				"plan": {
+					"schema_version": plan["schema_version"],
+					"policy_version": plan["policy"]["version"],
+					"plan_digest": plan["plan_digest"],
+					"packages": [
+						{"name": row["name"], "version": row["candidate_version"]}
+						for row in package_rows
+					],
+				},
+				"expected_state_fingerprint": plan["state_fingerprint"],
+				"operator_impact_approval": request.payload["operator_impact_approval"],
+			}
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+			helper_dispatched = True
+			code, stdout, stderr = run_trusted_helper(
+				node,
+				self._ssh_config(node),
+				helper_request,
+				timeout_seconds=960,
+				max_output_bytes=16384,
+				heartbeat=(
+					lambda: (
+						execution_context.heartbeat(),
+						execution_context.assert_leases(),
+					)
+					if execution_context is not None
+					else None
+				),
+			)
+			helper_result = parse_trusted_install_engine_result(
+				code, stdout, stderr, expected_operation_id=request.operation_id
+			)
+			return self._verify_install_engine_postcondition(
+				request, helper_result, execution_context=execution_context
+			)
+		except TrustedHelperExecutionError as exc:
+			uncertain = exc.may_have_executed
+			return self.result_for(
+				request,
+				outcome="partial" if uncertain else "failed",
+				observed_state="Recovery Required" if uncertain else "Install Not Applied",
+				capabilities=(),
+				diagnostics=(
+					{
+						"code": "DOCKER_INSTALL_OUTCOME_UNCERTAIN" if uncertain else "DOCKER_INSTALL_TRANSPORT_FAILED",
+						"severity": "error",
+						"message": "Docker installation requires fresh host reconciliation."
+						if uncertain else "Docker installation could not be dispatched.",
+					},
+				),
+				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+		except Exception:
+			uncertain = helper_dispatched
+			return self.result_for(
+				request,
+				outcome="partial" if uncertain else "failed",
+				observed_state="Recovery Required" if uncertain else "Install Not Applied",
+				capabilities=(),
+				diagnostics=(
+					{
+						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED" if uncertain else "DOCKER_INSTALL_PRECHECK_FAILED",
+						"severity": "error",
+						"message": "The helper may have changed the node; fresh inspection is required."
+						if uncertain else "Docker installation preconditions were not satisfied.",
+					},
+				),
+				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
 
 	def _preflight(self, request, execution_context=None):
 		"""Combine runtime readiness with a read-only, deterministic Engine install plan."""
