@@ -65,6 +65,81 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			get=lambda field: None,
 		)
 
+	def test_install_engine_builds_closed_helper_request_from_fresh_plan(self):
+		version = "5:29.0.0-1~ubuntu.24.04~noble"
+		plan = {
+			"schema_version": "1.1.0",
+			"policy": {"version": "1.1.1"},
+			"plan_digest": "a" * 64,
+			"state_fingerprint": "b" * 64,
+			"status": "ready",
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": version}
+				for name in ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
+			],
+		}
+		inspection = SimpleNamespace(
+			data={
+				"inspection_status": "Successful",
+				"privilege_readiness": {"status": "Ready"},
+				"snapshot": {"host_inventory": {"docker_install_inventory": {}}},
+			}
+		)
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			payload={
+				"confirm": True,
+				"plan_digest": "a" * 64,
+				"expected_state_fingerprint": "b" * 64,
+				"operator_impact_approval": False,
+			},
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		verified = self.adapter.result_for(
+			request_obj, outcome="succeeded", observed_state="Verified"
+		)
+		helper_result = helper_install_result()
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch.object(self.adapter, "_inspect", return_value=inspection),
+			patch(
+				"dt_master.node_preparation.docker_install.build_docker_engine_install_plan",
+				return_value=plan,
+			),
+			patch(
+				"dt_master.node_preparation.docker_install.validate_docker_engine_install_plan"
+			),
+			patch(
+				"dt_master.runtime_adapters.docker.run_trusted_helper",
+				return_value=(0, "{}", ""),
+			) as run_helper,
+			patch(
+				"dt_master.runtime_adapters.docker.parse_trusted_install_engine_result",
+				return_value=helper_result,
+			),
+			patch.object(
+				self.adapter, "_verify_install_engine_postcondition", return_value=verified
+			) as verify,
+		):
+			result = self.adapter._install_engine(request_obj)
+
+		helper_request = run_helper.call_args.args[2]
+		self.assertEqual(helper_request["operation"], "install_engine")
+		self.assertEqual(helper_request["operation_id"], "OP-0001")
+		self.assertEqual(helper_request["plan"]["policy_version"], "1.1.1")
+		self.assertEqual(
+			[package["name"] for package in helper_request["plan"]["packages"]],
+			["docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"],
+		)
+		self.assertEqual(run_helper.call_args.kwargs["timeout_seconds"], 960)
+		verify.assert_called_once_with(request_obj, helper_result, execution_context=None)
+		self.assertEqual(result.observed_state, "Verified")
+
 	def test_postcondition_flow_runs_separate_read_only_inspection(self):
 		from dt_master.node_preparation.test_docker_install_verification import (
 			helper_result,
