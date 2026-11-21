@@ -65,7 +65,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Host inspection currently requires an Infrastructure Node target")
 		node = frappe.get_doc(request.target_doctype, request.target_name)
 		node.check_permission("read")
-		if not node.access_verified:
+		if request.method != "connection_check" and not node.access_verified:
 			raise ValueError("Infrastructure Node SSH access has not been verified")
 		return node
 
@@ -102,6 +102,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		)
 		elapsed = min(86400000, int((monotonic() - started) * 1000))
 		if code != 0 or stdout.strip() != "DT_MASTER_SSH_OK":
+			frappe.db.set_value("Infrastructure Node", node.name, "access_verified", 0, update_modified=False)
 			return self.result_for(
 				request, outcome="failed", observed_state="Unreachable",
 				capabilities=self.capabilities(),
@@ -109,6 +110,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 					"message": "The configured SSH connection did not return the expected remote test response."},),
 				data={"connection_status": "Failed", "latency_ms": elapsed}, duration_ms=elapsed,
 			)
+		frappe.db.set_value("Infrastructure Node", node.name, "access_verified", 1, update_modified=False)
 		return self.result_for(
 			request, outcome="succeeded", observed_state="Connected",
 			capabilities=self.capabilities(),
