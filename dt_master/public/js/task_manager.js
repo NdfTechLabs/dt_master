@@ -523,7 +523,13 @@
 					const entries = [];
 					if (failure?.phase) entries.push(__("Phase: {0}", [failure.phase]));
 					if (failure?.reason) entries.push(failure.reason);
-					if (failure?.detail) entries.push(failure.detail);
+					if (failure?.detail) {
+						entries.push(
+							typeof failure.detail === "object"
+								? JSON.stringify(failure.detail, null, 2)
+								: String(failure.detail)
+						);
+					}
 					if (Array.isArray(failure?.details)) {
 						failure.details.forEach((item) => {
 							if (item?.phase) entries.push(__("Step: {0}", [item.phase]));
