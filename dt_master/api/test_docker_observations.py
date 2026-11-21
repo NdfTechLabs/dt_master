@@ -56,7 +56,7 @@ class TestDockerObservationAPI(unittest.TestCase):
 		only_for.assert_called_once_with("System Manager")
 		self.assertEqual(result, {"operation_id": "op-1"})
 		self.assertEqual(start.call_args.kwargs["operation_type"], "host.node.docker.privileges.bootstrap")
-		self.assertEqual(start.call_args.kwargs["payload"]["method"], "bootstrap_privileges")
+		self.assertEqual(start.call_args.kwargs["payload"], {})
 
 	def test_bootstrap_endpoint_rejects_unverified_node(self):
 		self.node.ssh_user = "deploy"
