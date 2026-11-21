@@ -917,6 +917,39 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			# operator-supplied approval token or a separate UI workflow.
 			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 			validate_docker_engine_install_plan(plan)
+			if plan.get("status") == "preparation_required":
+				if execution_context is not None:
+					execution_context.heartbeat()
+					execution_context.assert_leases()
+				prepare_code, prepare_stdout, _prepare_stderr = run_trusted_helper(
+					node, self._ssh_config(node),
+					{"schema_version": "1.0.0", "operation": "prepare_repository"},
+					timeout_seconds=420, max_output_bytes=4096,
+				)
+				try:
+					prepare_result = json.loads(prepare_stdout.strip())
+				except (TypeError, ValueError) as exc:
+					raise ValueError("Docker repository preparation returned an invalid result.") from exc
+				if (prepare_code != 0 or not isinstance(prepare_result, dict)
+					or set(prepare_result) != {"schema_version", "helper_version", "operation", "status", "diagnostics"}
+					or prepare_result.get("schema_version") != "1.0.0"
+					or prepare_result.get("operation") != "prepare_repository"
+					or prepare_result.get("status") != "succeeded"
+					or prepare_result.get("diagnostics") != []):
+					raise ValueError("The trusted helper could not prepare the official Docker repository.")
+				if execution_context is not None:
+					execution_context.heartbeat()
+					execution_context.assert_leases()
+				inspection = self._inspect(request, execution_context=execution_context)
+				if inspection.data.get("inspection_status") != "Successful":
+					raise ValueError("Fresh inspection failed after Docker repository preparation.")
+				snapshot = inspection.data.get("snapshot") or {}
+				host_inventory = snapshot.get("host_inventory") or {}
+				install_inventory = host_inventory.get("docker_install_inventory")
+				if not isinstance(install_inventory, dict):
+					raise ValueError("Fresh Docker installation inventory is unavailable.")
+				plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+				validate_docker_engine_install_plan(plan)
 			if plan.get("status") != "ready":
 				raise ValueError("The node does not meet the Docker installation prerequisites.")
 			package_rows = plan.get("packages") or []
