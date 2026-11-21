@@ -91,12 +91,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			target_doctype="Infrastructure Node",
 			target_name="NODE-0001",
 			method="install_engine",
-			payload={
-				"confirm": True,
-				"plan_digest": "a" * 64,
-				"expected_state_fingerprint": "b" * 64,
-				"operator_impact_approval": False,
-			},
+			payload={"confirm": True},
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
 		)
@@ -132,6 +127,9 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(helper_request["operation"], "install_engine")
 		self.assertEqual(helper_request["operation_id"], "OP-0001")
 		self.assertEqual(helper_request["plan"]["policy_version"], "1.1.1")
+		self.assertEqual(helper_request["plan"]["plan_digest"], "a" * 64)
+		self.assertEqual(helper_request["expected_state_fingerprint"], "b" * 64)
+		self.assertFalse(helper_request["operator_impact_approval"])
 		self.assertEqual(
 			[package["name"] for package in helper_request["plan"]["packages"]],
 			["docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin"],
