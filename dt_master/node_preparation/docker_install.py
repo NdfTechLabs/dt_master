@@ -75,7 +75,7 @@ def _int(value: Any, path: str, *, minimum: int = 0) -> int:
 def _package_map(rows: list[dict]) -> dict[str, dict]:
     result = {}
     for row in rows:
-        _require_keys(row, {"name", "installed_version", "dpkg_status", "candidate_version", "candidate_origin", "held"}, "package row")
+        _require_keys(row, {"name", "installed_version", "installed_origin", "dpkg_status", "candidate_version", "candidate_origin", "held"}, "package row")
         name = row["name"]
         if name not in ALL_PACKAGES or name in result:
             raise DockerInstallPlanError("Package inventory contains an unknown or duplicate package")
@@ -83,8 +83,9 @@ def _package_map(rows: list[dict]) -> dict[str, dict]:
             value = row[field]
             if value is not None and (not isinstance(value, str) or not _VERSION.fullmatch(value)):
                 raise DockerInstallPlanError(f"Invalid {field} for {name}")
-        if row["candidate_origin"] is not None and not isinstance(row["candidate_origin"], str):
-            raise DockerInstallPlanError(f"Invalid candidate origin for {name}")
+        for origin_field in ("installed_origin", "candidate_origin"):
+            if row[origin_field] is not None and not isinstance(row[origin_field], str):
+                raise DockerInstallPlanError(f"Invalid {origin_field} for {name}")
         if row["dpkg_status"] not in {"installed", "not-installed", "config-files", "half-installed", "unpacked", "half-configured", "unknown"}:
             raise DockerInstallPlanError(f"Invalid dpkg status for {name}")
         if type(row["held"]) is not bool:
@@ -155,12 +156,14 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
         reasons.append("DOCKER_KEYRING_PATH_UNTRUSTED")
     fingerprints = repository["fingerprints"]
     if not isinstance(fingerprints, list) or not fingerprints:
+        prerequisites.append("verify_and_pin_docker_signing_key")
         reasons.append("DOCKER_SIGNING_KEY_UNVERIFIED")
     else:
         if any(not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in fingerprints):
             raise DockerInstallPlanError("Invalid observed signing-key fingerprint")
         # The expected fingerprint is intentionally not guessed in N3.2.
         # A later reviewed policy constant supplies the comparison before N3.3.
+        prerequisites.append("verify_and_pin_docker_signing_key")
         reasons.append("DOCKER_SIGNING_KEY_POLICY_PENDING")
     root_bytes = _int(storage["root_available_bytes"], "storage.root_available_bytes")
     cache_bytes = _int(storage["apt_cache_available_bytes"], "storage.apt_cache_available_bytes")
@@ -197,7 +200,11 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
     if installed_count == len(ENGINE_PACKAGES):
         if inventory["docker_engine_health"] != "healthy":
             reasons.append("EXISTING_DOCKER_ENGINE_UNHEALTHY")
-        elif any(not packages[name]["candidate_origin"] or OFFICIAL_REPOSITORY not in packages[name]["candidate_origin"] for name in ENGINE_PACKAGES):
+        elif any(
+            not packages[name]["installed_origin"]
+            or OFFICIAL_REPOSITORY not in packages[name]["installed_origin"]
+            for name in ENGINE_PACKAGES
+        ):
             reasons.append("EXISTING_PACKAGE_ORIGIN_UNVERIFIED")
         else:
             status = "no_op"
