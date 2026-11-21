@@ -509,7 +509,9 @@
 				const resultDetails = document.createElement("details");
 				resultDetails.className = "dt-task-manager__history";
 				const resultSummary = document.createElement("summary");
-				resultSummary.textContent = __("Execution result");
+				resultSummary.textContent = ["Failed", "Recovery Required"].includes(operation.execution_state)
+					? __("Failure details")
+					: __("Execution result");
 				const resultBody = document.createElement("pre");
 				resultBody.className = "dt-task-manager__result";
 				resultBody.textContent = JSON.stringify(operation.result, null, 2);
