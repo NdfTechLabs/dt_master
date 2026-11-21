@@ -1117,6 +1117,35 @@ def _validate_docker_snapshot(snapshot):
 	return snapshot
 
 
+DOCKER_OBSERVATIONS = {
+	"privileges": "host.node.docker.privileges.check",
+	"inspect": "host.node.docker.inspect",
+	"preflight": "host.node.docker.preflight",
+	"updates": "host.node.docker.updates.check",
+	"verify": "host.node.docker.verify",
+}
+
+
+@frappe.whitelist(methods=["POST"])
+def run_docker_observation(node_name, observation):
+	"""Queue one allowlisted, read-only Docker observation through the durable coordinator."""
+	frappe.only_for("System Manager")
+	operation_type = DOCKER_OBSERVATIONS.get(observation)
+	if not operation_type:
+		frappe.throw("Unsupported Docker observation.", frappe.ValidationError)
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before Docker inspection.")
+	return start_operation(
+		operation_type=operation_type,
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={},
+		idempotency_key=f"docker-{observation}:{node.name}:{uuid.uuid4()}",
+	)
+
+
 @frappe.whitelist(methods=["POST"])
 def inspect_docker_runtime(node_name):
 	"""Queue read-only Docker inspection through the durable Docker adapter."""
