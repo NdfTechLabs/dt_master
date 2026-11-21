@@ -92,6 +92,18 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 				"NODE-1",
 			)
 
+	def test_plan_digest_ignores_aging_apt_counter_but_binds_freshness(self):
+		first = inventory()
+		second = copy.deepcopy(first)
+		second["apt_metadata"]["age_seconds"] += 1
+		first_plan = build_docker_engine_install_plan("NODE-1", first)
+		second_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertEqual(first_plan["plan_digest"], second_plan["plan_digest"])
+
+		second["apt_metadata"]["status"] = "Stale"
+		stale_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertNotEqual(first_plan["plan_digest"], stale_plan["plan_digest"])
+
 	def test_unsupported_platform_is_blocked(self):
 		plan = build_docker_engine_install_plan(
 			"NODE-1",
