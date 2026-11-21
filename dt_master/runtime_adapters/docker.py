@@ -961,7 +961,37 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			phase = "install_plan_validation"
 			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 			validate_docker_engine_install_plan(plan)
-			if plan.get("status") == "preparation_required":
+			# Repository preparation is safe to perform before installation even
+			# when workload evidence is unavailable. It must never bypass that
+			# independent workload-safety blocker: a fresh plan is required after
+			# preparation, and Engine installation proceeds only when it is ready.
+			plan_reasons = set(plan.get("reason_codes") or [])
+			preparation_reasons = {
+				"APT_METADATA_NOT_FRESH",
+				"DOCKER_KEYRING_PATH_UNTRUSTED",
+				"DOCKER_REPOSITORY_UNTRUSTED",
+				"DOCKER_SIGNING_KEY_UNVERIFIED",
+				"WORKLOAD_STATE_UNAVAILABLE",
+			}
+			package_candidate_reasons = {
+				reason for reason in plan_reasons
+				if reason.startswith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")
+			}
+			known_preparation_blockers = preparation_reasons | package_candidate_reasons
+			should_prepare_repository = (
+				bool(plan.get("prerequisites"))
+				and bool(plan_reasons)
+				and plan_reasons.issubset(known_preparation_blockers)
+				and bool(
+					set(plan.get("prerequisites") or [])
+					& {
+						"configure_official_docker_repository",
+						"refresh_apt_metadata",
+						"verify_and_pin_docker_signing_key",
+					}
+				)
+			)
+			if plan.get("status") == "preparation_required" or should_prepare_repository:
 				phase = "repository_preparation"
 				if execution_context is not None:
 					execution_context.heartbeat()
