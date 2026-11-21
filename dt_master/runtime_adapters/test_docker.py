@@ -236,8 +236,12 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertFalse(result.data["docker_engine_install_plan"]["mutation_authorized"])
 		self.assertEqual(result.data["docker_engine_install_plan"]["mode"], "plan_only")
 		self.assertIn(
-			"DOCKER_SIGNING_KEY_POLICY_PENDING",
+			"DOCKER_SIGNING_KEY_UNVERIFIED",
 			result.data["docker_engine_install_plan"]["reason_codes"],
+		)
+		self.assertIn(
+			"verify_and_pin_docker_signing_key",
+			result.data["docker_engine_install_plan"]["prerequisites"],
 		)
 
 	def test_preflight_reports_install_plan_blocked_without_conflating_runtime_readiness(self):
