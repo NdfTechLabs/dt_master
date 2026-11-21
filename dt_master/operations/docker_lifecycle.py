@@ -54,11 +54,24 @@ def _empty(payload):
 	return {}
 
 
-def _install(payload):
-	payload = _object(payload, {"confirm", "expected_state_fingerprint"})
+def _install(payload, *, require_plan_binding=False):
+	allowed = {"confirm", "expected_state_fingerprint"}
+	if require_plan_binding:
+		allowed.update({"plan_digest", "operator_impact_approval"})
+	payload = _object(payload, allowed)
 	if payload.get("confirm") is not True:
 		raise ValueError("Docker installation requires explicit confirmation")
-	return _normalized_fingerprint(payload)
+	normalized = _normalized_fingerprint(payload)
+	if require_plan_binding:
+		for field in ("plan_digest", "expected_state_fingerprint"):
+			value = payload.get(field)
+			if not isinstance(value, str) or not _FINGERPRINT.fullmatch(value):
+				raise ValueError(f"{field} must be a required lowercase SHA-256 hex digest")
+		if type(payload.get("operator_impact_approval")) is not bool:
+			raise ValueError("operator_impact_approval must be an explicit boolean")
+		normalized["plan_digest"] = payload["plan_digest"]
+		normalized["operator_impact_approval"] = payload["operator_impact_approval"]
+	return normalized
 
 
 def _versioned_mutation(payload, *, require_version):
@@ -95,6 +108,8 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 		raise ValueError("Unsupported Docker lifecycle operation")
 	if operation_type in READ_ONLY_OPERATIONS or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS:
 		return _empty(payload)
+	if operation_type == "host.node.docker.install":
+		return _install(payload, require_plan_binding=True)
 	if operation_type.endswith(".install"):
 		return _install(payload)
 	if operation_type.endswith(".upgrade") or operation_type.endswith(".downgrade"):
