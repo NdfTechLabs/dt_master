@@ -497,6 +497,9 @@ class TestDockerLifecycleHelper(unittest.TestCase):
                 helper._install(value)
         simulate.assert_not_called()
 
+    def test_exact_version_install_mutation_is_enabled(self):
+        self.assertTrue(helper.INSTALL_MUTATION_ENABLED)
+
     def test_result_is_correlated_and_reports_unattempted_packages(self):
         value = request()
         result = helper._result(
