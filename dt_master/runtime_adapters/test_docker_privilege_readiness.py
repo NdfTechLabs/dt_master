@@ -160,7 +160,9 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		self.assertEqual(result.returncode, 0, result.stderr)
 		content = probe.read_text()
 		self.assertIn("EXPECTED_HELPER_SHA256", content)
-		self.assertIn("visudo", content)
+		self.assertIn('["sudo", "-n", "stat"', content)
+		self.assertIn('["sudo", "-n", "cat"', content)
+		self.assertIn('["sudo", "-n", "visudo"', content)
 		self.assertIn("helper_self_test", content)
 		for forbidden in ("apt-get install", "apt install", "chmod ", "chown "):
 			self.assertNotIn(forbidden, content)
