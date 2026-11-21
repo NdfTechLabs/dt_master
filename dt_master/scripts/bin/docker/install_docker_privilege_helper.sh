@@ -8,9 +8,9 @@ readonly HELPER_NAME="docker_lifecycle_helper.py"
 readonly HELPER_SHA256="643cbb59ddad6db29e2f95c97247ee524002d18db5857231472d394f81e968a7"
 readonly PREVIOUS_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
 readonly POLICY_NAME="docker_install_policy.py"
-readonly POLICY_SHA256="e04879b20e150b909921cd94e37b9d2e4263ca7873a657978ec3de7a8b74ad15"
+readonly POLICY_SHA256="1391101db5c629a11584fb6452df07191650dd114804ec8e6f8c389660a9bf30"
 readonly INVENTORY_NAME="docker_install_inventory.py"
-readonly INVENTORY_SHA256="e0f45ecaa72aa3dd0492528a0cf1dbf0cf2d7073a9196efbeca4ef37c4a6ce95"
+readonly INVENTORY_SHA256="fe9c7490bbb10d44a40a7bda5074fa7a3ba64dfedd55aec91406b6cdcc3b8e60"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
 
 fail() {
