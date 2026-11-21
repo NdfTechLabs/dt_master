@@ -299,7 +299,6 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			"host_discovered_on": now_datetime(),
 			"host_discovery_snapshot": json.dumps(discovery, separators=(",", ":"), sort_keys=True),
 		}
-		identity = discovery.get("identity") or {}
 		os_info = discovery.get("os") or {}
 		compute = discovery.get("compute") or {}
 		storage = discovery.get("storage") or {}
