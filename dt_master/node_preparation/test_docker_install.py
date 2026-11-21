@@ -150,6 +150,29 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
                 "NODE-1", inventory(workloads={"available": True, "running_containers": 4, "total_containers": 2})
             )
 
+
+    def test_complete_healthy_docker_ce_install_is_no_op(self):
+        rows = copy.deepcopy(inventory()["packages"])
+        for row in rows[:4]:
+            row["installed_version"] = "5:29.0.0-1~ubuntu.24.04~noble"
+            row["installed_origin"] = "https://download.docker.com/linux/ubuntu noble/stable amd64 Packages"
+            row["dpkg_status"] = "installed"
+        plan = build_docker_engine_install_plan(
+            "NODE-1",
+            inventory(packages=rows, docker_engine_health="healthy"),
+        )
+        self.assertEqual(plan["status"], "no_op")
+        self.assertTrue(all(row["action"] == "keep" for row in plan["packages"]))
+
+    def test_partial_docker_ce_installation_is_blocked(self):
+        rows = copy.deepcopy(inventory()["packages"])
+        rows[0]["installed_version"] = "5:29.0.0-1"
+        rows[0]["installed_origin"] = "https://download.docker.com/linux/ubuntu"
+        rows[0]["dpkg_status"] = "installed"
+        plan = build_docker_engine_install_plan("NODE-1", inventory(packages=rows))
+        self.assertIn("PARTIAL_DOCKER_CE_INSTALLATION", plan["reason_codes"])
+        self.assertEqual(plan["status"], "blocked")
+
     def test_invalid_node_name_is_rejected(self):
         with self.assertRaises(DockerInstallPlanError):
             build_docker_engine_install_plan("../node", inventory())
