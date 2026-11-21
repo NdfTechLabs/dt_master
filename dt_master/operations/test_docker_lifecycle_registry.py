@@ -25,6 +25,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
     def test_read_only_operations_use_dedicated_observation_lock(self):
         target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
         for operation_type in (
+            "host.node.docker.privileges.check",
             "host.node.docker.inspect",
             "host.node.docker.preflight",
             "host.node.docker.updates.check",
