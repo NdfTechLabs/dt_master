@@ -708,6 +708,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				adapter.capabilities(),
 				(
 					"bootstrap_privileges",
+					"install_engine",
 					"inspect",
 					"preflight",
 					"updates_check",
