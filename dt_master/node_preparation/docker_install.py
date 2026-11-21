@@ -53,7 +53,7 @@ def _safe(value: Any, path: str = "inventory") -> None:
             raise DockerInstallPlanError(f"{path} exceeds the collection limit")
         for index, item in enumerate(value):
             _safe(item, f"{path}[{index}]")
-    elif value is not None and not isinstance(value, (str, bool, int, float)):
+    elif value is not None and not isinstance(value, str | bool | int | float):
         raise DockerInstallPlanError(f"{path} contains a non-JSON value")
     elif isinstance(value, float) and (value != value or abs(value) == float("inf")):
         raise DockerInstallPlanError(f"{path} contains a non-finite number")
@@ -132,7 +132,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
                 not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in subkeys
             ):
                 raise DockerInstallPlanError("Invalid subkey fingerprint inventory")
-        apt = inventory["apt_metadata"]
+    apt = inventory["apt_metadata"]
     _require_keys(apt, {"status", "age_seconds"}, "apt_metadata")
     pm = inventory["package_manager_state"]
     _require_keys(pm, {"locked", "dpkg_audit_clean"}, "package_manager_state")
