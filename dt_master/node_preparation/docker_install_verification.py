@@ -46,6 +46,7 @@ def evaluate_docker_engine_install_postcondition(
 			packages=[],
 			services=None,
 			state_fingerprint=None,
+			node_name=node_name,
 		)
 
 	if helper["status"] != "succeeded":
@@ -121,8 +122,15 @@ def evaluate_docker_engine_install_postcondition(
 		failures.append("DOCKER_INSTALL_HOST_POSTCONDITION_MISMATCH")
 	if inventory["package_manager"] != "apt" or not inventory["package_manager_state"]["dpkg_audit_clean"]:
 		failures.append("DOCKER_INSTALL_PACKAGE_MANAGER_UNHEALTHY")
+	if not plan["repository"]["signing_key_policy"]["trusted"]:
+		failures.append("DOCKER_INSTALL_SIGNING_KEY_UNTRUSTED")
 	if inventory["package_manager_state"]["locked"]:
 		incomplete.append("DOCKER_INSTALL_PACKAGE_MANAGER_BUSY")
+	for service_name, service_state in inventory["services"].items():
+		if service_state in {"inactive", "failed"}:
+			failures.append("DOCKER_INSTALL_REQUIRED_SERVICE_INACTIVE")
+		elif service_state in {"Unknown", "activating", "deactivating"}:
+			incomplete.append("DOCKER_INSTALL_REQUIRED_SERVICE_STATE_UNKNOWN")
 	if inventory["docker_engine_health"] != "healthy":
 		if inventory["docker_engine_health"] in {"unhealthy", "not_installed"}:
 			failures.append("DOCKER_INSTALL_ENGINE_UNHEALTHY")
@@ -154,11 +162,11 @@ def evaluate_docker_engine_install_postcondition(
 	}
 
 
-def _result(status, code, message, *, packages, services, state_fingerprint):
+def _result(status, code, message, *, packages, services, state_fingerprint, node_name):
 	return {
 		"schema_version": VERIFICATION_SCHEMA_VERSION,
 		"status": status,
-		"target": None,
+		"target": {"doctype": "Infrastructure Node", "name": node_name},
 		"packages": packages,
 		"services": services,
 		"docker_engine_health": "Unknown",
