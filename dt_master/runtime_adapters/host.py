@@ -95,7 +95,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 	def _connection_check(self, request, execution_context=None):
 		node = self._node_for_request(request)
 		started = monotonic()
-		code, stdout, stderr = run_remote_script(
+		code, stdout, _stderr = run_remote_script(
 			node, self._ssh_config(node), "node", "test_node_connection.sh", {},
 			"node_connection_check", {"node": node.name, "target": request.target_name},
 			use_sudo=False, timeout_seconds=20, max_output_bytes=1024,
@@ -115,6 +115,7 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			data={"connection_status": "Connected", "latency_ms": elapsed, "transport": "SSH"},
 			duration_ms=elapsed,
 		)
+
 	def _inspect(self, request, execution_context=None):
 		node = self._node_for_request(request)
 		started = monotonic()
