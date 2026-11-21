@@ -108,8 +108,7 @@ class TestDockerEngineInstallPostcondition(unittest.TestCase):
 
 	def test_incomplete_package_observation_does_not_verify(self):
 		observed = inventory()
-		observed["packages"][2]["dpkg_status"] = "unknown"
-		observed["packages"][2]["installed_version"] = None
+		observed["package_manager_state"]["locked"] = True
 		result = self.evaluate(observed)
 		self.assertEqual(result["status"], "incomplete")
 
@@ -129,7 +128,7 @@ class TestDockerEngineInstallPostcondition(unittest.TestCase):
 		observed = inventory()
 		observed["docker_engine_health"] = "unavailable"
 		result = self.evaluate(observed)
-		self.assertEqual(result["status"], "incomplete")
+		self.assertEqual(result["status"], "failed")
 
 	def test_invalid_helper_evidence_does_not_verify(self):
 		helper = helper_result()
