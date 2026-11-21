@@ -8,7 +8,7 @@ class OperationDispositionError(RuntimeError):
 
 	DISPOSITIONS = frozenset({"Failed", "Recovery Required"})
 
-	def __init__(self, disposition: str, code: str, summary: str, *, recovery_reason: str | None = None):
+	def __init__(self, disposition: str, code: str, summary: str, *, recovery_reason: str | None = None, adapter_result: dict | None = None):
 		if disposition not in self.DISPOSITIONS:
 			raise ValueError("Unsupported operation disposition")
 		if not isinstance(code, str) or not code.isupper() or not code.replace("_", "").isalnum():
@@ -26,6 +26,7 @@ class OperationDispositionError(RuntimeError):
 		self.code = code
 		self.summary = summary.strip()
 		self.recovery_reason = recovery_reason.strip() if recovery_reason else None
+		self.adapter_result = adapter_result
 
 
 def enforce_durable_operation_outcome(
@@ -50,6 +51,7 @@ def enforce_durable_operation_outcome(
 			recovery_code,
 			recovery_summary,
 			recovery_reason=recovery_summary,
+			adapter_result=result,
 		)
 	raise ValueError("Runtime adapter returned an unsupported durable outcome")
 
@@ -63,6 +65,7 @@ def resolve_operation_disposition(exc: Exception, *, lease_acquired: bool) -> di
 			"error_summary": exc.summary,
 			"recovery_required": recovery_required,
 			"recovery_reason": exc.recovery_reason,
+			"result_payload": exc.adapter_result,
 		}
 	recovery_required = bool(lease_acquired)
 	return {
@@ -78,5 +81,6 @@ def resolve_operation_disposition(exc: Exception, *, lease_acquired: bool) -> di
 			"Resource lease ownership or execution outcome requires reconciliation."
 			if recovery_required else None
 		),
+		"result_payload": None,
 	}
 
