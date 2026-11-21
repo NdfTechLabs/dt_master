@@ -78,6 +78,43 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke(method, request(method))
 		return result, run
 
+	def test_connection_check_uses_fixed_no_sudo_ssh_probe(self):
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch(
+				"dt_master.runtime_adapters.host.run_remote_script",
+				return_value=(0, "DT_MASTER_SSH_OK\\n", ""),
+			) as run,
+		):
+			result = self.adapter.invoke("connection_check", request("connection_check"))
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Connected")
+		self.assertEqual(result.data["connection_status"], "Connected")
+		self.assertEqual(result.data["transport"], "SSH")
+		self.assertEqual(run.call_args.args[2:4], ("node", "test_node_connection.sh"))
+		self.assertFalse(run.call_args.kwargs["use_sudo"])
+		self.assertEqual(run.call_args.kwargs["timeout_seconds"], 20)
+
+	def test_connection_check_fails_when_remote_marker_is_missing(self):
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.run_remote_script", return_value=(0, "unexpected\\n", "")),
+		):
+			result = self.adapter.invoke("connection_check", request("connection_check"))
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.observed_state, "Unreachable")
+		self.assertEqual(result.diagnostics[0]["code"], "NODE_SSH_CONNECTION_FAILED")
+
+	def test_connection_check_rejects_unverified_node_before_ssh(self):
+		self.node.access_verified = 0
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
+		):
+			with self.assertRaises(ValueError):
+				self.adapter.invoke("connection_check", request("connection_check"))
+		run.assert_not_called()
+
 	def test_inspection_uses_existing_ssh_script_contract_without_sudo(self):
 		result, run = self._run_inspection()
 		self.assertEqual(result.outcome, "succeeded")
