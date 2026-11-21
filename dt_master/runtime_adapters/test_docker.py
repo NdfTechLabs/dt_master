@@ -354,7 +354,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.1.0",
+				"version": "0.2.0",
 				"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
@@ -552,7 +552,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.1.0",
+				"version": "0.2.0",
 				"sha256": "a" * 64,
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
