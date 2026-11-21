@@ -155,7 +155,7 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
     def test_duplicate_or_unknown_package_is_rejected(self):
         rows = inventory()["packages"]
         with self.assertRaises(DockerInstallPlanError):
-            build_docker_engine_install_plan("NODE-1", inventory(packages=rows + [rows[0]]))
+            build_docker_engine_install_plan("NODE-1", inventory(packages=[*rows, rows[0]]))
         bad_rows = copy.deepcopy(rows)
         bad_rows[0]["name"] = "apt-get"
         with self.assertRaises(DockerInstallPlanError):
