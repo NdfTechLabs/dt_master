@@ -18,6 +18,8 @@ def request(method="inspect"):
 		target_name="NODE-0001",
 		method=method,
 		payload={},
+		operation_id="OP-0001",
+		correlation_id="CORR-0001",
 	)
 
 
@@ -518,6 +520,22 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def _run(self, method="inspect", code=0, snapshot=None):
 		snapshot = snapshot or self._snapshot()
+		self.node.docker_host_state = "Docker Inspection Required"
+		self.node.docker_host_management_snapshot = json.dumps({
+			"host_inspection": {
+				"operation_id": "HOST-INSPECT-001",
+				"inspection_status": "Successful",
+				"os_support_status": "Supported",
+			},
+			"privilege_bootstrap": {
+				"operation_id": "BOOTSTRAP-001",
+				"status": "Succeeded",
+			},
+			"privilege_readiness": {
+				"operation_id": "PRIVILEGE-CHECK-001",
+				"status": "Ready",
+			},
+		})
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
@@ -594,6 +612,27 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("privilege_check", request("privilege_check"))
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Incomplete")
+
+	def test_docker_inspection_requires_successful_privilege_verification(self):
+		self.node.docker_host_state = "Privilege Setup Required"
+		self.node.docker_host_management_snapshot = json.dumps({
+			"host_inspection": {
+				"operation_id": "HOST-INSPECT-001",
+				"inspection_status": "Successful",
+				"os_support_status": "Supported",
+			},
+			"privilege_bootstrap": {
+				"operation_id": "BOOTSTRAP-001",
+				"status": "Succeeded",
+			},
+		})
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
+			self.assertRaisesRegex(ValueError, "privilege verification"),
+		):
+			self.adapter.invoke("inspect", request("inspect"))
+		remote.assert_not_called()
 
 	def test_inspection_uses_fixed_read_only_docker_script_without_sudo(self):
 		result, remote = self._run()
