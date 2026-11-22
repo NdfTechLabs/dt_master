@@ -33,7 +33,7 @@ def _resource_lock_keys(definition, target, operation):
         # Until a definition supplies a narrower set, serialize all work on a Node.
         return [f"node:{target.name}"]
     keys = resolver(target, operation)
-    if not isinstance(keys, (list, tuple)) or not keys:
+    if not isinstance(keys, list | tuple) or not keys:
         frappe.throw(_("Registered operations must resolve at least one resource lock key."), frappe.ValidationError)
     return keys
 
