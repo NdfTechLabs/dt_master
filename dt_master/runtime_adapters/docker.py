@@ -1615,7 +1615,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 	def _release_assess(self, request, execution_context=None):
 		"""Compare the assigned catalog release with read-only remote artifact evidence."""
-		from dt_master.docker_helper_releases import build_release_manifest, serialize_release_manifest
+		from dt_master.docker_helper_releases import serialize_release_manifest
 
 		started = monotonic()
 		node = self._node_for_request(request)
@@ -1631,6 +1631,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			snapshot = {
 				"schema_version": "1.0.0",
 				"assessment_status": status,
+				"operation_id": request.operation_id,
+				"correlation_id": request.correlation_id,
+				"observed_at": str(observed_at),
 				"assigned_release": None,
 				"remote_release": None,
 				"components": [],
@@ -1660,7 +1663,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		try:
 			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
-			build_release_manifest(release)
 			local_manifest_json = serialize_release_manifest(release)
 			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
 		except Exception as exc:

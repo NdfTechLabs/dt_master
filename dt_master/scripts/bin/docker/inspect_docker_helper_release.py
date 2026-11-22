@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Read-only inspection of the installed Docker Helper Release and its artifacts."""
 
+import grp
 import hashlib
 import json
 import os
 import pwd
-import grp
 import re
 import stat
 from datetime import datetime, timezone
