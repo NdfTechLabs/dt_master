@@ -1420,6 +1420,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Combine runtime readiness with a read-only, deterministic Engine install plan."""
 		from dt_master.node_preparation.docker_install import build_docker_engine_install_plan
 
+		node = self._node_for_request(request)
 		inspection = self._inspect(request, execution_context=execution_context)
 		readiness = inspection.data["readiness"]
 		privilege = inspection.data["privilege_readiness"]["status"]
