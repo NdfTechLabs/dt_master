@@ -117,7 +117,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for name in "$RELEASE_NAME" "$RELEASE_VALIDATOR" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
+for name in "$RELEASE_NAME" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
     sudo -n install -o root -g root -m 0755 "${script_dir}/${name}" "${stage_dir}/${name}" \
         || fail "Could not stage trusted helper artifact: $name"
 done
@@ -131,14 +131,14 @@ done
 
 # Install support artifacts first and activate the new helper last. A failed
 # partial staging can never expose the new helper without its dependencies.
-for name in "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
+for name in "$RELEASE_NAME" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
     sudo -n mv -f -- "${stage_dir}/${name}" "${DEST_DIR}/${name}" \
         || fail "Could not activate trusted helper artifact: $name"
 done
 sudo -n rmdir "$stage_dir" || fail "Could not remove helper staging directory."
 stage_dir=""
 
-for name in "$RELEASE_NAME" "$RELEASE_VALIDATOR" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
+for name in "$RELEASE_NAME" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
     metadata="$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${name}")"
     [[ "$metadata" == "0:0:755" ]] || fail "Installed helper artifact ownership/mode verification failed: $name"
 done
