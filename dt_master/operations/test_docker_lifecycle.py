@@ -141,5 +141,58 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			authorize_docker_lifecycle_node(target)
 
 
+class TestDockerRepositoryPreparationEndpoint(unittest.TestCase):
+	def test_repository_preparation_queues_the_registered_mutation(self):
+		from unittest.mock import Mock, patch
+
+		from dt_master.api import infrastructure_node
+
+		node = SimpleNamespace(
+			name="NODE-01",
+			access_verified=True,
+			check_permission=Mock(),
+		)
+		with (
+			patch.object(infrastructure_node.frappe, "only_for"),
+			patch.object(infrastructure_node.frappe, "get_doc", return_value=node),
+			patch.object(
+				infrastructure_node,
+				"start_operation",
+				return_value={"operation_id": "operation-01"},
+			) as start_operation,
+		):
+			result = infrastructure_node.prepare_docker_repository("NODE-01")
+
+		self.assertEqual(result, {"operation_id": "operation-01"})
+		node.check_permission.assert_called_once_with("read")
+		kwargs = start_operation.call_args.kwargs
+		self.assertEqual(kwargs["operation_type"], "host.node.docker.repository.prepare")
+		self.assertEqual(kwargs["target_doctype"], "Infrastructure Node")
+		self.assertEqual(kwargs["target_name"], "NODE-01")
+		self.assertEqual(kwargs["payload"], {})
+		self.assertTrue(kwargs["idempotency_key"].startswith("docker-repository-prepare:NODE-01:"))
+
+	def test_repository_preparation_rejects_unverified_ssh_access(self):
+		from unittest.mock import Mock, patch
+
+		from dt_master.api import infrastructure_node
+
+		node = SimpleNamespace(
+			name="NODE-01",
+			access_verified=False,
+			check_permission=Mock(),
+		)
+		with (
+			patch.object(infrastructure_node.frappe, "only_for"),
+			patch.object(infrastructure_node.frappe, "get_doc", return_value=node),
+			patch.object(infrastructure_node.frappe, "throw", side_effect=ValueError),
+			patch.object(infrastructure_node, "start_operation") as start_operation,
+			self.assertRaises(ValueError),
+		):
+			infrastructure_node.prepare_docker_repository("NODE-01")
+
+		start_operation.assert_not_called()
+
+
 if __name__ == "__main__":
 	unittest.main()
