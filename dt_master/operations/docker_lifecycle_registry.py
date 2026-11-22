@@ -8,6 +8,8 @@ durable coordinator, worker, node-scoped resource lease and runtime adapter.
 from dt_master.operations.docker_lifecycle import (
 	authorize_docker_lifecycle_node,
 	docker_lifecycle_resource_lock_keys,
+	docker_setup_restart_updates,
+	authorize_docker_setup_restart,
 	validate_docker_lifecycle_payload,
 )
 from dt_master.operations.registry import OperationDefinition, register_operation
@@ -45,7 +47,7 @@ def _docker_observation_handler(method):
 def _docker_observation_lock(target, operation):
 	if getattr(target, "doctype", None) != "Infrastructure Node" or not getattr(target, "name", None):
 		raise ValueError("Docker observation requires an Infrastructure Node target")
-	return [f"node-docker-observation:{target.name}"]
+	return [f"node-docker:{target.name}"]
 
 
 def _docker_install_engine_handler(context, payload):
@@ -153,6 +155,44 @@ register_operation(
 		authorize=authorize_docker_lifecycle_node,
 		queue="long",
 		timeout_seconds=240,
+		max_attempts=1,
+		priority="High",
+		execution_identity="frappe-worker",
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
+	)
+)
+
+
+
+def _docker_setup_restart_handler(context, payload):
+	"""Invalidate downstream Docker setup evidence at the selected checkpoint."""
+	import frappe
+
+	context.assert_leases()
+	node = frappe.get_doc(context.target_doctype, context.target_name)
+	updates = docker_setup_restart_updates(node, payload["checkpoint"])
+	frappe.db.set_value(
+		"Infrastructure Node",
+		node.name,
+		updates,
+		update_modified=False,
+	)
+	return {
+		"status": "restarted",
+		"checkpoint": payload["checkpoint"],
+		"docker_host_state": updates["docker_host_state"],
+		"invalidated_evidence": True,
+	}
+
+
+register_operation(
+	OperationDefinition(
+		operation_type="host.node.docker.setup.restart",
+		handler=_docker_setup_restart_handler,
+		validate_payload=_docker_payload_validator("host.node.docker.setup.restart"),
+		authorize=authorize_docker_setup_restart,
+		queue="short",
+		timeout_seconds=90,
 		max_attempts=1,
 		priority="High",
 		execution_identity="frappe-worker",
