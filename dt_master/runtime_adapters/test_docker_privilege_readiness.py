@@ -62,11 +62,11 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 			installer,
 		)
 		self.assertIn(
-			f"EXPECTED_POLICY_SHA256 = \"{policy_digest}\"",
+			f'EXPECTED_POLICY_SHA256 = "{policy_digest}"',
 			probe,
 		)
 		self.assertIn(
-			f"EXPECTED_INVENTORY_SHA256 = \"{inventory_digest}\"",
+			f'EXPECTED_INVENTORY_SHA256 = "{inventory_digest}"',
 			probe,
 		)
 		self.assertEqual(probe_version, helper_version)
