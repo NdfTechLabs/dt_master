@@ -669,9 +669,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			"docker_inspection_snapshot": json.dumps(
 				inspection["snapshot"], sort_keys=True, separators=(",", ":")
 			),
-			"docker_host_management_snapshot": json.dumps(
-				management, sort_keys=True, separators=(",", ":")
-			),
+			"docker_host_management_snapshot": json.dumps(management, sort_keys=True, separators=(",", ":")),
 		}
 		if plan["status"] == "preparation_required":
 			updates["docker_host_state"] = "Repository Preparation Required"
@@ -1445,6 +1443,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			try:
 				install_plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 				from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
+
 				validate_docker_engine_install_plan(install_plan)
 			except (TypeError, ValueError):
 				install_plan = None
