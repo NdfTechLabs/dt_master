@@ -86,6 +86,36 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		process.stdin.write.assert_called_once()
 		process.stdin.close.assert_called_once()
 
+	def test_repository_preparation_request_is_dispatched_through_fixed_transport(self):
+		request = {"schema_version": "1.0.0", "operation": "prepare_repository"}
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]) as build_ssh,
+			patch("dt_master.api.script_contract.subprocess.Popen") as popen,
+		):
+			process = popen.return_value
+			process.poll.return_value = 0
+			process.returncode = 0
+			code, stdout, stderr = run_trusted_helper(None, {}, request, timeout_seconds=420)
+
+		self.assertEqual((code, stdout, stderr), (0, "", ""))
+		build_ssh.assert_called_once()
+		popen.assert_called_once()
+		process.stdin.write.assert_called_once_with(
+			b'{"operation":"prepare_repository","schema_version":"1.0.0"}\\n'
+		)
+
+	def test_invalid_repository_preparation_request_is_rejected_before_transport(self):
+		request = {"schema_version": "2.0.0", "operation": "prepare_repository"}
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv") as build_ssh,
+			patch("dt_master.api.script_contract.subprocess.Popen") as popen,
+		):
+			with self.assertRaisesRegex(ValueError, "Unsupported trusted Docker helper request"):
+				run_trusted_helper(None, {}, request)
+
+		build_ssh.assert_not_called()
+		popen.assert_not_called()
+
 	def test_install_transport_heartbeats_while_remote_helper_runs(self):
 		with (
 			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]),
