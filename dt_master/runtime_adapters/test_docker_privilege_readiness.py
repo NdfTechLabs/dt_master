@@ -15,68 +15,37 @@ ROOT = Path(__file__).parents[1] / "scripts" / "bin" / "docker"
 
 
 class TestDockerPrivilegeReadiness(unittest.TestCase):
-	def test_helper_release_digest_and_version_are_consistent_across_components(self):
-		helper = (ROOT / "docker_lifecycle_helper.py").read_bytes()
-		policy = (ROOT / "docker_install_policy.py").read_bytes()
-		inventory = (ROOT / "docker_install_inventory.py").read_bytes()
+	def test_release_manifest_is_authoritative_for_component_versions_and_digests(self):
+		manifest_path = ROOT / "docker_helper_release.json"
+		manifest = json.loads(manifest_path.read_text())
+		components = {item["id"]: item for item in manifest["components"]}
+		for component in components.values():
+			artifact = ROOT / component["path"]
+			self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), component["sha256"])
+		self.assertEqual(manifest["release"]["version"], components["lifecycle_helper"]["version"])
+		self.assertEqual(components["lifecycle_helper"]["version"], "0.3.2")
+		self.assertEqual(components["install_policy"]["version"], "1.1.1")
+		self.assertEqual(components["host_inventory"]["version"], "1.0.0")
+
+		helper = (ROOT / "docker_lifecycle_helper.py").read_text()
 		installer = (ROOT / "install_docker_privilege_helper.sh").read_text()
 		probe = (ROOT / "check_docker_privilege_readiness.py").read_text()
-		adapter = Path(__file__).with_name("docker.py").read_text()
+		self.assertNotIn("EXPECTED_POLICY_SHA256 =", helper)
+		self.assertNotIn("EXPECTED_INVENTORY_SHA256 =", helper)
+		self.assertNotIn("EXPECTED_HELPER_SHA256 =", probe)
+		self.assertIn("docker_helper_release.json", installer)
+		self.assertIn("validate_docker_helper_release.py", installer)
+		self.assertIn("load_release_manifest", probe)
+		self.assertIn("docker_helper_release.json", helper)
 
-		digest = hashlib.sha256(helper).hexdigest()
-		policy_digest = hashlib.sha256(policy).hexdigest()
-		inventory_digest = hashlib.sha256(inventory).hexdigest()
-		self.assertIn(f'EXPECTED_POLICY_SHA256 = "{policy_digest}"', helper.decode())
-		self.assertIn(f'EXPECTED_INVENTORY_SHA256 = "{inventory_digest}"', helper.decode())
-		helper_version = next(
-			line.split("=", 1)[1].strip().strip('"')
-			for line in helper.decode().splitlines()
-			if line.startswith("HELPER_VERSION =")
+		validator = ROOT / "validate_docker_helper_release.py"
+		result = subprocess.run(
+			["python3", str(validator), str(manifest_path), str(ROOT)],
+			capture_output=True,
+			text=True,
 		)
-		installer_digest = next(
-			line.split("=", 1)[1].strip().strip('"')
-			for line in installer.splitlines()
-			if line.startswith("readonly HELPER_SHA256=")
-		)
-		probe_digest = next(
-			line.split("=", 1)[1].strip().strip('"')
-			for line in probe.splitlines()
-			if line.startswith("EXPECTED_HELPER_SHA256 =")
-		)
-		probe_version = next(
-			line.split("=", 1)[1].strip().strip('"')
-			for line in probe.splitlines()
-			if line.startswith("EXPECTED_HELPER_VERSION =")
-		)
-		adapter_version_line = next(
-			line for line in adapter.splitlines() if 'payload["helper_version"] !=' in line
-		)
-		adapter_version = adapter_version_line.split("!=", 1)[1].strip().strip('"')
-
-		self.assertEqual(installer_digest, digest)
-		self.assertEqual(probe_digest, digest)
-		self.assertIn(
-			f'POLICY_SHA256="{policy_digest}"',
-			installer,
-		)
-		self.assertIn(
-			f'INVENTORY_SHA256="{inventory_digest}"',
-			installer,
-		)
-		self.assertIn(
-			'check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"',
-			installer,
-		)
-		self.assertIn(
-			f'EXPECTED_POLICY_SHA256 = "{policy_digest}"',
-			probe,
-		)
-		self.assertIn(
-			f'EXPECTED_INVENTORY_SHA256 = "{inventory_digest}"',
-			probe,
-		)
-		self.assertEqual(probe_version, helper_version)
-		self.assertEqual(adapter_version, helper_version)
+		self.assertEqual(result.returncode, 0, result.stderr)
+		self.assertEqual(len(result.stdout.splitlines()), 4)
 
 	def payload(self):
 		return {
