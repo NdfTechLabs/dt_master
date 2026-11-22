@@ -46,7 +46,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 		self.assertEqual(definition.validate_payload({}), {})
 		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
 		operation = SimpleNamespace(operation_type="host.node.docker.privileges.bootstrap")
-		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01", "node-host-observation:NODE-01"])
+		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
 
 	def test_engine_install_is_registered_on_durable_task_manager(self):
 		definition = get_operation("host.node.docker.install")
@@ -81,7 +81,10 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 		)
 		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
 		operation = SimpleNamespace(operation_type="host.node.docker.setup.restart")
-		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
+		self.assertEqual(
+			definition.resource_lock_keys(target, operation),
+			["node-docker:NODE-01", "node-host-observation:NODE-01"],
+		)
 
 	def test_other_docker_package_lifecycle_mutations_are_not_registered(self):
 		types = set(registered_operation_types())
