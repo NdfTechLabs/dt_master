@@ -1235,6 +1235,27 @@ def bootstrap_docker_privileges(node_name):
 
 
 @frappe.whitelist(methods=["POST"])
+def restart_docker_setup_from(node_name, checkpoint):
+	"""Queue a durable Docker setup restart from a validated workflow checkpoint."""
+	frappe.only_for("System Manager")
+	from dt_master.operations.docker_lifecycle import DOCKER_SETUP_CHECKPOINTS
+
+	if checkpoint not in DOCKER_SETUP_CHECKPOINTS:
+		frappe.throw("Unsupported Docker setup restart checkpoint.", frappe.ValidationError)
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not (node.ssh_host_alias or (node.ip_address and node.ssh_user)):
+		frappe.throw("Configure an SSH host alias or an IP address and SSH user before restarting Docker setup.")
+	return start_operation(
+		operation_type="host.node.docker.setup.restart",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={"checkpoint": checkpoint},
+		idempotency_key=f"docker-setup-restart:{node.name}:{checkpoint}:{uuid.uuid4().hex}",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
 def prepare_docker_repository(node_name):
 	"""Queue the fixed Docker repository preparation operation."""
 	frappe.only_for("System Manager")
