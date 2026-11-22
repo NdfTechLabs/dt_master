@@ -209,6 +209,67 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Preparation Not Applied")
 		run_helper.assert_not_called()
 
+
+	def test_prepare_repository_reinspects_and_persists_fresh_install_plan(self):
+		self.node.docker_host_state = "Repository Preparation Required"
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="prepare_repository",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		inventory = {"packages": []}
+		inspection_data = {
+			"inspection_status": "Successful",
+			"readiness": "Ready",
+			"privilege_readiness": {"status": "Ready"},
+			"snapshot": {"host_inventory": {"docker_install_inventory": inventory}},
+		}
+		inspection = SimpleNamespace(data=inspection_data)
+		preparation_plan = {"status": "preparation_required"}
+		ready_plan = {
+			"status": "ready",
+			"plan_digest": "a" * 64,
+			"state_fingerprint": "b" * 64,
+		}
+		helper_result = {
+			"schema_version": "1.0.0",
+			"helper_version": "0.3.0",
+			"operation": "prepare_repository",
+			"status": "succeeded",
+			"diagnostics": [],
+		}
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch.object(self.adapter, "_inspect", side_effect=[inspection, inspection]) as inspect,
+			patch(
+				"dt_master.node_preparation.docker_install.build_docker_engine_install_plan",
+				side_effect=[preparation_plan, ready_plan],
+			),
+			patch("dt_master.node_preparation.docker_install.validate_docker_engine_install_plan"),
+			patch(
+				"dt_master.runtime_adapters.docker.run_trusted_helper",
+				return_value=(0, json.dumps(helper_result), ""),
+			) as run_helper,
+			patch.object(self.adapter, "_persist_install_plan_evidence", return_value=True) as persist,
+		):
+			result = self.adapter._prepare_repository(request_obj)
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Ready for Install")
+		self.assertEqual(result.data["fresh_install_plan_status"], "ready")
+		self.assertFalse(result.data["engine_packages_installed"])
+		self.assertEqual(inspect.call_count, 2)
+		self.assertEqual(run_helper.call_args.args[2], {
+			"schema_version": "1.0.0",
+			"operation": "prepare_repository",
+		})
+		self.assertEqual(run_helper.call_args.kwargs["timeout_seconds"], 420)
+		persist.assert_called_once_with(self.node, request_obj, inspection_data, ready_plan)
+
+
 	def test_repository_preparation_result_requires_exact_helper_contract(self):
 		valid = {
 			"schema_version": "1.0.0",
