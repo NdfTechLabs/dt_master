@@ -7,6 +7,7 @@ observations and the existing constrained privilege bootstrap.
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from time import monotonic
 
@@ -1659,7 +1660,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		try:
 			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
-			manifest = build_release_manifest(release)
+			build_release_manifest(release)
 			local_manifest_json = serialize_release_manifest(release)
 			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
 		except Exception as exc:

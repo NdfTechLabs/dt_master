@@ -44,6 +44,16 @@ def inspect():
             or not isinstance(manifest["release"], dict)
             or set(manifest["release"]) != {"id", "version", "channel", "status"}
             or manifest["release"]["status"] != "supported"
+            or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", manifest["release"]["id"])
+            or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["release"]["version"])
+            or manifest["release"]["channel"] not in {"stable", "beta", "edge"}
+            or set(manifest["compatibility"]) != {
+                "helper_protocol", "privilege_readiness_contract", "docker_install_plan",
+                "docker_install_policy", "inventory_schema", "upgrade_from"
+            }
+            or set(manifest["lifecycle"]) != {
+                "bootstrap", "upgrade", "reconcile", "activation_order", "verification"
+            }
             or not isinstance(manifest["components"], list)
         ):
             raise ValueError("unrecognized manifest contract")
@@ -57,8 +67,12 @@ def inspect():
                 set(row) != {"id", "path", "version", "sha256", "required", "responsibility"}
                 or row["path"] != filename
                 or not isinstance(row["version"], str)
+                or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", row["version"])
                 or not isinstance(row["sha256"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", row["sha256"])
+                or type(row["required"]) is not bool
+                or not isinstance(row["responsibility"], str)
+                or not row["responsibility"].strip()
             ):
                 raise ValueError("invalid component definition")
             artifact = ROOT / filename
