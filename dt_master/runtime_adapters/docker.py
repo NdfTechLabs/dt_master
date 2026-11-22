@@ -1882,7 +1882,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			"installation": installation,
 		}
 		persist(status, snapshot)
-		outcome = "succeeded" if status in {"Current", "Scripts Deployment Required"} else "partial"
+		outcome = "succeeded" if status in {"Current", "Bootstrap Required", "Scripts Deployment Required"} else "partial"
 		return self.result_for(
 			request,
 			outcome=outcome,
