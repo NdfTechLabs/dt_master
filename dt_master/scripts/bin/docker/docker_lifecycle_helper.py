@@ -19,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-HELPER_VERSION = "0.3.1"
+HELPER_VERSION = "0.3.2"
 REQUEST_SCHEMA_VERSION = "1.0.0"
 RESULT_SCHEMA_VERSION = "1.0.0"
 MAX_REQUEST_BYTES = 16 * 1024
@@ -35,6 +35,7 @@ ENGINE_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx
 PACKAGE_VERSION = re.compile(r"^(?:[0-9]+:)?[0-9][A-Za-z0-9.+~_-]{0,158}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+NODE_NAME = re.compile(r"^[^\x00-\x1f\x7f]{1,140}$")
 
 
 class HelperError(ValueError):
@@ -128,7 +129,7 @@ def _request(raw: bytes) -> dict:
 	if (
 		target["doctype"] != "Infrastructure Node"
 		or not isinstance(target["name"], str)
-		or not IDENTIFIER.fullmatch(target["name"])
+		or not NODE_NAME.fullmatch(target["name"])
 	):
 		raise HelperError("INVALID_TARGET", "request_validation")
 	plan = value["plan"]
