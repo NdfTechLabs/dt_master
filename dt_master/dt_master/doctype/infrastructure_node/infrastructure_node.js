@@ -1077,7 +1077,11 @@ function show_docker_setup_restart_dialog(frm) {
 				default: "privilege_helper",
 				onchange() {
 					const selected = checkpoints.find((item) => item.value === dialog.get_value("checkpoint"));
-					dialog.set_df_property("restart_description", "description", selected?.description || "");
+					dialog.fields_dict.restart_description.$wrapper.html(
+						'<div class="text-muted small">' +
+							escape_html(selected?.description || "") +
+							"</div>"
+					);
 				},
 			},
 			{
