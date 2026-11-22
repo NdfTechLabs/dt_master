@@ -12,8 +12,8 @@ EXPECTED_FIELDS = {"id", "path", "version", "sha256", "required", "responsibilit
 
 
 def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: validate_docker_helper_release.py MANIFEST SOURCE_DIR")
+    if len(sys.argv) not in {3, 4}:
+        raise SystemExit("usage: validate_docker_helper_release.py MANIFEST SOURCE_DIR [INSTALLED_MANIFEST]")
     manifest_path, source_dir = Path(sys.argv[1]), Path(sys.argv[2])
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -48,6 +48,15 @@ def main():
             values[item["id"]] = item
         if values["lifecycle_helper"]["version"] != release["version"]:
             raise ValueError("helper/release version mismatch")
+        if len(sys.argv) == 4:
+            installed = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+            if (
+                not isinstance(installed, dict)
+                or installed.get("schema_version") != manifest["schema_version"]
+                or installed.get("release", {}).get("version")
+                not in manifest["compatibility"].get("upgrade_from", [])
+            ):
+                raise ValueError("installed release is not a declared upgrade predecessor")
         for name in ("helper_protocol", "privilege_readiness_contract", "docker_install_plan",
                      "docker_install_policy", "inventory_schema"):
             version_range = manifest["compatibility"][name]
