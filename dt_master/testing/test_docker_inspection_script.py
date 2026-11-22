@@ -16,7 +16,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "bin" / "docker" / "inspect_docker.sh"
 
-TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "grep", "dirname")
+TOOLS = ("bash", "date", "getconf", "awk", "id", "tail", "grep", "dirname", "systemctl")
 
 
 class DockerInspectionScriptAcceptance(unittest.TestCase):
@@ -32,6 +32,9 @@ class DockerInspectionScriptAcceptance(unittest.TestCase):
 		python_wrapper = self.bin_dir / "python3"
 		python_wrapper.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
 		python_wrapper.chmod(0o755)
+		fake_systemctl = self.bin_dir / "systemctl"
+		fake_systemctl.write_text("#!/bin/sh\nprintf inactive\n")
+		fake_systemctl.chmod(0o755)
 		self.log = self.bin_dir / "docker-commands.log"
 		self.docker = self.bin_dir / "docker"
 		self.docker.write_text(
@@ -140,6 +143,9 @@ printf '%s\\n' 'Mounted on 1B-blocks Used Available' '/ 100000000000 50000000000
 		self.assertIn("DOCKER_CLI_MISSING", {item["code"] for item in result["diagnostics"]})
 		self.assertEqual(result["storage"]["filesystem"]["mount_point"], "/")
 		self.assertEqual(result["storage"]["filesystem"]["available_bytes"], 50_000_000_000)
+		self.assertEqual(result["host_inventory"]["services"]["docker"], "inactive")
+		self.assertEqual(result["host_inventory"]["services"]["containerd"], "inactive")
+		self.assertEqual(result["host_inventory"]["workloads"], {"available": True, "running_containers": 0, "total_containers": 0})
 
 	def test_unavailable_daemon_is_distinguished_from_missing_cli(self):
 		result = self.run_inspection(mode="unavailable")
