@@ -38,7 +38,7 @@
       "id": "lifecycle_helper",
       "path": "docker_lifecycle_helper.py",
       "version": "0.3.2",
-      "sha256": "43579f3d7fb33320b6adfb41c6cfe362cfbb06114c5e5bf48b974722fc48bc39",
+      "sha256": "8471f3313f354f1f7cd4ada0bfb2beb511da80a9da27ed01212ddfa52e41432d",
       "required": true,
       "responsibility": "Root-owned privileged operation boundary; validates closed requests, verifies installed release dependencies and executes only explicitly supported helper operations."
     },
