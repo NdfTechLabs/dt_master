@@ -1,5 +1,6 @@
 """Unit tests for deterministic Docker Helper Release fingerprints."""
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -121,7 +122,17 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			"lifecycle": lifecycle,
 			"components": components,
 		}
-		manifest = build_release_manifest(release)
+		with tempfile.TemporaryDirectory() as directory:
+			for component in components:
+				source = Path(directory) / component["source_path"]
+				source.parent.mkdir(parents=True, exist_ok=True)
+				source.write_bytes(component["component_id"].encode("utf-8"))
+			manifest = build_release_manifest(release, source_root=directory)
+			for row in manifest["components"]:
+				component_row = next(item for item in components if item["component_id"] == row["id"])
+				expected = hashlib.sha256(component_row["component_id"].encode("utf-8")).hexdigest()
+				self.assertEqual(row["sha256"], expected)
+				self.assertEqual(component_row["sha256"], "a" * 64)
 		self.assertEqual(manifest["release"]["id"], release["release_id"])
 		self.assertEqual(
 			[row["id"] for row in manifest["components"]],

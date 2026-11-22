@@ -23,6 +23,7 @@ MUTATING_METHODS = frozenset(
 		"bootstrap_privileges",
 		"prepare_repository",
 		"install_engine",
+		"release_assess",
 	}
 )
 OBSERVATION_METHODS = frozenset(
@@ -35,7 +36,6 @@ OBSERVATION_METHODS = frozenset(
 		"verify",
 		"privilege_check",
 		"connection_check",
-		"release_assess",
 	}
 )
 ADAPTER_METHODS = MUTATING_METHODS | OBSERVATION_METHODS

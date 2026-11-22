@@ -201,6 +201,34 @@ function test_node_connection(frm) {
 	});
 }
 
+function run_docker_helper_release_assessment(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.assess_docker_helper_release",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Starting Docker Helper Release assessment..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __(
+					"Docker Helper Release assessment queued. Operation: {0}. Task Manager tracks progress.",
+					[operation.operation_id || __("unknown")]
+				),
+				indicator: "blue",
+			});
+			watch_docker_operation(frm, operation.operation_id, "Docker Helper Release assessment");
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Release Assessment Not Started"),
+				message: __("The assessment could not be queued. Check the server error log."),
+				indicator: "red",
+			});
+		},
+	});
+}
+
+
 function run_docker_privilege_bootstrap(frm) {
 	frappe.call({
 		method: "dt_master.api.infrastructure_node.bootstrap_docker_privileges",
@@ -303,8 +331,11 @@ function docker_setup_state(frm) {
 		hostInspection.inspection_status === "Successful" &&
 		hostInspection.os_support_status === "Supported" &&
 		Boolean(hostInspection.operation_id);
+	const releaseStatus = frm.doc.docker_helper_release_assessment_status || "Not Assessed";
+	const releaseAssigned = Boolean(frm.doc.docker_helper_release);
 	const helperInstalled =
-		privilegeBootstrap.status === "Succeeded" && Boolean(privilegeBootstrap.operation_id);
+		(releaseAssigned && releaseStatus === "Current") ||
+		(privilegeBootstrap.status === "Succeeded" && Boolean(privilegeBootstrap.operation_id));
 	const privilegesReady =
 		privilegeReadiness.status === "Ready" && Boolean(privilegeReadiness.operation_id);
 	const inspectionSuccessful = frm.doc.docker_inspection_status === "Successful";
@@ -321,6 +352,18 @@ function docker_setup_state(frm) {
 		}
 	} else if (state === "Host Inspection Required") {
 		action = { key: "inspect_host", label: "Inspect Host" };
+	} else if (releaseAssigned && releaseStatus !== "Current") {
+		if (!hostSupported) {
+			blockedReason =
+				"Docker Helper Release assessment is locked until Host inspection confirms a supported operating system.";
+		} else {
+			action = {
+				key: "assess_helper_release",
+				label: releaseStatus === "Scripts Deployment Required"
+					? "Restart Release Assessment"
+					: "Assess Docker Helper Release",
+			};
+		}
 	} else if (state === "Privilege Setup Required") {
 		if (!hostSupported) {
 			blockedReason =
@@ -758,6 +801,8 @@ function run_docker_setup_action(frm, action) {
 				"Inspect Host",
 				"dt_master.api.infrastructure_node.inspect_node"
 			);
+		case "assess_helper_release":
+			return run_docker_helper_release_assessment(frm);
 		case "bootstrap_privileges":
 			return run_docker_privilege_bootstrap(frm);
 		case "check_privileges":

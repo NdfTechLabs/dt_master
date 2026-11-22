@@ -157,7 +157,11 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	"""Recalculate each component SHA-256 from its actual local source file."""
 	for component in components:
 		validate_component_definition(component, require_digest=False)
-		component.sha256 = component_source_digest(source_root, component.source_path)
+		digest = component_source_digest(source_root, _value(component, "source_path"))
+		if isinstance(component, dict):
+			component["sha256"] = digest
+		else:
+			component.sha256 = digest
 	return aggregate_release_digest(components)
 
 
@@ -212,7 +216,7 @@ def validate_release_metadata(compatibility, lifecycle):
 	return compatibility, lifecycle
 
 
-def build_release_manifest(release) -> dict:
+def build_release_manifest(release, *, source_root: str | Path | None = None) -> dict:
 	"""Project one published catalog release into the installer manifest contract.
 
 	The Frappe DocType remains authoritative. This JSON shape is a deployment
@@ -237,7 +241,14 @@ def build_release_manifest(release) -> dict:
 		raise DockerHelperReleaseError("Invalid release channel")
 
 	compatibility, lifecycle = validate_release_metadata(get("compatibility"), get("lifecycle"))
-	components = canonical_component_records(get("components") or [])
+	components = get("components") or []
+	if source_root is not None:
+		components = [
+			{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
+			for component in components
+		]
+		refresh_component_digests(components, source_root)
+	components = canonical_component_records(components)
 	if {row["component_id"] for row in components} != MANIFEST_COMPONENT_IDS:
 		raise DockerHelperReleaseError("Docker Helper Release component inventory is incomplete")
 
@@ -271,7 +282,7 @@ def build_release_manifest(release) -> dict:
 	}
 
 
-def serialize_release_manifest(release) -> str:
-	"""Return deterministic UTF-8 JSON for deployment and digest comparison."""
-	manifest = build_release_manifest(release)
+def serialize_release_manifest(release, *, source_root: str | Path | None = None) -> str:
+	"""Return deterministic UTF-8 JSON; optionally hash the current local source files."""
+	manifest = build_release_manifest(release, source_root=source_root)
 	return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

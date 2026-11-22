@@ -18,9 +18,17 @@ from dt_master.operations.docker_lifecycle import (
 
 class TestDockerLifecycleContracts(unittest.TestCase):
 	def test_catalogue_contains_expected_observation_and_mutation_operations(self):
-		self.assertEqual(len(READ_ONLY_OPERATIONS), 6)
-		self.assertEqual(len(MUTATING_OPERATIONS), 11)
+		self.assertEqual(len(READ_ONLY_OPERATIONS), 5)
+		self.assertEqual(len(MUTATING_OPERATIONS), 12)
 		self.assertEqual(len(DOCKER_LIFECYCLE_OPERATIONS), 17)
+
+	def test_release_assessment_is_a_mutation_with_an_empty_payload(self):
+		operation = "host.node.docker.helper_release.assess"
+		self.assertIn(operation, MUTATING_OPERATIONS)
+		self.assertNotIn(operation, READ_ONLY_OPERATIONS)
+		self.assertEqual(validate_docker_lifecycle_payload(operation, {}), {})
+		with self.assertRaises(ValueError):
+			validate_docker_lifecycle_payload(operation, {"confirm": True})
 
 	def test_read_only_operations_accept_only_empty_payload(self):
 		for operation in READ_ONLY_OPERATIONS:

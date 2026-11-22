@@ -277,7 +277,7 @@
    "fieldname": "docker_helper_release_assessment_status",
    "fieldtype": "Select",
    "label": "Release Assessment Status",
-   "options": "Not Assessed\nCurrent\nUpgrade Required\nReconciliation Required\nUnknown Release\nFailed",
+   "options": "Not Assessed\nCurrent\nScripts Deployment Required\nUpgrade Required\nReconciliation Required\nUnknown Release\nFailed",
    "default": "Not Assessed",
    "read_only": 1
   },
@@ -293,7 +293,7 @@
    "label": "Release Assessment Snapshot",
    "options": "JSON",
    "read_only": 1,
-   "description": "Bounded server-managed evidence comparing the assigned release with installed helper artifacts."
+   "description": "Server-managed assessment evidence including the locally generated expected manifest, deployed script inspection, installation result and post-install verification."
   },
   {
    "fieldname": "access_section",

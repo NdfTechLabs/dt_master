@@ -51,6 +51,20 @@ def _docker_observation_lock(target, operation):
 	return [f"node-docker:{target.name}"]
 
 
+def _docker_helper_release_assess_handler(context, payload):
+	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
+
+	return invoke_runtime_mutation(
+		context,
+		{
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "release_assess",
+			"payload": {},
+		},
+	)
+
+
 def _docker_install_engine_handler(context, payload):
 	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
 
@@ -85,7 +99,6 @@ for _operation_type, _method in (
 	("host.node.docker.preflight", "preflight"),
 	("host.node.docker.updates.check", "updates_check"),
 	("host.node.docker.verify", "verify"),
-	("host.node.docker.helper_release.assess", "release_assess"),
 ):
 	register_operation(
 		OperationDefinition(
@@ -101,6 +114,22 @@ for _operation_type, _method in (
 			resource_lock_keys=_docker_observation_lock,
 		)
 	)
+
+
+register_operation(
+	OperationDefinition(
+		operation_type="host.node.docker.helper_release.assess",
+		handler=_docker_helper_release_assess_handler,
+		validate_payload=_docker_payload_validator("host.node.docker.helper_release.assess"),
+		authorize=authorize_docker_lifecycle_node,
+		queue="long",
+		timeout_seconds=360,
+		max_attempts=1,
+		priority="High",
+		execution_identity="frappe-worker",
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
+	)
+)
 
 
 register_operation(

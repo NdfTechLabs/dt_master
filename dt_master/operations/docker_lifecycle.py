@@ -24,12 +24,14 @@ COMPOSE_MUTATIONS = frozenset(
 	}
 )
 PRIVILEGE_BOOTSTRAP_OPERATIONS = frozenset({"host.node.docker.privileges.bootstrap"})
+RELEASE_ASSESSMENT_OPERATIONS = frozenset({"host.node.docker.helper_release.assess"})
 REPOSITORY_PREPARATION_OPERATIONS = frozenset({"host.node.docker.repository.prepare"})
 SETUP_RESTART_OPERATIONS = frozenset({"host.node.docker.setup.restart"})
 MUTATING_OPERATIONS = (
 	ENGINE_MUTATIONS
 	| COMPOSE_MUTATIONS
 	| PRIVILEGE_BOOTSTRAP_OPERATIONS
+	| RELEASE_ASSESSMENT_OPERATIONS
 	| REPOSITORY_PREPARATION_OPERATIONS
 	| SETUP_RESTART_OPERATIONS
 )
@@ -40,7 +42,6 @@ READ_ONLY_OPERATIONS = frozenset(
 		"host.node.docker.preflight",
 		"host.node.docker.updates.check",
 		"host.node.docker.verify",
-		"host.node.docker.helper_release.assess",
 	}
 )
 DOCKER_LIFECYCLE_OPERATIONS = MUTATING_OPERATIONS | READ_ONLY_OPERATIONS
@@ -122,6 +123,7 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 	if (
 		operation_type in READ_ONLY_OPERATIONS
 		or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS
+		or operation_type in RELEASE_ASSESSMENT_OPERATIONS
 		or operation_type in REPOSITORY_PREPARATION_OPERATIONS
 	):
 		return _empty(payload)

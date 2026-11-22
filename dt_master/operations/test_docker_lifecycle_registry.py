@@ -14,7 +14,6 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.preflight",
 			"host.node.docker.updates.check",
 			"host.node.docker.verify",
-			"host.node.docker.helper_release.assess",
 		):
 			with self.subTest(operation_type=operation_type):
 				definition = get_operation(operation_type)
@@ -31,7 +30,6 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.preflight",
 			"host.node.docker.updates.check",
 			"host.node.docker.verify",
-			"host.node.docker.helper_release.assess",
 		):
 			definition = get_operation(operation_type)
 			operation = SimpleNamespace(operation_type=operation_type)
@@ -40,7 +38,20 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 				["node-docker:NODE-01"],
 			)
 
-	def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
+		def test_release_assessment_is_registered_as_durable_mutation(self):
+		definition = get_operation("host.node.docker.helper_release.assess")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 360)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(definition.validate_payload({}), {})
+		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
+		operation = SimpleNamespace(operation_type="host.node.docker.helper_release.assess")
+		self.assertEqual(
+			definition.resource_lock_keys(target, operation),
+			["node-docker:NODE-01"],
+		)
+
+def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
 		definition = get_operation("host.node.docker.privileges.bootstrap")
 		self.assertEqual(definition.queue, "long")
 		self.assertEqual(definition.timeout_seconds, 240)

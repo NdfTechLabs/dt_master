@@ -1216,6 +1216,23 @@ def run_docker_observation(node_name, observation):
 
 
 @frappe.whitelist(methods=["POST"])
+def assess_docker_helper_release(node_name):
+	"""Queue the Docker Helper release assessment and automatic installation workflow."""
+	frappe.only_for("System Manager")
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before Docker Helper Release assessment.")
+	return start_operation(
+		operation_type="host.node.docker.helper_release.assess",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={},
+		idempotency_key=f"docker-helper-release-assess:{node.name}:{uuid.uuid4().hex}",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
 def bootstrap_docker_privileges(node_name):
 	"""Queue the fixed Docker privilege bootstrap through the durable coordinator."""
 	frappe.only_for("System Manager")
