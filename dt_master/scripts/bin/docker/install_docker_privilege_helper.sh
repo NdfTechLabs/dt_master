@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="005f644f5384213988d1643b2af925f0b210d94ad7b9fa1be0179cda3303122f"
+readonly HELPER_SHA256="fb329452df8776d1c66f90b9b7b9a8527dcea82fec0299cfdb699047b8f70bdb"
 readonly PREVIOUS_HELPER_SHA256="b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b"
 readonly LEGACY_HELPER_SHA256="1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe"
 readonly OLDER_LEGACY_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
@@ -94,7 +94,7 @@ check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGAC
 # The currently deployed 0.3.0 helper pinned this exact prior policy digest.
 # Accept it only as an explicit upgrade source; unknown policy files remain protected.
 check_existing "$POLICY_NAME" "$POLICY_SHA256" "3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"
-check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256"
+check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"
 
 stage_dir="$(sudo -n mktemp -d "${DEST_DIR}/.helper.XXXXXX")" \
     || fail "Could not stage helper artifacts in destination directory."
