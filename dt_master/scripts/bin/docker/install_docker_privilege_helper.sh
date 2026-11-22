@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 
 readonly HELPER_NAME="docker_lifecycle_helper.py"
-readonly HELPER_SHA256="4530e831ae83d9daeb7f5d8766f0310acdacc32d89835983d10e3699922a5990"
+readonly HELPER_SHA256="06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a2"
 readonly PREVIOUS_HELPER_SHA256="b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b"
 readonly LEGACY_HELPER_SHA256="1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe"
 readonly OLDER_LEGACY_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
@@ -13,7 +13,7 @@ readonly OLDEST_LEGACY_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c
 readonly POLICY_NAME="docker_install_policy.py"
 readonly POLICY_SHA256="99a98c694e26d8fa39f82d8e5b8071103db61970d23f659145d7a1de9ff0ac47"
 readonly INVENTORY_NAME="docker_install_inventory.py"
-readonly INVENTORY_SHA256="0cb582671b2983d8794f69563a94564d2335c6b0c52e960dd30ead8cfbe9f089"
+readonly INVENTORY_SHA256="f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"
 readonly DEST_DIR="/usr/local/lib/dt-master/docker"
 
 fail() {
