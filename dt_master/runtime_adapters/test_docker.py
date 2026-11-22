@@ -190,7 +190,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		run_helper.assert_not_called()
 
 	def test_prepare_repository_requires_eligible_lifecycle_state(self):
-		self.node.docker_host_state = "Docker Inspection Required"
+		self.node.docker_host_state = "Privilege Setup Required"
 		request_obj = RuntimeAdapterRequest(
 			adapter_id="docker-compose-v1",
 			runtime_type="docker",
@@ -268,6 +268,28 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		})
 		self.assertEqual(run_helper.call_args.kwargs["timeout_seconds"], 420)
 		persist.assert_called_once_with(self.node, request_obj, inspection_data, ready_plan)
+
+
+
+	def test_repository_preparation_planner_gate_accepts_only_known_prerequisite_blockers(self):
+		preparation_required = {
+			"status": "preparation_required",
+			"reason_codes": ["APT_METADATA_NOT_FRESH"],
+			"prerequisites": ["refresh_apt_metadata"],
+		}
+		blocked_but_preparable = {
+			"status": "blocked",
+			"reason_codes": ["DOCKER_KEYRING_PATH_UNTRUSTED"],
+			"prerequisites": ["verify_and_pin_docker_signing_key"],
+		}
+		blocked_for_unrelated_reason = {
+			"status": "blocked",
+			"reason_codes": ["DOCKER_SIGNING_KEY_MISMATCH"],
+			"prerequisites": ["verify_and_pin_docker_signing_key"],
+		}
+		self.assertTrue(self.adapter._requires_repository_preparation(preparation_required))
+		self.assertTrue(self.adapter._requires_repository_preparation(blocked_but_preparable))
+		self.assertFalse(self.adapter._requires_repository_preparation(blocked_for_unrelated_reason))
 
 
 	def test_repository_preparation_result_requires_exact_helper_contract(self):
