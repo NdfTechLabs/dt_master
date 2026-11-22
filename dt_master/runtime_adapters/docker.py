@@ -1797,7 +1797,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			or set(manifest) != {"id", "version", "channel", "schema_version", "sha256"}
 			or not all(isinstance(manifest[key], str) for key in manifest)
 			or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", manifest["id"])
-			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["version"])
+			or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["version"])
 			or manifest["channel"] not in {"stable", "beta", "edge"}
 			or manifest["schema_version"] != "1.0.0"
 			or not re.fullmatch(r"[a-f0-9]{64}", manifest["sha256"])
