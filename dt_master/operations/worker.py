@@ -230,7 +230,7 @@ def execute_operation(operation_id):
                     failure_details, sort_keys=True, separators=(",", ":"), ensure_ascii=False
                 )
                 if len(diagnostics_json.encode("utf-8")) <= 65536:
-                    error_log += "\\n\\nStructured runtime adapter failure details:\\n" + diagnostics_json
+                    error_log += "\n\nStructured runtime adapter failure details:\n" + diagnostics_json
             except Exception:
                 # Keep the original traceback if diagnostic data fails safety validation.
                 pass
