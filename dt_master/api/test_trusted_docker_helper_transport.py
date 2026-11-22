@@ -76,9 +76,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 			process = popen.return_value
 			process.poll.return_value = 0
 			process.returncode = 0
-			code, stdout, stderr = run_trusted_helper(
-				None, {}, install_request(), timeout_seconds=2
-			)
+			code, stdout, stderr = run_trusted_helper(None, {}, install_request(), timeout_seconds=2)
 
 		self.assertEqual((code, stdout, stderr), (0, "", ""))
 		build_ssh.assert_called_once()
@@ -131,9 +129,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 			process.poll.side_effect = [None, 0]
 			process.wait.side_effect = [subprocess.TimeoutExpired("ssh", 15), 0]
 			heartbeat = Mock()
-			run_trusted_helper(
-				None, {}, install_request(), timeout_seconds=30, heartbeat=heartbeat
-			)
+			run_trusted_helper(None, {}, install_request(), timeout_seconds=30, heartbeat=heartbeat)
 
 		heartbeat.assert_called_once_with()
 
