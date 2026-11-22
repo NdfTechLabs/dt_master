@@ -403,7 +403,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid trusted Docker helper self-test response")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.0"
+			or payload["helper_version"] != "0.3.1"
 			or payload["operation"] != "self_test"
 			or payload["status"] != "ok"
 			or type(payload["effective_uid"]) is not int
@@ -1187,7 +1187,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid Docker repository preparation result fields.")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.0"
+			or payload["helper_version"] != "0.3.1"
 			or payload["operation"] != "prepare_repository"
 			or payload["status"] != "succeeded"
 			or payload["diagnostics"] != []
