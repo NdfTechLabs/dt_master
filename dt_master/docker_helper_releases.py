@@ -153,8 +153,40 @@ def aggregate_release_digest(components) -> str:
 	return hashlib.sha256(payload).hexdigest()
 
 
+def capture_component_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
+	"""Capture actual source hashes without changing the release definition."""
+	snapshot = {}
+	for component in components:
+		validate_component_definition(component)
+		component_id = _value(component, "component_id")
+		if component_id in snapshot:
+			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
+		snapshot[component_id] = component_source_digest(source_root, _value(component, "source_path"))
+	return snapshot
+
+
+def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
+	"""Verify local source files against immutable hashes in the release record."""
+	expected = {
+		_value(component, "component_id"): _value(component, "sha256")
+		for component in components
+	}
+	observed = capture_component_source_snapshot(components, source_root)
+	mismatches = {
+		component_id: {"expected": expected[component_id], "observed": digest}
+		for component_id, digest in observed.items()
+		if expected.get(component_id) != digest
+	}
+	if mismatches:
+		details = ", ".join(sorted(mismatches))
+		raise DockerHelperReleaseError(
+			"Published release source drift detected for component(s): " + details
+		)
+	return observed
+
+
 def refresh_component_digests(components, source_root: str | Path) -> str:
-	"""Recalculate each component SHA-256 from its actual local source file."""
+	"""Refresh hashes only while constructing or editing a Draft release."""
 	for component in components:
 		validate_component_definition(component, require_digest=False)
 		digest = component_source_digest(source_root, _value(component, "source_path"))
@@ -242,13 +274,11 @@ def build_release_manifest(release, *, source_root: str | Path | None = None) ->
 
 	compatibility, lifecycle = validate_release_metadata(get("compatibility"), get("lifecycle"))
 	components = get("components") or []
-	if source_root is not None:
-		components = [
-			{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
-			for component in components
-		]
-		refresh_component_digests(components, source_root)
 	components = canonical_component_records(components)
+	if source_root is not None:
+		# A Published release is immutable: local source is verified against its
+		# catalog hashes, never used to rewrite the expected hashes.
+		verify_release_source_snapshot(components, source_root)
 	if {row["component_id"] for row in components} != MANIFEST_COMPONENT_IDS:
 		raise DockerHelperReleaseError("Docker Helper Release component inventory is incomplete")
 
@@ -283,6 +313,6 @@ def build_release_manifest(release, *, source_root: str | Path | None = None) ->
 
 
 def serialize_release_manifest(release, *, source_root: str | Path | None = None) -> str:
-	"""Return deterministic UTF-8 JSON; optionally hash the current local source files."""
+	"""Return deterministic UTF-8 JSON after optionally verifying local source files."""
 	manifest = build_release_manifest(release, source_root=source_root)
 	return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
