@@ -43,7 +43,6 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
                     "file_owner": "root",
                     "file_group": "root",
                     "file_mode": "0755",
-                    "sha256": "0" * 64,
                     "responsibility": responsibility,
                 },
             )

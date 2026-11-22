@@ -13,7 +13,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 _COMPONENT_ID = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
-_VERSION = re.compile(r"^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
+_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _OWNER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 _FILE_MODE = re.compile(r"^[0-7]{4}$")
@@ -42,7 +42,7 @@ def _value(component, field):
     return component.get(field) if hasattr(component, "get") else getattr(component, field, None)
 
 
-def validate_component_definition(component):
+def validate_component_definition(component, *, require_digest=True):
     """Validate a component row without accessing the filesystem."""
     component_id = _value(component, "component_id")
     version = _value(component, "version")
@@ -77,7 +77,7 @@ def validate_component_definition(component):
         or any(part in {"", ".", ".."} for part in target.parts)
     ):
         raise DockerHelperReleaseError(f"Unsafe component install path: {component_id}")
-    if type(required) is not bool:
+    if type(required) not in {bool, int} or required not in (0, 1):
         raise DockerHelperReleaseError(f"Invalid required flag: {component_id}")
     if not isinstance(owner, str) or not _OWNER.fullmatch(owner):
         raise DockerHelperReleaseError(f"Invalid file owner: {component_id}")
@@ -85,7 +85,7 @@ def validate_component_definition(component):
         raise DockerHelperReleaseError(f"Invalid file group: {component_id}")
     if not isinstance(mode, str) or not _FILE_MODE.fullmatch(mode):
         raise DockerHelperReleaseError(f"Invalid file mode: {component_id}")
-    if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+    if require_digest and (not isinstance(digest, str) or not _SHA256.fullmatch(digest)):
         raise DockerHelperReleaseError(f"Invalid component SHA-256: {component_id}")
     if not isinstance(responsibility, str) or not responsibility.strip() or len(responsibility) > 500:
         raise DockerHelperReleaseError(f"Invalid component responsibility: {component_id}")
@@ -122,6 +122,7 @@ def canonical_component_records(components):
     for component in components:
         record = {field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
         validate_component_definition(record)
+        record["required"] = bool(record["required"])
         if record["component_id"] in seen:
             raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
         seen.add(record["component_id"])
@@ -141,6 +142,6 @@ def aggregate_release_digest(components) -> str:
 def refresh_component_digests(components, source_root: str | Path) -> str:
     """Recalculate each component SHA-256 from its actual local source file."""
     for component in components:
-        validate_component_definition(component)
+        validate_component_definition(component, require_digest=False)
         component.sha256 = component_source_digest(source_root, component.source_path)
     return aggregate_release_digest(components)

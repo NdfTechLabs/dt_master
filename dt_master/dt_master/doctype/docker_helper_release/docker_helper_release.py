@@ -1,6 +1,8 @@
 # Copyright (c) 2026, NDF Technology Labs Solutions LTD
 # For license information, please see license.txt
 
+from pathlib import Path
+
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
@@ -55,16 +57,16 @@ class DockerHelperRelease(Document):
 
         if not self.release_id or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", self.release_id):
             self._throw("Release ID must contain 3–100 lowercase letters, numbers, dots, underscores or hyphens.")
-        if not self.version or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.version):
+        if not self.version or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.version):
             self._throw("Release version must use semantic versioning.")
         if self.channel not in {"stable", "beta", "edge"}:
             self._throw("Invalid Docker Helper Release channel.")
-        if self.status not in {"Draft", "Published", "Retired"}:
+        if self.status not in {"Draft", "Published"}:
             self._throw("Invalid Docker Helper Release status.")
 
     def _refresh_digests(self):
         try:
-            source_root = __import__("pathlib").Path(__file__).resolve().parents[2]
+            source_root = Path(__file__).resolve().parents[2]
             self.aggregate_digest = refresh_component_digests(self.components or [], source_root)
         except DockerHelperReleaseError as exc:
             self._throw(str(exc))

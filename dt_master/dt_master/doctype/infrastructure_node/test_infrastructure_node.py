@@ -4,6 +4,7 @@
 import json
 
 import frappe
+from unittest.mock import patch
 from frappe.tests import IntegrationTestCase
 from frappe.utils import get_datetime
 
@@ -73,6 +74,20 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node = self._new_node()
 		node.docker_helper_release_assessment_status = "Current"
 		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
+
+	def test_node_rejects_unpublished_docker_helper_release_assignment(self):
+		node = self._new_node()
+		node.docker_helper_release = "DRAFT-RELEASE"
+		with patch.object(frappe.db, "get_value", return_value="Draft"):
+			with self.assertRaises(frappe.ValidationError):
+				node.validate()
+
+	def test_node_accepts_published_docker_helper_release_assignment(self):
+		node = self._new_node()
+		node.docker_helper_release = "PUBLISHED-RELEASE"
+		with patch.object(frappe.db, "get_value", return_value="Published"):
 			node.validate()
 
 	def test_new_node_rejects_severity_without_requirement(self):
