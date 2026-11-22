@@ -292,22 +292,53 @@ class TestDockerReadiness(unittest.TestCase):
         self.assertEqual(result["readiness"], "Not Ready")
         self.assertEqual(result["diagnostics"][0]["requirement"], "min_compose_version")
 
-    def test_unavailable_compose_probe_does_not_depend_on_daemon_availability(self):
+    def test_compose_requirements_are_not_applicable_before_engine_is_available(self):
+        for engine_state in ("Not Installed", "Unavailable", "Unknown"):
+            with self.subTest(engine_state=engine_state):
+                data = snapshot(
+                    engine={
+                        "availability": engine_state,
+                        "server_version": None,
+                        "api_version": None,
+                        "minimum_api_version": None,
+                    },
+                    compose={"installed": False, "version": None, "compatibility": "Unavailable"},
+                )
+                result = evaluate_docker_readiness(
+                    policy([
+                        check("docker_compose_required", True),
+                        check("min_compose_version", "2.20.0"),
+                    ]),
+                    data,
+                )
+                self.assertEqual(result["readiness"], "Ready")
+                self.assertEqual(result["diagnostics"], [])
+
+    def test_compose_requirements_are_enforced_when_engine_is_available(self):
         data = snapshot(
-            engine={
-                "availability": "Unavailable",
-                "server_version": None,
-                "api_version": None,
-                "minimum_api_version": None,
-            },
-            compose={"installed": False, "version": None, "compatibility": "Unavailable"},
+            compose={"installed": False, "version": None, "compatibility": "Unavailable"}
         )
         result = evaluate_docker_readiness(
-            policy([check("docker_compose_required", True)]),
-            data,
+            policy([check("docker_compose_required", True)]), data
         )
         self.assertEqual(result["readiness"], "Unknown")
         self.assertEqual(result["diagnostics"][0]["requirement"], "docker_compose_required")
+
+    def test_missing_storage_evidence_remains_unknown_before_engine_installation(self):
+        data = snapshot(
+            engine={
+                "availability": "Not Installed",
+                "server_version": None,
+                "api_version": None,
+                "minimum_api_version": None,
+            }
+        )
+        data["storage"]["filesystem"]["available_bytes"] = None
+        result = evaluate_docker_readiness(
+            policy([check("min_available_storage_bytes", 20_000_000_000)]), data
+        )
+        self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(result["diagnostics"][0]["requirement"], "min_available_storage_bytes")
 
 
 if __name__ == "__main__":
