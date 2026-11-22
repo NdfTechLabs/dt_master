@@ -22,10 +22,26 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		adapter = Path(__file__).with_name("docker.py").read_text()
 
 		digest = hashlib.sha256(helper).hexdigest()
-		helper_version = next(line.split("=", 1)[1].strip().strip('"') for line in helper.decode().splitlines() if line.startswith("HELPER_VERSION ="))
-		installer_digest = next(line.split("=", 1)[1].strip().strip('"') for line in installer.splitlines() if line.startswith("readonly HELPER_SHA256="))
-		probe_digest = next(line.split("=", 1)[1].strip().strip('"') for line in probe.splitlines() if line.startswith("EXPECTED_HELPER_SHA256 ="))
-		probe_version = next(line.split("=", 1)[1].strip().strip('"') for line in probe.splitlines() if line.startswith("EXPECTED_HELPER_VERSION ="))
+		helper_version = next(
+			line.split("=", 1)[1].strip().strip('"')
+			for line in helper.decode().splitlines()
+			if line.startswith("HELPER_VERSION =")
+		)
+		installer_digest = next(
+			line.split("=", 1)[1].strip().strip('"')
+			for line in installer.splitlines()
+			if line.startswith("readonly HELPER_SHA256=")
+		)
+		probe_digest = next(
+			line.split("=", 1)[1].strip().strip('"')
+			for line in probe.splitlines()
+			if line.startswith("EXPECTED_HELPER_SHA256 =")
+		)
+		probe_version = next(
+			line.split("=", 1)[1].strip().strip('"')
+			for line in probe.splitlines()
+			if line.startswith("EXPECTED_HELPER_VERSION =")
+		)
 		adapter_version_line = next(line for line in adapter.splitlines() if 'payload["helper_version"] !=' in line)
 		adapter_version = adapter_version_line.split("!=", 1)[1].strip().strip('"')
 
