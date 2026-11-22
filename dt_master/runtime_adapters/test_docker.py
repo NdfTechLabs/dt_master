@@ -682,9 +682,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"diagnostics": [],
 		}
 
-	def _run(
-		self, method="inspect", code=0, snapshot=None, readiness="Ready", readiness_diagnostics=None
-	):
+	def _run(self, method="inspect", code=0, snapshot=None, readiness="Ready", readiness_diagnostics=None):
 		snapshot = snapshot or self._snapshot()
 		self.node.docker_host_state = "Docker Inspection Required"
 		self.node.docker_host_management_snapshot = json.dumps(
