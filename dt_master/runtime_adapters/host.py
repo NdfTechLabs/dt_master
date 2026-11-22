@@ -67,7 +67,24 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		node.check_permission("read")
 		if request.method != "connection_check" and not node.access_verified:
 			raise ValueError("Infrastructure Node SSH access has not been verified")
+		if request.method == "inspect":
+			if not HostRuntimeAdapter._has_successful_connection_evidence(node):
+				raise ValueError("A successful SSH connection check is required before Host inspection")
+			if getattr(node, "docker_host_state", None) != "Host Inspection Required":
+				raise ValueError("Host inspection is not the next eligible Docker host lifecycle action")
 		return node
+
+	@staticmethod
+	def _has_successful_connection_evidence(node):
+		try:
+			evidence = json.loads(node.docker_host_management_snapshot or "{}")
+		except (TypeError, ValueError):
+			return False
+		return (
+			isinstance(evidence, dict)
+			and evidence.get("connection_status") == "Connected"
+			and bool(evidence.get("operation_id"))
+		)
 
 	@staticmethod
 	def _ssh_config(node):
@@ -335,6 +352,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			data["discovery"] = discovery
 			self._persist_discovery_snapshot(node, discovery)
 
+		self._persist_host_inspection_evidence(node, request, data)
+
 		return self.result_for(
 			request,
 			outcome="succeeded",
@@ -342,6 +361,43 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			capabilities=self.capabilities(),
 			data=data,
 			duration_ms=elapsed,
+		)
+
+	@staticmethod
+	def _persist_host_inspection_evidence(node, request, inspection):
+		"""Advance the host lifecycle only after a complete, valid inspection."""
+		observed_at = now_datetime()
+		try:
+			previous = json.loads(node.docker_host_management_snapshot or "{}")
+		except (TypeError, ValueError):
+			previous = {}
+		if not isinstance(previous, dict):
+			previous = {}
+		evidence = {
+			"schema_version": "1.0.0",
+			"node": node.name,
+			"connection_status": "Connected",
+			"connection_operation_id": previous.get("operation_id"),
+			"host_inspection": {
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+				"inspection_status": inspection["inspection_status"],
+				"os_support_status": inspection["os_support_status"],
+				"os_support_policy_version": inspection["os_support_policy_version"],
+			},
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"docker_host_state": "Privilege Setup Required",
+				"docker_host_operation": request.operation_id,
+				"docker_host_state_updated_on": observed_at,
+				"docker_host_management_snapshot": json.dumps(
+					evidence, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
 		)
 
 	@staticmethod
