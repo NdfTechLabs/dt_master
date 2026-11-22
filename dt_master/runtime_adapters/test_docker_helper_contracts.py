@@ -68,6 +68,18 @@ class TestDockerHelperContracts(unittest.TestCase):
 	def test_valid_install_request(self):
 		self.assertEqual(validate_install_engine_request(install_request())["operation"], "install_engine")
 
+	def test_request_accepts_frappe_node_names_with_spaces(self):
+		request = install_request()
+		request["target"]["name"] = "NDF Tech Labs Contabo"
+		self.assertEqual(validate_install_engine_request(request)["target"]["name"], "NDF Tech Labs Contabo")
+
+	def test_request_rejects_empty_control_and_oversized_node_names(self):
+		for name in ("", "NODE\n0001", "N" * 141):
+			request = install_request()
+			request["target"]["name"] = name
+			with self.subTest(name=repr(name)), self.assertRaises(DockerHelperContractError):
+				validate_install_engine_request(request)
+
 	def test_request_rejects_unknown_fields(self):
 		request = install_request()
 		request["command"] = "apt install docker"
