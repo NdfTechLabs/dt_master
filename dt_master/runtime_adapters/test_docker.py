@@ -777,6 +777,18 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		return result, remote
 
 
+	def test_release_assessment_records_timestamp_when_no_release_is_assigned(self):
+		self.node.docker_helper_release = None
+		with patch.object(self.adapter, "_node_for_request", return_value=self.node):
+			result = self.adapter._release_assess(request("release_assess"))
+
+		self.assertEqual(result.observed_state, "Unknown Release")
+		self.assertEqual(result.data["observed_at"], "2026-11-22 10:00:00")
+		self.assertEqual(
+			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"],
+			"Unknown Release",
+		)
+
 	def test_release_assessment_marks_matching_verified_release_current(self):
 		from dt_master.docker_helper_releases import RELEASE_MANIFEST_SCHEMA_VERSION
 
