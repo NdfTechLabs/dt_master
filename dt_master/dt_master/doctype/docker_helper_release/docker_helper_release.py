@@ -79,7 +79,7 @@ class DockerHelperRelease(Document):
 
     def _refresh_digests(self):
         try:
-            source_root = Path(__file__).resolve().parents[2]
+            source_root = Path(__file__).resolve().parents[3]
             self.aggregate_digest = refresh_component_digests(self.components or [], source_root)
         except DockerHelperReleaseError as exc:
             self._throw(str(exc))
