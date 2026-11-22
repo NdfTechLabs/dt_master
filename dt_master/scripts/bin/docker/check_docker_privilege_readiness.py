@@ -11,14 +11,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+RELEASE_MANIFEST = Path("/usr/local/lib/dt-master/docker/docker_helper_release.json")
 HELPER = Path("/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py")
 POLICY_ARTIFACT = Path("/usr/local/lib/dt-master/docker/docker_install_policy.py")
 INVENTORY_ARTIFACT = Path("/usr/local/lib/dt-master/docker/docker_install_inventory.py")
 POLICY = Path("/etc/sudoers.d/dt-master-docker")
-EXPECTED_HELPER_SHA256 = "43579f3d7fb33320b6adfb41c6cfe362cfbb06114c5e5bf48b974722fc48bc39"
-EXPECTED_POLICY_SHA256 = "99a98c694e26d8fa39f82d8e5b8071103db61970d23f659145d7a1de9ff0ac47"
-EXPECTED_INVENTORY_SHA256 = "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"
-EXPECTED_HELPER_VERSION = "0.3.2"
 MAX_OUTPUT = 4096
 
 
@@ -37,10 +34,56 @@ def run(argv, *, input_text=None, timeout=5):
 		return None
 
 
+def load_release_manifest():
+	try:
+		metadata = RELEASE_MANIFEST.lstat()
+		if (
+			not stat.S_ISREG(metadata.st_mode)
+			or metadata.st_uid != 0
+			or metadata.st_gid != 0
+			or stat.S_IMODE(metadata.st_mode) != 0o755
+		):
+			return None
+		manifest = json.loads(RELEASE_MANIFEST.read_text(encoding="utf-8"))
+		if (
+			not isinstance(manifest, dict)
+			or set(manifest) != {"schema_version", "release", "compatibility", "components", "lifecycle"}
+			or manifest["schema_version"] != "1.0.0"
+			or manifest["release"].get("status") != "supported"
+		):
+			return None
+		components = manifest["components"]
+		if not isinstance(components, list):
+			return None
+		expected = {}
+		for component in components:
+			if (
+				not isinstance(component, dict)
+				or set(component) != {"id", "path", "version", "sha256", "required", "responsibility"}
+				or component["path"] not in {
+					"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"
+				}
+				or not isinstance(component["sha256"], str)
+				or len(component["sha256"]) != 64
+			):
+				return None
+			expected[component["path"]] = component["sha256"]
+		if set(expected) != {
+			"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"
+		}:
+			return None
+		return manifest["release"]["version"], expected
+	except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+		return None
+
+
 def main():
 	expected_user = os.environ.get("EXPECTED_SSH_USER", "")
 	checks = []
 	diagnostics = []
+	release = load_release_manifest()
+	release_ok = release is not None
+	expected_version, expected_digests = release if release_ok else (None, {})
 
 	def record(name, ok, detail):
 		checks.append({"name": name, "status": "Passed" if ok else "Failed"})
@@ -59,6 +102,11 @@ def main():
 		"Remote execution identity does not match the configured SSH user.",
 	)
 
+	record(
+		"release_manifest_integrity",
+		release_ok,
+		"Installed Docker Helper Release manifest is missing, incompatible, or untrusted.",
+	)
 	helper_ok = False
 	try:
 		st = HELPER.lstat()
@@ -68,7 +116,7 @@ def main():
 			and st.st_uid == 0
 			and st.st_gid == 0
 			and stat.S_IMODE(st.st_mode) == 0o755
-			and digest == EXPECTED_HELPER_SHA256
+			and digest == expected_digests.get(HELPER.name)
 		)
 	except OSError:
 		digest = None
@@ -92,8 +140,8 @@ def main():
 		except OSError:
 			return False
 
-	policy_artifact_ok = artifact_integrity(POLICY_ARTIFACT, EXPECTED_POLICY_SHA256)
-	inventory_artifact_ok = artifact_integrity(INVENTORY_ARTIFACT, EXPECTED_INVENTORY_SHA256)
+	policy_artifact_ok = artifact_integrity(POLICY_ARTIFACT, expected_digests.get(POLICY_ARTIFACT.name, ""))
+	inventory_artifact_ok = artifact_integrity(INVENTORY_ARTIFACT, expected_digests.get(INVENTORY_ARTIFACT.name, ""))
 	record(
 		"policy_integrity", policy_artifact_ok, "Root-side install policy artifact is missing or untrusted."
 	)
@@ -173,7 +221,7 @@ def main():
 		and set(helper_result)
 		== {"schema_version", "helper_version", "operation", "status", "effective_uid", "effective_user"}
 		and helper_result.get("schema_version") == "1.0.0"
-		and helper_result.get("helper_version") == EXPECTED_HELPER_VERSION
+		and helper_result.get("helper_version") == expected_version
 		and helper_result.get("operation") == "self_test"
 		and helper_result.get("status") == "ok"
 		and helper_result.get("effective_uid") == 0
@@ -214,7 +262,7 @@ def main():
 		"execution_identity": actual_user or None,
 		"helper": {
 			"path": str(HELPER),
-			"version": EXPECTED_HELPER_VERSION if helper_ok else None,
+			"version": expected_version if helper_ok else None,
 			"sha256": digest,
 		},
 		"sudoers": {"path": str(POLICY), "syntax": "Valid" if syntax_ok else "Invalid"},
