@@ -109,6 +109,7 @@ def component_source_digest(source_root: str | Path, source_path: str) -> str:
 	validate_source_path = PurePosixPath(source_path)
 	if (
 		validate_source_path.is_absolute()
+		or str(validate_source_path) != source_path
 		or not source_path.startswith(_SOURCE_PREFIX)
 		or any(part in {"", ".", ".."} for part in validate_source_path.parts)
 	):
@@ -221,6 +222,8 @@ def build_release_manifest(release) -> dict:
 
 	if get("status") != "Published":
 		raise DockerHelperReleaseError("Only a published Docker Helper Release can be deployed")
+	if get("schema_version") != RELEASE_MANIFEST_SCHEMA_VERSION:
+		raise DockerHelperReleaseError("Unsupported Docker Helper Release manifest schema version")
 	release_id = get("release_id")
 	version = get("version")
 	channel = get("channel")

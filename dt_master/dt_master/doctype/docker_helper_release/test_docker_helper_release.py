@@ -6,6 +6,8 @@ import json
 import frappe
 from frappe.tests import IntegrationTestCase
 
+from dt_master.docker_helper_releases import build_release_manifest
+
 
 class IntegrationTestDockerHelperRelease(IntegrationTestCase):
     def _new_release(self):
@@ -73,6 +75,15 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         self.assertTrue(all(len(row.sha256) == 64 for row in release.components))
         self.assertNotEqual(release.components[0].sha256, "0" * 64)
 
+    def test_published_release_projects_the_catalog_manifest(self):
+        release = self._new_release()
+        release.status = "Published"
+        release.validate()
+        manifest = build_release_manifest(release)
+        self.assertEqual(manifest["release"]["id"], release.release_id)
+        self.assertEqual(manifest["release"]["version"], release.version)
+        self.assertEqual(len(manifest["components"]), 3)
+        self.assertEqual(manifest["lifecycle"]["activation_order"], ["install_policy", "host_inventory", "lifecycle_helper"])
     def test_published_release_is_immutable(self):
         release = self._new_release()
         release.insert(ignore_permissions=True)
