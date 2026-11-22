@@ -40,6 +40,9 @@ execution_identity=$(id -un 2>/dev/null || true)
 [[ -n "$execution_identity" ]] || execution_identity=null
 inspection_access="Unknown"
 
+# Host storage is a pre-install requirement. Measure the filesystem that will
+# contain Docker's default data root even when Docker is not installed yet.
+storage_path="/"
 if [[ -n "$docker_path" ]]; then
     docker_installed=true
     client_version=$(docker version --format '{{.Client.Version}}' 2>/dev/null || true)
@@ -61,8 +64,8 @@ if [[ -n "$docker_path" ]]; then
         minimum_api_version=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("MinAPIVersion") or "")' "$info" 2>/dev/null || true)
         storage_driver=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("Driver") or "")' "$info" 2>/dev/null || true)
         data_root=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("DockerRootDir") or "")' "$info" 2>/dev/null || true)
-        if [[ -n "$data_root" ]]; then
-            read -r mount_point fs_total fs_used fs_available < <(df -B1 --output=target,size,used,avail "$data_root" 2>/dev/null | tail -n 1)
+        if [[ -n "$data_root" && -d "$data_root" ]]; then
+            storage_path="$data_root"
         fi
     else
         engine_availability="Unavailable"
@@ -77,6 +80,10 @@ if [[ -n "$docker_path" ]]; then
 else
     add_diag "DOCKER_CLI_MISSING" "Error" "Docker CLI is not installed or is not available in PATH."
 fi
+
+# Use Docker's data-root filesystem when it exists; otherwise use the root
+# filesystem as the pre-install baseline for the default /var/lib/docker path.
+read -r mount_point fs_total fs_used fs_available < <(df -B1 --output=target,size,used,avail "$storage_path" 2>/dev/null | tail -n 1)
 
 for var in server_version api_version minimum_api_version storage_driver data_root mount_point; do
     [[ -n "${!var:-}" ]] || printf -v "$var" '%s' null
@@ -93,6 +100,10 @@ fi
 if [[ "$engine_availability" == "Available" && "$storage_driver" == "null" ]]; then
     inspection_status="Partial"
     add_diag "DOCKER_STORAGE_INCOMPLETE" "Warning" "Docker storage metadata could not be collected."
+fi
+if [[ "$fs_available" == "null" || "$fs_total" == "null" ]]; then
+    inspection_status="Partial"
+    add_diag "HOST_STORAGE_INCOMPLETE" "Warning" "Host filesystem capacity could not be measured."
 fi
 
 host_inventory_json=$(python3 "$(dirname "$0")/inspect_docker_host.py" 2>/dev/null || true)
