@@ -103,7 +103,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		build_ssh.assert_called_once()
 		popen.assert_called_once()
 		process.stdin.write.assert_called_once_with(
-			b'{"operation":"prepare_repository","schema_version":"1.0.0"}\\n'
+			b'{"operation":"prepare_repository","schema_version":"1.0.0"}\n'
 		)
 
 	def test_repository_preparation_request_rejects_extra_fields_before_transport(self):
