@@ -320,12 +320,12 @@ function docker_setup_progress_html(frm, setup) {
 		{ label: "Privilege verification", done: setup.privilegesReady, current: setup.action?.key === "check_privileges" },
 		{ label: "Docker runtime inspection", done: setup.inspectionSuccessful, current: setup.action?.key === "inspect_docker" },
 		{ label: "Install preflight", done: ["ready", "preparation_required"].includes(setup.planStatus), current: setup.action?.key === "preflight" },
-		{ label: "Repository preparation (if required)", done: setup.planStatus === "ready" && setup.state === "Ready for Install", current: setup.action?.key === "prepare_repository" },
+		{ label: "Repository preparation (if required)", resolved: setup.planStatus === "ready" && ["Ready for Install", "Engine Ready"].includes(setup.state), current: setup.action?.key === "prepare_repository" },
 		{ label: "Docker Engine installation", done: setup.state === "Engine Ready", current: setup.action?.key === "install_engine" },
 	];
 	const stepsHtml = steps.map((step, index) => {
-		const status = step.done ? "Completed" : step.current ? "Next" : "Locked";
-		const indicator = step.done ? "green" : step.current ? "blue" : "gray";
+		const status = step.done ? "Completed" : step.resolved ? "Resolved" : step.current ? "Next" : "Locked";
+		const indicator = step.done || step.resolved ? "green" : step.current ? "blue" : "gray";
 		return "<li class=\"mb-1\"><span class=\"indicator-pill " + indicator + "\">" +
 			__(status) + "</span> <span>" + (index + 1) + ". " + __(step.label) + "</span></li>";
 	}).join("");
@@ -344,13 +344,16 @@ function docker_setup_progress_html(frm, setup) {
 	const roleHtml = frappe.user_roles.includes("System Manager")
 		? actionHtml
 		: "<div class=\"text-muted small mt-3\">" + __("Docker lifecycle actions are available to System Managers.") + "</div>";
+	const secondaryActionsHtml = frappe.user_roles.includes("System Manager") && setup.state === "Engine Ready"
+		? "<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"updates\">" + __("Check Docker Updates") + "</button>"
+		: "";
 	return "<div class=\"border rounded p-3 mb-3\">" +
 		"<div class=\"d-flex justify-content-between align-items-center mb-2\">" +
 		"<strong>" + __("Guided Docker Setup") + "</strong>" +
 		"<span class=\"indicator-pill " +
 		(setup.state === "Engine Ready" ? "green" : setup.state === "Failed" || setup.state === "Reconciliation Required" ? "red" : "blue") +
 		"\">" + escape_html(setup.state) + "</span></div>" +
-		"<ol class=\"pl-3 mb-2\">" + stepsHtml + "</ol>" + planHtml + roleHtml +
+		"<ol class=\"pl-3 mb-2\">" + stepsHtml + "</ol>" + planHtml + roleHtml + secondaryActionsHtml +
 		"<button type=\"button\" class=\"btn btn-default btn-xs mt-2\" data-docker-action=\"refresh\">" +
 		__("Refresh status") + "</button>" +
 		"<div class=\"small text-muted mt-2\">" +
@@ -378,6 +381,8 @@ function run_docker_setup_action(frm, action) {
 			return run_docker_engine_install(frm);
 		case "verify_runtime":
 			return run_docker_observation(frm, "verify", "Verify Docker Runtime");
+		case "updates":
+			return run_docker_observation(frm, "updates", "Check Docker Updates");
 		case "refresh":
 			return frm.reload_doc();
 		default:
