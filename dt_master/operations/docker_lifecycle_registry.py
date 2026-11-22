@@ -113,7 +113,7 @@ register_operation(
 		max_attempts=1,
 		priority="High",
 		execution_identity="frappe-worker",
-		resource_lock_keys=docker_setup_restart_lock_keys,
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
 	)
 )
 
