@@ -199,7 +199,7 @@ def docker_setup_restart_updates(node, checkpoint):
 		raise ValueError("A successful Docker runtime inspection is required before restarting preflight.")
 	if checkpoint == "repository_preparation" and plan.get("status") not in {"blocked", "preparation_required"}:
 		raise ValueError("A current repository-preparation plan is required for this checkpoint.")
-	if checkpoint == "engine_installation" and plan.get("status") != "ready":
+	if checkpoint == "engine_installation" and plan.get("status") not in {"ready", "no_op"}:
 		raise ValueError("A ready Docker install plan is required for the Engine installation checkpoint.")
 
 	invalidated = {
