@@ -226,7 +226,15 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		snapshot = cls._management_snapshot(node)
 		inspection = snapshot.get("host_inspection") or {}
 		if (
-			getattr(node, "docker_host_state", None) != "Privilege Setup Required"
+			getattr(node, "docker_host_state", None)
+			not in {
+				"Privilege Setup Required",
+				"Docker Inspection Required",
+				"Repository Preparation Required",
+				"Ready for Install",
+				"Engine Ready",
+				"Recovery Required",
+			}
 			or inspection.get("inspection_status") != "Successful"
 			or inspection.get("os_support_status") != "Supported"
 			or not inspection.get("operation_id")
