@@ -47,7 +47,7 @@ ENGINE_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx
 CONFLICT_PACKAGES = ("docker.io", "docker-compose", "podman-docker", "containerd", "runc")
 DOCKER_SOURCE_DOMAIN = "download.docker.com"
 DOCKER_KEYRING = "/etc/apt/keyrings/docker.asc"
-APT_LISTS = Path("/var/lib/apt/lists")
+APT_REFRESH_MARKER = Path("/var/lib/dt-master/docker-apt-refresh-success")
 APT_ARCHIVES = Path("/var/cache/apt/archives")
 ROOT = Path("/")
 
@@ -333,17 +333,18 @@ def _repository_evidence() -> dict:
 
 def _apt_metadata() -> dict:
 	try:
-		files = [
-			p
-			for p in APT_LISTS.iterdir()
-			if p.is_file() and DOCKER_SOURCE_DOMAIN in p.name and not p.name.endswith(("lock", "partial"))
-		]
-		newest = max((p.stat().st_mtime for p in files), default=None)
+		metadata = APT_REFRESH_MARKER.lstat()
+		if (
+			not APT_REFRESH_MARKER.is_file()
+			or metadata.st_uid != 0
+			or metadata.st_gid != 0
+			or metadata.st_mode & 0o777 != 0o644
+		):
+			return {"status": "Unavailable", "age_seconds": None}
+		refreshed_at = metadata.st_mtime
 	except OSError:
-		newest = None
-	if newest is None:
 		return {"status": "Unavailable", "age_seconds": None}
-	age = max(0, int(datetime.now(timezone.utc).timestamp() - newest))
+	age = max(0, int(datetime.now(timezone.utc).timestamp() - refreshed_at))
 	status = "Fresh" if age <= 86400 else "Aging" if age <= 604800 else "Stale"
 	return {"status": status, "age_seconds": age}
 
@@ -437,7 +438,7 @@ def collect() -> dict:
 	host = _os_release()
 	services = _service_state()
 	workloads = _workload_summary()
-	if not shutil.which("docker") and any(state != "inactive" for state in services.values()):
+	if not shutil.which("docker") and any(services.get(name) != "inactive" for name in ("docker", "containerd")):
 		# Do not infer an empty workload set when a Docker/containerd service
 		# may exist but its CLI is unavailable.
 		workloads = {"available": False, "running_containers": None, "total_containers": None}
