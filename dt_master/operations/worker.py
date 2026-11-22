@@ -124,6 +124,7 @@ def execute_operation(operation_id):
 
     attempt = int(operation.attempt_count or 0) + 1
     leases = []
+    result = None
     try:
         with as_execution_identity(operation.execution_identity):
             keys = _resource_lock_keys(definition, target, operation)
@@ -272,3 +273,49 @@ def execute_operation(operation_id):
             },
         )
         frappe.db.commit()
+
+    # Assessment-to-bootstrap continuation is intentionally dispatched only
+    # after the assessment terminal transaction committed and its leases were released.
+    if (
+        operation.operation_type == "host.node.docker.helper_release.assess"
+        and isinstance(result, dict)
+        and isinstance(result.get("data"), dict)
+        and result["data"].get("assessment_status") == "Bootstrap Required"
+    ):
+        from dt_master.operations.coordinator import start_operation
+
+        previous_user = frappe.session.user
+        try:
+            frappe.set_user(operation.initiated_by)
+            bootstrap = start_operation(
+                "host.node.docker.privileges.bootstrap",
+                operation.target_doctype,
+                operation.target_name,
+                {},
+                idempotency_key=f"docker-helper-bootstrap:{operation.operation_id}",
+                correlation_id=operation.correlation_id,
+            )
+            record_operation_event(
+                operation_id,
+                "bootstrap_dispatched",
+                phase="continuation",
+                message="A separate Docker privilege bootstrap operation was dispatched after assessment completed.",
+                event_data={"bootstrap_operation_id": bootstrap["operation_id"]},
+            )
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Docker Helper Release bootstrap continuation failed: {operation_id}",
+            )
+            record_operation_event(
+                operation_id,
+                "bootstrap_dispatch_failed",
+                phase="continuation",
+                message="Assessment completed, but the separate Docker privilege bootstrap operation could not be dispatched.",
+                event_data={"error_code": "DOCKER_HELPER_BOOTSTRAP_DISPATCH_FAILED"},
+            )
+            frappe.db.commit()
+        finally:
+            frappe.set_user(previous_user)
