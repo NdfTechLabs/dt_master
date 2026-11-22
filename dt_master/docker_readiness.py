@@ -227,6 +227,10 @@ def evaluate_docker_readiness(
     evidence_trustworthy = snapshot["inspection_status"] == "Successful" and not stale
     for check in requirements["checks"]:
         key, severity, expected = check["key"], check["severity"], check["expected"]
+        # Compose is a post-install requirement. Until the Engine is available,
+        # absence of the Compose plugin is expected and is not readiness evidence.
+        if key in {"docker_compose_required", "min_compose_version"} and snapshot["engine"]["availability"] != "Available":
+            continue
         observed = _path_value(snapshot, _REQUIREMENT_PATHS[key])
         if not evidence_trustworthy or observed is None:
             add(
