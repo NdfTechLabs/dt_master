@@ -919,19 +919,13 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"], "Current"
 		)
 
-	def test_release_assessment_installs_when_deployed_scripts_match_then_verifies(self):
+	def test_release_assessment_requests_separate_bootstrap_when_deployed_scripts_match(self):
 		manifest, manifest_json, release = self._release_manifest_fixture()
 		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
-		deployed = self._release_inspection_state("matching", True, True)
-		first = self._release_inspection_payload(
+		remote = self._release_inspection_payload(
 			digest,
 			self._release_inspection_state("mismatch", False, True, installed=True),
-			deployed,
-		)
-		second = self._release_inspection_payload(
-			digest,
-			self._release_inspection_state("matching", True, True, installed=True),
-			deployed,
+			self._release_inspection_state("matching", True, True),
 		)
 		with (
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
@@ -939,21 +933,17 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				side_effect=[(0, json.dumps(first), ""), (0, json.dumps(second), "")],
-			) as remote,
-			patch.object(
-				self.adapter,
-				"_bootstrap_privileges",
-				return_value=SimpleNamespace(outcome="succeeded", observed_state="Ready", diagnostics=()),
-			) as install,
+				return_value=(0, json.dumps(remote), ""),
+			) as remote_call,
+			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
 			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
 			result = self.adapter._release_assess(request("release_assess"))
-		self.assertEqual(result.observed_state, "Current")
+		self.assertEqual(result.observed_state, "Bootstrap Required")
 		self.assertEqual(result.outcome, "succeeded")
-		install.assert_called_once()
-		self.assertEqual(remote.call_count, 2)
-		self.assertEqual(result.data["installation"]["outcome"], "succeeded")
+		install.assert_not_called()
+		remote_call.assert_called_once()
+		self.assertEqual(result.data["assessment_status"], "Bootstrap Required")
 
 	def test_release_assessment_requests_manual_deployment_when_scripts_do_not_match(self):
 		manifest, manifest_json, release = self._release_manifest_fixture()
