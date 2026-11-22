@@ -148,7 +148,11 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 				"privilege_readiness": {"status": "Not Ready"},
 			},
 		)
-		with patch.object(adapter, "_inspect", return_value=inspection):
+		with (
+			patch.object(adapter, "_node_for_request", return_value=SimpleNamespace(name="NODE-0001")),
+			patch.object(adapter, "_inspect", return_value=inspection),
+			patch.object(adapter, "_persist_inspection_evidence"),
+		):
 			result = adapter.invoke("preflight", request)
 		self.assertEqual(result.outcome, "failed")
 		self.assertEqual(result.observed_state, "Blocked")
