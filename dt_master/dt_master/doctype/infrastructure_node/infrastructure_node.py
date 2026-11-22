@@ -15,6 +15,8 @@ from dt_master.docker_readiness import (
 )
 
 
+DOCKER_HELPER_RELEASE_MANIFEST_FIELD = "docker_helper_release_manifest"
+
 DOCKER_HELPER_RELEASE_ASSESSMENT_FIELDS = (
 	"docker_helper_release_assessment_status",
 	"docker_helper_release_assessed_on",
@@ -77,15 +79,16 @@ class InfrastructureNode(Document):
 		self._prevent_direct_docker_host_lifecycle_updates()
 		self._prevent_direct_docker_helper_release_assessment_updates()
 		self._validate_docker_helper_release_assignment()
+		self._prepare_docker_helper_release_manifest()
 		self._validate_docker_readiness_requirements()
 
 	def on_update(self):
 		"""Reevaluate readiness whenever this Node's requirements change."""
 		previous = self.get_doc_before_save()
-		if not previous or not self._docker_requirements_changed(previous, self):
-			return
-
-		self._reevaluate_docker_readiness()
+		if previous:
+			self._retire_unassigned_previous_helper_release(previous)
+		if previous and self._docker_requirements_changed(previous, self):
+			self._reevaluate_docker_readiness()
 
 	@staticmethod
 	def _docker_requirements_changed(previous, current=None):
@@ -202,6 +205,53 @@ class InfrastructureNode(Document):
 				),
 				title=frappe._("Read-only Docker Helper Release Assessment"),
 			)
+
+
+	def _prepare_docker_helper_release_manifest(self):
+		"""Build a node-specific manifest when its Published release assignment changes."""
+		previous = self.get_doc_before_save()
+		previous_release = previous.docker_helper_release if previous else None
+		if previous_release == self.docker_helper_release:
+			return
+		if not self.docker_helper_release:
+			self.docker_helper_release_manifest = None
+			return
+
+		from pathlib import Path
+
+		from dt_master.docker_helper_releases import (
+			DockerHelperReleaseError,
+			serialize_release_manifest,
+		)
+
+		release = frappe.get_doc("Docker Helper Release", self.docker_helper_release)
+		try:
+			manifest = serialize_release_manifest(
+				release,
+				source_root=Path(__file__).resolve().parents[3],
+			)
+		except DockerHelperReleaseError as exc:
+			frappe.throw(
+				frappe._("The assigned release manifest could not be generated: {0}").format(str(exc)),
+				title=frappe._("Invalid Docker Helper Release"),
+			)
+		self.docker_helper_release_manifest = manifest
+
+	def _retire_unassigned_previous_helper_release(self, previous):
+		"""Retire the former release only when no other Node still references it."""
+		old_release = previous.docker_helper_release
+		if not old_release or old_release == self.docker_helper_release:
+			return
+		remaining = frappe.db.count(
+			"Infrastructure Node",
+			{"docker_helper_release": old_release, "name": ["!=", self.name]},
+		)
+		if remaining:
+			return
+		release = frappe.get_doc("Docker Helper Release", old_release)
+		if release.status == "Published":
+			release.status = "Retired"
+			release.save(ignore_permissions=True)
 
 	def _validate_docker_helper_release_assignment(self):
 		"""Only published catalog releases may be assigned to an Infrastructure Node."""
