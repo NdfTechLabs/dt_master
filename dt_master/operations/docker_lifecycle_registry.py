@@ -10,6 +10,7 @@ from dt_master.operations.docker_lifecycle import (
 	docker_lifecycle_resource_lock_keys,
 	docker_setup_restart_updates,
 	authorize_docker_setup_restart,
+	docker_setup_restart_lock_keys,
 	validate_docker_lifecycle_payload,
 )
 from dt_master.operations.registry import OperationDefinition, register_operation
@@ -112,7 +113,7 @@ register_operation(
 		max_attempts=1,
 		priority="High",
 		execution_identity="frappe-worker",
-		resource_lock_keys=docker_lifecycle_resource_lock_keys,
+		resource_lock_keys=docker_setup_restart_lock_keys,
 	)
 )
 
