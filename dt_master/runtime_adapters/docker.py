@@ -629,6 +629,37 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 	@staticmethod
+	def _requires_repository_preparation(plan):
+		"""Return true only when every planner blocker is addressable by repository preparation."""
+		plan_reasons = set(plan.get("reason_codes") or [])
+		preparation_reasons = {
+			"APT_METADATA_NOT_FRESH",
+			"DOCKER_KEYRING_PATH_UNTRUSTED",
+			"DOCKER_REPOSITORY_UNTRUSTED",
+			"DOCKER_SIGNING_KEY_UNVERIFIED",
+			"WORKLOAD_STATE_UNAVAILABLE",
+		}
+		package_candidate_reasons = {
+			reason
+			for reason in plan_reasons
+			if reason.startswith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")
+		}
+		known_preparation_blockers = preparation_reasons | package_candidate_reasons
+		return plan.get("status") == "preparation_required" or (
+			bool(plan.get("prerequisites"))
+			and bool(plan_reasons)
+			and plan_reasons.issubset(known_preparation_blockers)
+			and bool(
+				set(plan.get("prerequisites") or [])
+				& {
+					"configure_official_docker_repository",
+					"refresh_apt_metadata",
+					"verify_and_pin_docker_signing_key",
+				}
+			)
+		)
+
+	@staticmethod
 	def _persist_install_plan_evidence(node, request, inspection, plan):
 		"""Persist a validated plan only when it is bound to this successful inspection."""
 		from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
@@ -672,7 +703,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			),
 			"docker_host_management_snapshot": json.dumps(management, sort_keys=True, separators=(",", ":")),
 		}
-		if plan["status"] == "preparation_required":
+		if DockerRuntimeAdapter._requires_repository_preparation(plan):
 			updates["docker_host_state"] = "Repository Preparation Required"
 		elif plan["status"] == "ready":
 			updates["docker_host_state"] = "Ready for Install"
@@ -1144,8 +1175,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		helper_dispatched = False
 		phase = "lifecycle_eligibility"
 		try:
-			if getattr(node, "docker_host_state", None) != "Repository Preparation Required":
-				raise ValueError("Infrastructure Node must be in Repository Preparation Required state.")
+			if getattr(node, "docker_host_state", None) not in {
+				"Docker Inspection Required",
+				"Repository Preparation Required",
+			}:
+				raise ValueError("Infrastructure Node is not eligible for Docker repository preparation.")
 			self._require_privilege_verified(node)
 			if execution_context is not None:
 				execution_context.heartbeat()
@@ -1166,7 +1200,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				raise ValueError("Docker Engine installation inventory is unavailable.")
 			plan = build_docker_engine_install_plan(request.target_name, inventory)
 			validate_docker_engine_install_plan(plan)
-			if plan.get("status") != "preparation_required":
+			if not self._requires_repository_preparation(plan):
 				raise ValueError("Fresh Docker Engine plan does not authorize repository preparation.")
 
 			phase = "repository_preparation_dispatch"
