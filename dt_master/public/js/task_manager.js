@@ -5,7 +5,8 @@
 	"use strict";
 
 	if (window.__dtMasterTaskManager) return;
-	if (!window.frappe || !frappe.boot || !frappe.session || frappe.session.user === "Guest") return;
+	if (!window.frappe || !frappe.boot || !frappe.session || frappe.session.user === "Guest")
+		return;
 
 	const API = "dt_master.api.operations.get_operations";
 	const EVENTS_API = "dt_master.api.operations.get_operation_events";
@@ -47,12 +48,14 @@
 		if (state === "Recovery Required") return "warning";
 		return "active";
 	};
-	const text = (value, fallback = "—") => value === null || value === undefined || value === "" ? fallback : String(value);
+	const text = (value, fallback = "—") =>
+		value === null || value === undefined || value === "" ? fallback : String(value);
 	const formatDate = (value) => {
 		if (!value) return "";
-		const date = frappe.datetime && frappe.datetime.str_to_user
-			? frappe.datetime.str_to_user(value)
-			: value;
+		const date =
+			frappe.datetime && frappe.datetime.str_to_user
+				? frappe.datetime.str_to_user(value)
+				: value;
 		return text(date, "");
 	};
 
@@ -76,7 +79,10 @@
 				try {
 					this.onOperationEvent(event);
 				} catch (error) {
-					console.error("[dt_master] Task Manager failed to process an operation event.", error);
+					console.error(
+						"[dt_master] Task Manager failed to process an operation event.",
+						error
+					);
 				}
 			};
 			this.handleReconnect = () => this.reconcileAll();
@@ -86,7 +92,9 @@
 			if (this.root || !document.body) return;
 			this.root = document.createElement("section");
 			this.root.id = "dt-master-task-manager";
-			this.root.className = this.collapsed ? "dt-task-manager is-collapsed" : "dt-task-manager";
+			this.root.className = this.collapsed
+				? "dt-task-manager is-collapsed"
+				: "dt-task-manager";
 			this.root.setAttribute("aria-label", __("Background operations"));
 			document.body.appendChild(this.root);
 			this.render();
@@ -104,7 +112,10 @@
 			// binds immediately after socket creation instead of marking itself
 			// bound to a subscription that was never registered.
 			if (!realtime.socket) {
-				if (!realtime.__dtMasterTaskManagerInitHooked && typeof realtime.init === "function") {
+				if (
+					!realtime.__dtMasterTaskManagerInitHooked &&
+					typeof realtime.init === "function"
+				) {
 					const taskManager = this;
 					const originalInit = realtime.init;
 					realtime.init = function (...args) {
@@ -133,7 +144,8 @@
 				event.sequence === undefined ||
 				!Number.isInteger(Number(event.sequence)) ||
 				Number(event.sequence) < 1
-			) return;
+			)
+				return;
 			const operationId = String(event.operation_id);
 			if (!this.operations.has(operationId)) {
 				// Insert synchronously before any asynchronous request so the first
@@ -188,9 +200,17 @@
 					operation_id: operationId,
 					// The fetched record is authoritative for identity/target metadata.
 					// Preserve only live execution state and event data from the realtime card.
-					creation: operation.creation || current.creation || operation.started_on || null,
-					modified: current.modified || operation.modified || operation.completed_on || operation.started_on || null,
-					execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+					creation:
+						operation.creation || current.creation || operation.started_on || null,
+					modified:
+						current.modified ||
+						operation.modified ||
+						operation.completed_on ||
+						operation.started_on ||
+						null,
+					execution_state: hasLiveEvents
+						? current.execution_state
+						: operation.execution_state,
 					result: operation.result ?? current.result ?? null,
 					event_history: current.event_history || [],
 				});
@@ -219,7 +239,11 @@
 				while (hasMore) {
 					const response = await frappe.call({
 						method: EVENTS_API,
-						args: { operation_id: operationId, after_sequence: cursor, limit: EVENT_BATCH_SIZE },
+						args: {
+							operation_id: operationId,
+							after_sequence: cursor,
+							limit: EVENT_BATCH_SIZE,
+						},
 					});
 					const page = response.message || {};
 					const events = Array.isArray(page.events) ? page.events : [];
@@ -269,7 +293,11 @@
 			operation.event_history = operation.event_history.slice(-10);
 			operation.last_event_at = event.occurred_at || operation.last_event_at;
 			operation.modified = event.occurred_at || operation.modified;
-			if (event.event_type === "completed" || event.event_type === "failed" || event.event_type === "cancelled") {
+			if (
+				event.event_type === "completed" ||
+				event.event_type === "failed" ||
+				event.event_type === "cancelled"
+			) {
 				operation.completed_on = event.occurred_at || operation.completed_on;
 			}
 			this.lastSequences.set(operationId, sequence);
@@ -318,7 +346,9 @@
 						...current,
 						...operation,
 						operation_id: operationId,
-						execution_state: hasLiveEvents ? current.execution_state : operation.execution_state,
+						execution_state: hasLiveEvents
+							? current.execution_state
+							: operation.execution_state,
 						event_history: current.event_history || [],
 					});
 				}
@@ -329,13 +359,16 @@
 				}
 				this.operations = next;
 				for (const operationId of next.keys()) {
-					if (!this.lastSequences.has(operationId)) this.lastSequences.set(operationId, 0);
+					if (!this.lastSequences.has(operationId))
+						this.lastSequences.set(operationId, 0);
 				}
 				for (const operationId of [...this.lastSequences.keys()]) {
 					if (!next.has(operationId)) this.lastSequences.delete(operationId);
 				}
 				this.render();
-				await Promise.all([...next.keys()].map((operationId) => this.reconcileOperation(operationId)));
+				await Promise.all(
+					[...next.keys()].map((operationId) => this.reconcileOperation(operationId))
+				);
 			} catch (error) {
 				// Keep the panel usable; do not expose server diagnostics in Desk.
 				console.warn("[dt_master] Unable to refresh Task Manager snapshot.");
@@ -352,8 +385,10 @@
 			if (!this.root) return;
 			const operations = [...this.operations.values()];
 			const active = operations.filter((item) => ACTIVE_STATES.has(item.execution_state));
-			const byNewest = (a, b) => String(b.modified || b.creation || "")
-				.localeCompare(String(a.modified || a.creation || ""));
+			const byNewest = (a, b) =>
+				String(b.modified || b.creation || "").localeCompare(
+					String(a.modified || a.creation || "")
+				);
 			const groups = [
 				{ label: __("Queued"), states: ["Pending Dispatch", "Queued", "Retry Waiting"] },
 				{ label: __("Recovery Required"), states: ["Recovery Required"] },
@@ -408,7 +443,9 @@
 				body.appendChild(this.section(group.label, items));
 			}
 			const knownStates = new Set(groups.flatMap((group) => group.states));
-			const other = operations.filter((item) => !knownStates.has(item.execution_state)).sort(byNewest);
+			const other = operations
+				.filter((item) => !knownStates.has(item.execution_state))
+				.sort(byNewest);
 			if (other.length) {
 				visibleCount += other.length;
 				body.appendChild(this.section(__("Other"), other));
@@ -440,13 +477,17 @@
 			const label = document.createElement("strong");
 			label.textContent = operationLabel(operation.operation_type);
 			const badge = document.createElement("span");
-			badge.className = "dt-task-manager__state dt-task-manager__state--" + stateClass(operation.execution_state);
+			badge.className =
+				"dt-task-manager__state dt-task-manager__state--" +
+				stateClass(operation.execution_state);
 			badge.textContent = text(operation.execution_state);
 			line.append(label, badge);
 
 			const target = document.createElement("div");
 			target.className = "dt-task-manager__target";
-			target.textContent = [operation.target_doctype, operation.target_name].filter(Boolean).join(" · ") || __("Platform task");
+			target.textContent =
+				[operation.target_doctype, operation.target_name].filter(Boolean).join(" · ") ||
+				__("Platform task");
 			card.append(line, target);
 
 			if (operation.error_summary) {
@@ -472,10 +513,7 @@
 				const history = document.createElement("details");
 				history.className = "dt-task-manager__history";
 				const summary = document.createElement("summary");
-				summary.textContent = __(
-					"Event history ({0})",
-					[operation.event_history.length]
-				);
+				summary.textContent = __("Event history ({0})", [operation.event_history.length]);
 				history.appendChild(summary);
 				const list = document.createElement("ol");
 				list.className = "dt-task-manager__history-list";
@@ -490,14 +528,21 @@
 						event.phase,
 						event.execution_state,
 						formatDate(event.occurred_at),
-					].filter(Boolean).join(" · ");
+					]
+						.filter(Boolean)
+						.join(" · ");
 					item.appendChild(metadata);
-					if (event.progress && Number.isFinite(Number(event.progress.completed)) &&
-						Number.isFinite(Number(event.progress.total)) && Number(event.progress.total) > 0) {
+					if (
+						event.progress &&
+						Number.isFinite(Number(event.progress.completed)) &&
+						Number.isFinite(Number(event.progress.total)) &&
+						Number(event.progress.total) > 0
+					) {
 						const progress = document.createElement("div");
 						progress.className = "dt-task-manager__target";
 						progress.textContent = __("Progress: {0} / {1}", [
-							Number(event.progress.completed), Number(event.progress.total),
+							Number(event.progress.completed),
+							Number(event.progress.total),
 						]);
 						item.appendChild(progress);
 					}
@@ -514,13 +559,16 @@
 				// disclosure made the persisted adapter result look absent.
 				resultDetails.open = failed;
 				const resultSummary = document.createElement("summary");
-				resultSummary.textContent = failed ? __("Failure details") : __("Execution result");
+				resultSummary.textContent = failed
+					? __("Failure details")
+					: __("Execution result");
 				const resultBody = document.createElement("div");
 				resultBody.className = "dt-task-manager__result";
 				if (failed) {
 					const failure = operation.result.data?.failure;
 					const diagnostics = Array.isArray(operation.result.diagnostics)
-						? operation.result.diagnostics : [];
+						? operation.result.diagnostics
+						: [];
 					const entries = [];
 					if (failure?.phase) entries.push(__("Phase: {0}", [failure.phase]));
 					if (failure?.reason) entries.push(failure.reason);
@@ -536,7 +584,8 @@
 							if (item?.phase) entries.push(__("Step: {0}", [item.phase]));
 							if (item?.stderr) entries.push(item.stderr);
 							if (item?.reason) entries.push(item.reason);
-							if (item?.exit_code !== undefined) entries.push(__("Exit code: {0}", [item.exit_code]));
+							if (item?.exit_code !== undefined)
+								entries.push(__("Exit code: {0}", [item.exit_code]));
 						});
 					}
 					diagnostics.forEach((item) => {
