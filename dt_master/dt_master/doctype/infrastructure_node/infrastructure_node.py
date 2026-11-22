@@ -15,18 +15,18 @@ from dt_master.docker_readiness import (
 )
 
 
-DOCKER_HELPER_RELEASE_MANIFEST_FIELD = "docker_helper_release_manifest"
-
 DOCKER_HELPER_RELEASE_ASSESSMENT_FIELDS = (
 	"docker_helper_release_assessment_status",
 	"docker_helper_release_assessed_on",
 	"docker_helper_release_assessment_snapshot",
+	"docker_helper_release_manifest",
 )
 
 DOCKER_HELPER_RELEASE_ASSESSMENT_DEFAULTS = {
 	"docker_helper_release_assessment_status": "Not Assessed",
 	"docker_helper_release_assessed_on": None,
 	"docker_helper_release_assessment_snapshot": None,
+	"docker_helper_release_manifest": None,
 }
 
 DOCKER_INSPECTION_FIELDS = (
