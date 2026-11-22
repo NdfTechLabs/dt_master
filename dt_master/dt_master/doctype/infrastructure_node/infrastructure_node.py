@@ -272,7 +272,12 @@ class InfrastructureNode(Document):
 			return DOCKER_INSPECTION_DEFAULTS[field]
 		if value in (None, "") and field in ("host_discovery_status", "host_discovery_snapshot"):
 			return HOST_DISCOVERY_DEFAULTS[field]
-		if field in ("docker_inspected_on", "host_discovered_on", "docker_helper_release_assessed_on") and value:
+		if field in (
+			"docker_inspected_on",
+			"host_discovered_on",
+			"docker_helper_release_assessed_on",
+			"docker_host_state_updated_on",
+		) and value:
 			# Form submissions may carry a datetime as a string while the
 			# database-loaded document exposes a Python datetime object.
 			return get_datetime(value)
