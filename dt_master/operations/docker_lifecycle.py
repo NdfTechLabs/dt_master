@@ -238,3 +238,13 @@ def docker_setup_restart_updates(node, checkpoint):
 			"docker_inspection_snapshot": None,
 		})
 	return updates
+
+
+
+def docker_setup_restart_lock_keys(target, operation):
+	"""Fence setup recovery against both Host and Docker observations/mutations."""
+	if getattr(target, "doctype", None) != "Infrastructure Node" or not getattr(target, "name", None):
+		raise ValueError("Docker setup restart lock requires an Infrastructure Node target")
+	if getattr(operation, "operation_type", None) != "host.node.docker.setup.restart":
+		raise ValueError("Setup restart locks are reserved for the checkpoint restart operation")
+	return [f"node-docker:{target.name}", f"node-host-observation:{target.name}"]
