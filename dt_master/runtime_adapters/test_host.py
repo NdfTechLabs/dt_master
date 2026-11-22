@@ -18,6 +18,8 @@ def request(method="inspect"):
 		target_name="NODE-0001",
 		method=method,
 		payload={},
+		operation_id="operation-001",
+		correlation_id="correlation-001",
 	)
 
 
