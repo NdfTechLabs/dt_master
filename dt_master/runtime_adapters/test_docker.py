@@ -636,6 +636,75 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			self.adapter.invoke("inspect", request("inspect"))
 		remote.assert_not_called()
 
+	def test_successful_standalone_inspection_persists_correlated_evidence(self):
+		result, _remote = self._run()
+		self.assertEqual(result.outcome, "succeeded")
+		updates = [call.args[2] for call in self.db_set_value.call_args_list]
+		persisted = next(item for item in updates if "docker_inspection_snapshot" in item)
+		self.assertEqual(persisted["docker_inspection_status"], "Successful")
+		self.assertEqual(persisted["docker_readiness"], "Ready")
+		self.assertIn("docker_readiness_evaluation", persisted)
+		self.assertIn("docker_inspected_on", persisted)
+		management = json.loads(persisted["docker_host_management_snapshot"])
+		self.assertEqual(management["docker_inspection"]["operation_id"], "OP-0001")
+		self.assertEqual(management["docker_inspection"]["correlation_id"], "CORR-0001")
+		self.assertIn("host_inspection", management)
+		self.assertIn("privilege_bootstrap", management)
+		self.assertIn("privilege_readiness", management)
+
+	def test_failed_and_partial_inspections_do_not_persist_or_advance_state(self):
+		for code, expected in ((255, "Failed"), (0, "Partial")):
+			with self.subTest(expected=expected):
+				self.db_set_value.reset_mock()
+				snapshot = self._snapshot()
+				if expected == "Partial":
+					snapshot["inspection_status"] = "Partial"
+				result, _remote = self._run(code=code, snapshot=snapshot)
+				self.assertNotEqual(result.data["inspection_status"], "Successful")
+				self.db_set_value.assert_not_called()
+
+	def test_preflight_persists_plan_bound_to_its_inspection(self):
+		result, _remote = self._run(method="preflight")
+		self.assertEqual(result.data["docker_engine_install_plan_status"], "preparation_required")
+		updates = [call.args[2] for call in self.db_set_value.call_args_list]
+		persisted = next(item for item in updates if "docker_inspection_snapshot" in item)
+		management = json.loads(persisted["docker_host_management_snapshot"])
+		self.assertEqual(management["docker_install_plan"]["inspection_operation_id"], "OP-0001")
+		self.assertEqual(management["docker_install_plan"]["inspection_correlation_id"], "CORR-0001")
+		self.assertEqual(
+			management["docker_install_plan"]["plan_digest"],
+			result.data["docker_engine_install_plan"]["plan_digest"],
+		)
+		self.assertEqual(persisted["docker_host_state"], "Repository Preparation Required")
+
+	def test_unavailable_inventory_does_not_persist_plan_evidence_or_advance_state(self):
+		snapshot = self._snapshot()
+		del snapshot["host_inventory"]["docker_install_inventory"]
+		self._run(method="preflight", snapshot=snapshot)
+		updates = [call.args[2] for call in self.db_set_value.call_args_list]
+		persisted = next(item for item in updates if "docker_inspection_snapshot" in item)
+		management = json.loads(persisted["docker_host_management_snapshot"])
+		self.assertNotIn("docker_install_plan", management)
+		self.assertNotIn("docker_host_state", persisted)
+
+	def test_internal_install_inspection_does_not_persist_lifecycle_projection(self):
+		inspection = self._snapshot()
+		self.db_set_value.reset_mock()
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				return_value=(0, json.dumps(inspection), ""),
+			),
+			patch(
+				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
+				return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"},
+			),
+			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
+		):
+			self.adapter._inspect(request("install_engine"))
+		self.db_set_value.assert_not_called()
+
 	def test_inspection_uses_fixed_read_only_docker_script_without_sudo(self):
 		result, remote = self._run()
 		self.assertEqual(result.outcome, "succeeded")
