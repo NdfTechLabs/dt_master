@@ -438,7 +438,9 @@ def collect() -> dict:
 	host = _os_release()
 	services = _service_state()
 	workloads = _workload_summary()
-	if not shutil.which("docker") and any(services.get(name) != "inactive" for name in ("docker", "containerd")):
+	if not shutil.which("docker") and any(
+		services.get(name) != "inactive" for name in ("docker", "containerd")
+	):
 		# Do not infer an empty workload set when a Docker/containerd service
 		# may exist but its CLI is unavailable.
 		workloads = {"available": False, "running_containers": None, "total_containers": None}
