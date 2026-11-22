@@ -1271,7 +1271,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			if execution_context is not None:
 				execution_context.heartbeat()
 				execution_context.assert_leases()
-			helper_dispatched = True
 			code, stdout, stderr = run_trusted_helper(
 				node,
 				self._ssh_config(node),
@@ -1287,6 +1286,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					else None
 				),
 			)
+			helper_dispatched = True
 			try:
 				helper_result = json.loads(stdout.strip(), object_pairs_hook=self._unique_json_object)
 				self._validate_repository_preparation_result(helper_result)
@@ -1340,6 +1340,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
 		except Exception as exc:
+			if isinstance(exc, TrustedHelperExecutionError) and exc.may_have_executed:
+				helper_dispatched = True
 			uncertain = helper_dispatched
 			return self.result_for(
 				request,
