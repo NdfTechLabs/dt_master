@@ -5,6 +5,7 @@ initial exact-version Docker Engine installation, alongside read-only
 observations and the existing constrained privilege bootstrap.
 """
 
+import hashlib
 import json
 from copy import deepcopy
 from time import monotonic
@@ -37,6 +38,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			"updates_check",
 			"verify",
 			"privilege_check",
+			"release_assess",
 		)
 
 	@staticmethod
@@ -1608,6 +1610,222 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
+
+
+	def _release_assess(self, request, execution_context=None):
+		"""Compare the assigned catalog release with read-only remote artifact evidence."""
+		from dt_master.docker_helper_releases import build_release_manifest, serialize_release_manifest
+
+		started = monotonic()
+		node = self._node_for_request(request)
+		if not node.docker_helper_release:
+			status = "Unknown Release"
+			diagnostics = (
+				{
+					"code": "DOCKER_HELPER_RELEASE_NOT_ASSIGNED",
+					"severity": "warning",
+					"message": "No Docker Helper Release is assigned to this Infrastructure Node.",
+				},
+			)
+			snapshot = {
+				"schema_version": "1.0.0",
+				"assessment_status": status,
+				"assigned_release": None,
+				"remote_release": None,
+				"components": [],
+			}
+			observed_at = now_datetime()
+			frappe.db.set_value(
+				"Infrastructure Node",
+				node.name,
+				{
+					"docker_helper_release_assessment_status": status,
+					"docker_helper_release_assessed_on": observed_at,
+					"docker_helper_release_assessment_snapshot": json.dumps(
+						snapshot, sort_keys=True, separators=(",", ":")
+					),
+				},
+				update_modified=False,
+			)
+			return self.result_for(
+				request,
+				outcome="partial",
+				observed_state=status,
+				capabilities=self.capabilities(),
+				diagnostics=diagnostics,
+				data=snapshot,
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+
+		try:
+			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
+			manifest = build_release_manifest(release)
+			local_manifest_json = serialize_release_manifest(release)
+			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
+		except Exception as exc:
+			return self.result_for(
+				request,
+				outcome="failed",
+				observed_state="Failed",
+				capabilities=(),
+				diagnostics=(
+					{
+						"code": "DOCKER_HELPER_RELEASE_CATALOG_INVALID",
+						"severity": "error",
+						"message": "The assigned Docker Helper Release could not be projected from the catalog.",
+					},
+				),
+				data={"failure_type": type(exc).__name__},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+
+		try:
+			code, stdout, _stderr = run_remote_script(
+				node,
+				self._ssh_config(node),
+				"docker",
+				"inspect_docker_helper_release.sh",
+				{},
+				"script_execution_log",
+				{"execution": "inspect_docker_helper_release.sh", "node": node.name},
+				use_sudo=False,
+				timeout_seconds=30,
+				max_output_bytes=8192,
+			)
+			if code != 0:
+				raise ValueError("Remote Docker Helper Release inspection did not complete.")
+			remote = self._validate_release_inspection(json.loads(stdout.strip()))
+		except Exception:
+			status = "Failed"
+			remote = None
+			diagnostics = (
+				{
+					"code": "DOCKER_HELPER_RELEASE_INSPECTION_FAILED",
+					"severity": "error",
+					"message": "Remote Docker Helper Release evidence could not be inspected or validated.",
+				},
+			)
+		else:
+			diagnostics = ()
+			if remote["status"] != "recognized":
+				status = "Unknown Release"
+				diagnostics = (
+					{
+						"code": "DOCKER_HELPER_RELEASE_UNKNOWN",
+						"severity": "warning",
+						"message": "The node does not contain a recognized Docker Helper Release manifest.",
+					},
+				)
+			elif any(row["integrity"] != "verified" for row in remote["components"]):
+				status = "Reconciliation Required"
+				diagnostics = (
+					{
+						"code": "DOCKER_HELPER_COMPONENT_INTEGRITY_MISMATCH",
+						"severity": "error",
+						"message": "One or more installed Docker Helper Release components do not match their manifest.",
+					},
+				)
+			elif remote["manifest"]["sha256"] == local_digest:
+				status = "Current"
+			else:
+				status = "Upgrade Required"
+				diagnostics = (
+					{
+						"code": "DOCKER_HELPER_RELEASE_VERSION_MISMATCH",
+						"severity": "warning",
+						"message": "The installed Docker Helper Release differs from the release assigned to this node.",
+					},
+				)
+
+		observed_at = now_datetime()
+		snapshot = {
+			"schema_version": "1.0.0",
+			"assessment_status": status,
+			"operation_id": request.operation_id,
+			"correlation_id": request.correlation_id,
+			"observed_at": str(observed_at),
+			"assigned_release": {
+				"release_id": release.release_id,
+				"version": release.version,
+				"manifest_sha256": local_digest,
+			},
+			"remote_release": remote,
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"docker_helper_release_assessment_status": status,
+				"docker_helper_release_assessed_on": observed_at,
+				"docker_helper_release_assessment_snapshot": json.dumps(
+					snapshot, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
+		)
+		outcome = "succeeded" if status == "Current" else ("failed" if status == "Failed" else "partial")
+		return self.result_for(
+			request,
+			outcome=outcome,
+			observed_state=status,
+			capabilities=self.capabilities(),
+			diagnostics=diagnostics,
+			data=snapshot,
+			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+		)
+
+	@staticmethod
+	def _validate_release_inspection(payload):
+		"""Validate the closed, read-only remote helper-release inspection contract."""
+		required = {"schema_version", "observed_at", "status", "manifest", "components"}
+		if not isinstance(payload, dict) or set(payload) != required:
+			raise ValueError("Invalid Docker Helper Release inspection fields.")
+		if payload["schema_version"] != "1.0.0" or payload["status"] not in {"recognized", "unrecognized"}:
+			raise ValueError("Unsupported Docker Helper Release inspection contract.")
+		if not isinstance(payload["observed_at"], str) or len(payload["observed_at"]) > 40:
+			raise ValueError("Invalid Docker Helper Release observation timestamp.")
+		if payload["status"] == "unrecognized":
+			if payload["manifest"] is not None or payload["components"] != []:
+				raise ValueError("Unrecognized Docker Helper Release response contains unexpected evidence.")
+			return payload
+		manifest = payload["manifest"]
+		if (
+			not isinstance(manifest, dict)
+			or set(manifest) != {"id", "version", "channel", "schema_version", "sha256"}
+			or not all(isinstance(manifest[key], str) for key in manifest)
+			or not re.fullmatch(r"[a-f0-9]{64}", manifest["sha256"])
+		):
+			raise ValueError("Invalid installed Docker Helper Release manifest evidence.")
+		if not isinstance(payload["components"], list) or len(payload["components"]) != 3:
+			raise ValueError("Invalid installed Docker Helper Release component evidence.")
+		expected_ids = {"lifecycle_helper", "install_policy", "host_inventory"}
+		seen = set()
+		for row in payload["components"]:
+			if (
+				not isinstance(row, dict)
+				or set(row) != {"id", "version", "expected_sha256", "observed_sha256", "owner", "group", "mode", "integrity"}
+				or row["id"] not in expected_ids
+				or row["id"] in seen
+				or row["integrity"] not in {"verified", "mismatch"}
+				or not isinstance(row["version"], str)
+				or not isinstance(row["owner"], str)
+				or not isinstance(row["group"], str)
+				or not isinstance(row["mode"], str)
+				or not isinstance(row["expected_sha256"], str)
+				or not re.fullmatch(r"[a-f0-9]{64}", row["expected_sha256"])
+				or (
+					row["observed_sha256"] is not None
+					and (
+						not isinstance(row["observed_sha256"], str)
+						or not re.fullmatch(r"[a-f0-9]{64}", row["observed_sha256"])
+					)
+				)
+			):
+				raise ValueError("Invalid installed Docker Helper Release component row.")
+			seen.add(row["id"])
+		if seen != expected_ids:
+			raise ValueError("Installed Docker Helper Release component inventory is incomplete.")
+		return payload
 
 	def _preflight(self, request, execution_context=None):
 		"""Combine runtime readiness with a read-only, deterministic Engine install plan."""

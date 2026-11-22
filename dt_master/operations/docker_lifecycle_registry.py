@@ -85,6 +85,7 @@ for _operation_type, _method in (
 	("host.node.docker.preflight", "preflight"),
 	("host.node.docker.updates.check", "updates_check"),
 	("host.node.docker.verify", "verify"),
+	("host.node.docker.helper_release.assess", "release_assess"),
 ):
 	register_operation(
 		OperationDefinition(

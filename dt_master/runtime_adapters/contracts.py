@@ -35,6 +35,7 @@ OBSERVATION_METHODS = frozenset(
 		"verify",
 		"privilege_check",
 		"connection_check",
+		"release_assess",
 	}
 )
 ADAPTER_METHODS = MUTATING_METHODS | OBSERVATION_METHODS

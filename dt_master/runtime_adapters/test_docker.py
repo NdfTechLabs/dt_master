@@ -1,5 +1,6 @@
 """Tests for Docker runtime adapter inspection and lifecycle operations."""
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -774,6 +775,84 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		):
 			result = self.adapter.invoke(method, request(method))
 		return result, remote
+
+
+	def test_release_assessment_marks_matching_verified_release_current(self):
+		from dt_master.docker_helper_releases import RELEASE_MANIFEST_SCHEMA_VERSION
+
+		manifest = {
+			"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
+			"release": {"id": "dt-docker-helper-0.3.2", "version": "0.3.2", "channel": "stable", "status": "supported"},
+			"compatibility": {},
+			"components": [],
+			"lifecycle": {},
+		}
+		manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
+		remote = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-22T19:00:00Z",
+			"status": "recognized",
+			"manifest": {
+				"id": "dt-docker-helper-0.3.2",
+				"version": "0.3.2",
+				"channel": "stable",
+				"schema_version": "1.0.0",
+				"sha256": digest,
+			},
+			"components": [
+				{
+					"id": component_id,
+					"version": version,
+					"expected_sha256": "a" * 64,
+					"observed_sha256": "a" * 64,
+					"owner": "root",
+					"group": "root",
+					"mode": "755",
+					"integrity": "verified",
+				}
+				for component_id, version in (
+					("lifecycle_helper", "0.3.2"),
+					("install_policy", "1.1.1"),
+					("host_inventory", "1.0.0"),
+				)
+			],
+		}
+		release = SimpleNamespace(
+			release_id="dt-docker-helper-0.3.2",
+			version="0.3.2",
+			status="Published",
+			components=[],
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch("dt_master.docker_helper_releases.build_release_manifest", return_value=manifest),
+			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
+			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, json.dumps(remote), "")),
+		):
+			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			result = self.adapter._release_assess(request("release_assess"))
+		self.assertEqual(result.observed_state, "Current")
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"], "Current")
+
+	def test_release_inspection_rejects_incomplete_component_inventory(self):
+		payload = {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-22T19:00:00Z",
+			"status": "recognized",
+			"manifest": {
+				"id": "dt-docker-helper-0.3.2",
+				"version": "0.3.2",
+				"channel": "stable",
+				"schema_version": "1.0.0",
+				"sha256": "a" * 64,
+			},
+			"components": [],
+		}
+		with self.assertRaises(ValueError):
+			self.adapter._validate_release_inspection(payload)
 
 	def test_privilege_check_returns_readiness_and_does_not_run_docker_inventory(self):
 		self.node.docker_host_state = "Privilege Setup Required"

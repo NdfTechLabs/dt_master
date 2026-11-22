@@ -40,6 +40,7 @@ READ_ONLY_OPERATIONS = frozenset(
 		"host.node.docker.preflight",
 		"host.node.docker.updates.check",
 		"host.node.docker.verify",
+		"host.node.docker.helper_release.assess",
 	}
 )
 DOCKER_LIFECYCLE_OPERATIONS = MUTATING_OPERATIONS | READ_ONLY_OPERATIONS
