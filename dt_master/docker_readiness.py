@@ -89,7 +89,7 @@ def build_node_readiness_requirements(node: Any) -> dict[str, Any]:
                     raise ReadinessContractError(f"{severity_field} requires {value_field} to be configured")
                 continue
             if kind == "gib":
-                if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+                if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
                     raise ReadinessContractError(f"{value_field} must be a positive GiB value")
                 expected = round(value * 1024**3)
             else:
@@ -229,7 +229,10 @@ def evaluate_docker_readiness(
         key, severity, expected = check["key"], check["severity"], check["expected"]
         # Compose is a post-install requirement. Until the Engine is available,
         # absence of the Compose plugin is expected and is not readiness evidence.
-        if key in {"docker_compose_required", "min_compose_version"} and snapshot["engine"]["availability"] != "Available":
+        if (
+            key in {"docker_compose_required", "min_compose_version"}
+            and snapshot["engine"]["availability"] != "Available"
+        ):
             continue
         observed = _path_value(snapshot, _REQUIREMENT_PATHS[key])
         if not evidence_trustworthy or observed is None:
@@ -257,7 +260,7 @@ def evaluate_docker_readiness(
             else:
                 passed = observed == "Compatible"
         elif key in _NUMERIC_REQUIREMENTS:
-            if isinstance(observed, bool) or not isinstance(observed, (int, float)):
+            if isinstance(observed, bool) or not isinstance(observed, int | float):
                 observed = None
             else:
                 passed = observed >= expected
