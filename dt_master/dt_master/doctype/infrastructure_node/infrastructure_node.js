@@ -331,9 +331,9 @@ function docker_setup_state(frm) {
 			action = { key: "check_privileges", label: "Check Docker Privileges" };
 		}
 	} else if (state === "Docker Inspection Required") {
-		if (planStatus === "blocked") {
+		if (["blocked", "preparation_required"].includes(planStatus)) {
 			blockedReason =
-				"The latest preflight produced a valid but blocked install plan. Review its blocking reasons before retrying.";
+				"The latest preflight plan cannot advance because a required host resource or installation prerequisite is not satisfied. Review the plan and readiness diagnostics.";
 		} else if (!privilegesReady) {
 			blockedReason =
 				"Docker runtime inspection is locked until trusted privilege verification succeeds.";
