@@ -21,6 +21,7 @@ MUTATING_METHODS = frozenset(
 		"backup",
 		"restore",
 		"bootstrap_privileges",
+		"prepare_repository",
 		"install_engine",
 	}
 )
