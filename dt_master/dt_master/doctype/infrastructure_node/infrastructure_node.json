@@ -277,7 +277,7 @@
    "fieldname": "docker_helper_release_assessment_status",
    "fieldtype": "Select",
    "label": "Release Assessment Status",
-   "options": "Not Assessed\nCurrent\nScripts Deployment Required\nUpgrade Required\nReconciliation Required\nUnknown Release\nFailed",
+   "options": "Not Assessed\nCurrent\nScripts Deployment Required\nUpgrade Required\nReconciliation Required\nSource Drift\nUnknown Release\nFailed",
    "default": "Not Assessed",
    "read_only": 1
   },
