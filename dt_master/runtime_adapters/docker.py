@@ -1604,7 +1604,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		if inspection.data.get("inspection_status") == "Successful" and install_plan is None:
 			self._persist_inspection_evidence(node, request, inspection.data)
 		inspection_status = inspection.data.get("inspection_status")
-		if inspection_status != "Successful" or inspection.outcome == "failed":
+		if inspection_status != "Successful":
 			outcome, state = "failed", "Blocked"
 		elif privilege != "Ready":
 			outcome, state = ("failed", "Blocked") if privilege == "Not Ready" else ("partial", "Degraded")
