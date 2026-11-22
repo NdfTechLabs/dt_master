@@ -4,7 +4,7 @@ import datetime
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from dt_master.runtime_adapters.contracts import RuntimeAdapterRequest
 from dt_master.runtime_adapters.host import HostRuntimeAdapter
@@ -92,7 +92,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script",
-				return_value=(0, "DT_MASTER_SSH_OK\n", ""),
+				return_value=(0, "DT_MASTER_SSH_OK" + chr(10), ""),
 			) as run,
 		):
 			result = self.adapter.invoke("connection_check", request("connection_check"))
@@ -186,7 +186,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("inspect", request())
 		self.assertEqual(result.data["schema_version"], "2.0.0")
 		self.assertEqual(result.data["discovery"]["network"]["interfaces"], [])
-		updates = [call.args[2] for call in set_value.call_args_list]
+		updates = [entry.args[2] for entry in set_value.call_args_list]
 		discovery_updates = next(item for item in updates if "host_discovery_status" in item)
 		lifecycle_updates = next(item for item in updates if "docker_host_state" in item)
 		self.assertEqual(discovery_updates["cpu_cores"], 6)
