@@ -1,8 +1,7 @@
-"""Typed contracts for Infrastructure Node Docker package lifecycle operations.
+"""Typed contracts for Infrastructure Node Docker lifecycle operations.
 
-This module defines the request boundary only. It deliberately does not register
-or execute lifecycle operations; handlers remain unavailable until the fixed
-privilege boundary and package scripts have been implemented and accepted.
+This module defines the request boundary only. Durable operation registration
+lives in docker_lifecycle_registry; runtime execution lives in the Docker adapter.
 """
 
 import re
