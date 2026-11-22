@@ -632,7 +632,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Persist a validated plan only when it is bound to this successful inspection."""
 		from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
 
-		if inspection.get("inspection_status") != "Successful":
+		if (
+			inspection.get("inspection_status") != "Successful"
+			or inspection.get("readiness") != "Ready"
+			or (inspection.get("privilege_readiness") or {}).get("status") != "Ready"
+		):
 			return False
 		validate_docker_engine_install_plan(plan)
 		if plan.get("status") not in {"preparation_required", "ready", "blocked", "no_op"}:
