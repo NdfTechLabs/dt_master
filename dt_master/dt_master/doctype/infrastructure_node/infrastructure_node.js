@@ -701,6 +701,11 @@ function docker_setup_progress_html(frm, setup) {
 		: '<div class="text-muted small mt-3">' +
 		  __("Docker lifecycle actions are available to System Managers.") +
 		  "</div>";
+	const recoveryActionHtml = frappe.user_roles.includes("System Manager")
+		? '<button type="button" class="btn btn-default btn-sm mt-3 ml-2" data-docker-action="restart_from">' +
+		  __("Restart from…") +
+		  "</button>"
+		: "";
 	const secondaryActionsHtml =
 		frappe.user_roles.includes("System Manager") && setup.state === "Engine Ready"
 			? '<button type="button" class="btn btn-default btn-sm mt-3 ml-2" data-docker-action="verify_runtime">' +
@@ -730,6 +735,7 @@ function docker_setup_progress_html(frm, setup) {
 		"</ol>" +
 		planHtml +
 		roleHtml +
+		recoveryActionHtml +
 		secondaryActionsHtml +
 		'<button type="button" class="btn btn-default btn-xs mt-2" data-docker-action="refresh">' +
 		__("Refresh status") +
@@ -764,6 +770,8 @@ function run_docker_setup_action(frm, action) {
 			return run_docker_repository_prepare(frm);
 		case "install_engine":
 			return run_docker_engine_install(frm);
+		case "restart_from":
+			return show_docker_setup_restart_dialog(frm);
 		case "verify_runtime":
 			return run_docker_observation(frm, "verify", "Verify Docker Runtime");
 		case "updates":
@@ -1042,4 +1050,80 @@ function start_execution_log_stream(dialog, node_name) {
 			frappe.realtime.off("script_execution_log");
 		}
 	});
+}
+
+
+
+function show_docker_setup_restart_dialog(frm) {
+	const checkpoints = [
+		{ value: "connection", label: __("1. SSH Connection"), description: __("Repeat connection verification and rebuild all downstream evidence.") },
+		{ value: "host_inspection", label: __("2. Host Inspection"), description: __("Preserve SSH verification; repeat Host inspection and all later stages.") },
+		{ value: "privilege_helper", label: __("3. Docker Privilege Helper"), description: __("Preserve Host inspection; reinstall helper and rebuild downstream evidence.") },
+		{ value: "privilege_verification", label: __("4. Privilege Verification"), description: __("Preserve helper installation; repeat privilege verification and later stages.") },
+		{ value: "docker_inspection", label: __("5. Docker Runtime Inspection"), description: __("Preserve privilege readiness; repeat runtime inspection and later stages.") },
+		{ value: "preflight", label: __("6. Install Preflight"), description: __("Preserve runtime inspection; discard the plan and calculate a fresh one.") },
+		{ value: "repository_preparation", label: __("7. Repository Preparation"), description: __("Retain the current preparation plan and repeat repository preparation.") },
+		{ value: "engine_installation", label: __("8. Docker Engine Installation"), description: __("Retain prerequisites; rerun fresh checks before Engine installation.") },
+	];
+	const dialog = new frappe.ui.Dialog({
+		title: __("Restart Guided Docker Setup"),
+		fields: [
+			{
+				fieldname: "checkpoint",
+				fieldtype: "Select",
+				label: __("Restart from stage"),
+				options: checkpoints.map((item) => ({ label: item.label, value: item.value })),
+				reqd: 1,
+				default: "privilege_helper",
+				onchange() {
+					const selected = checkpoints.find((item) => item.value === dialog.get_value("checkpoint"));
+					dialog.set_df_property("restart_description", "description", selected?.description || "");
+				},
+			},
+			{
+				fieldname: "restart_description",
+				fieldtype: "HTML",
+				options: '<div class="text-muted small">' + escape_html(checkpoints[2].description) + "</div>",
+			},
+		],
+		primary_action_label: __("Restart from Stage"),
+		primary_action(values) {
+			const selected = checkpoints.find((item) => item.value === values.checkpoint);
+			if (!selected) return;
+			dialog.hide();
+			frappe.confirm(
+				__(
+					"Restart Docker setup from {0}? Evidence from this stage onward will be invalidated. Earlier evidence will be preserved where applicable. No Bench or Tenant data will be removed.",
+					[selected.label]
+				),
+				() => {
+					frappe.call({
+						method: "dt_master.api.infrastructure_node.restart_docker_setup_from",
+						args: { node_name: frm.doc.name, checkpoint: values.checkpoint },
+						freeze: true,
+						freeze_message: __("Queueing Docker setup restart..."),
+						callback(response) {
+							const operation = response.message || {};
+							frappe.show_alert({
+								message: __(
+									"Docker setup restart queued. Operation: {0}. Task Manager tracks progress.",
+									[operation.operation_id || __("unknown")]
+								),
+								indicator: "blue",
+							});
+							watch_docker_operation(frm, operation.operation_id, "Docker setup restart");
+						},
+						error() {
+							frappe.msgprint({
+								title: __("Restart Not Started"),
+								message: __("The restart could not be queued. Check the server error log."),
+								indicator: "red",
+							});
+						},
+					});
+				}
+			);
+		},
+	});
+	dialog.show();
 }
