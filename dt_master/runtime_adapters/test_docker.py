@@ -52,7 +52,7 @@ def helper_install_result(status="succeeded", phase="result_verification", exit_
 
 
 class TestDockerRuntimeAdapter(unittest.TestCase):
- 	def setUp(self):
+	def setUp(self):
 		self.adapter = DockerRuntimeAdapter()
 		now_patcher = patch(
 			"dt_master.runtime_adapters.docker.now_datetime",
@@ -61,7 +61,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		now_patcher.start()
 		self.addCleanup(now_patcher.stop)
 		db_patcher = patch("dt_master.runtime_adapters.docker.frappe.db.set_value")
-		db_patcher.start()
+		self.db_set_value = db_patcher.start()
 		self.addCleanup(db_patcher.stop)
 		self.node = SimpleNamespace(
 			name="NODE-0001",
@@ -559,6 +559,12 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.observed_state, "Ready")
 		self.assertEqual(result.data["privilege_readiness"]["checks"][0]["name"], "helper_self_test")
+		self.assertTrue(
+			any(
+				entry.args[2].get("docker_host_state") == "Docker Inspection Required"
+				for entry in self.db_set_value.call_args_list
+			)
+		)
 
 	def test_privilege_check_reports_incomplete_without_claiming_ready(self):
 		readiness = {
