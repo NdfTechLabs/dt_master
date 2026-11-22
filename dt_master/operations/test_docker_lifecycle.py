@@ -1,5 +1,6 @@
 """Contract tests for Infrastructure Node Docker lifecycle requests."""
 
+import json
 import unittest
 from types import SimpleNamespace
 
@@ -222,7 +223,6 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 			),
 		)
 		updates = docker_setup_restart_updates(node, "privilege_helper")
-		import json
 		management = json.loads(updates["docker_host_management_snapshot"])
 		self.assertIn("host_inspection", management)
 		self.assertNotIn("privilege_bootstrap", management)
@@ -270,11 +270,17 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 	def test_restart_checkpoint_requires_its_upstream_evidence(self):
 		node = SimpleNamespace(
 			access_verified=True,
-			docker_host_management_snapshot="{}",
+			docker_host_management_snapshot=json.dumps({
+				"host_inspection": {"inspection_status": "Successful", "os_support_status": "Supported"},
+				"privilege_bootstrap": {"status": "Succeeded"},
+			}),
 			docker_inspection_status="Not Inspected",
 		)
 		with self.assertRaisesRegex(ValueError, "Host inspection"):
-			docker_setup_restart_updates(node, "privilege_helper")
+			docker_setup_restart_updates(
+				SimpleNamespace(access_verified=True, docker_host_management_snapshot="{}"),
+				"privilege_helper",
+			)
 		with self.assertRaisesRegex(ValueError, "privilege readiness"):
 			docker_setup_restart_updates(node, "docker_inspection")
 
