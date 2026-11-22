@@ -14,6 +14,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.preflight",
 			"host.node.docker.updates.check",
 			"host.node.docker.verify",
+			"host.node.docker.helper_release.assess",
 		):
 			with self.subTest(operation_type=operation_type):
 				definition = get_operation(operation_type)
@@ -30,6 +31,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.preflight",
 			"host.node.docker.updates.check",
 			"host.node.docker.verify",
+			"host.node.docker.helper_release.assess",
 		):
 			definition = get_operation(operation_type)
 			operation = SimpleNamespace(operation_type=operation_type)
