@@ -1342,7 +1342,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			# Repository preparation is a separate authorized durable operation.
 			# Engine installation must never mutate APT sources or signing keys.
 			if plan.get("status") != "ready":
-		failure_detail = {
+				failure_detail = {
 					"code": "DOCKER_INSTALL_PLAN_NOT_READY",
 					"plan_status": plan.get("status"),
 					"reason_codes": plan.get("reason_codes", []),
