@@ -20,7 +20,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		helper = (ROOT / "docker_lifecycle_helper.py").read_bytes()
 		installer = (ROOT / "install_docker_privilege_helper.sh").read_text()
 		probe = (ROOT / "check_docker_privilege_readiness.py").read_text()
-		adapter = (ROOT.parent / "runtime_adapters" / "docker.py").read_text()
+		adapter = (Path(__file__).with_name("docker.py")).read_text()
 
 		digest = hashlib.sha256(helper).hexdigest()
 		helper_source = helper.decode("utf-8")
