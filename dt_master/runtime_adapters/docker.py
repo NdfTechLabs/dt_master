@@ -1710,6 +1710,15 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			inspection = self._validate_release_inspection(json.loads(stdout.strip()))
 			if inspection["expected_manifest_sha256"] != local_digest:
 				raise ValueError("Remote inspection used a different expected release manifest.")
+			expected_components = {
+				component["id"]: component["sha256"] for component in local_manifest["components"]
+			}
+			for location in ("installed", "deployed"):
+				if any(
+					row["expected_sha256"] != expected_components[row["id"]]
+					for row in inspection[location]["components"]
+				):
+					raise ValueError(f"Remote {location} inspection changed expected component digests.")
 			return inspection
 
 		try:
