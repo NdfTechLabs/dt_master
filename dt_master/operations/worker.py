@@ -324,7 +324,7 @@ def execute_operation(operation_id):
         operation.operation_type == "host.node.docker.privileges.bootstrap"
         and isinstance(result, dict)
         and isinstance(result.get("data"), dict)
-        and result["data"].get("bootstrap_status") == "Ready"
+        and result["data"].get("bootstrap_status") == "Succeeded"
     ):
         # Bootstrap already performed the readiness probe. Re-run the independent
         # release inspection under a fresh operation and a fresh node lease before
