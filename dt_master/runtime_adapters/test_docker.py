@@ -145,6 +145,89 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertIn("DOCKER_SIGNING_KEY_MISMATCH", result.diagnostics[0]["message"])
 		run_helper.assert_not_called()
 
+	def test_install_engine_never_prepares_repository_implicitly(self):
+		inspection = SimpleNamespace(
+			data={
+				"inspection_status": "Successful",
+				"privilege_readiness": {"status": "Ready"},
+				"readiness_evaluation": {"diagnostics": []},
+				"snapshot": {"host_inventory": {"docker_install_inventory": {"packages": []}}},
+			}
+		)
+		plan = {
+			"schema_version": "1.1.0",
+			"policy": {"version": "1.1.1"},
+			"plan_digest": "a" * 64,
+			"state_fingerprint": "b" * 64,
+			"status": "preparation_required",
+			"reason_codes": ["APT_METADATA_NOT_FRESH"],
+			"prerequisites": ["refresh_apt_metadata"],
+			"packages": [],
+		}
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="install_engine",
+			payload={"confirm": True},
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch.object(self.adapter, "_inspect", return_value=inspection),
+			patch(
+				"dt_master.node_preparation.docker_install.build_docker_engine_install_plan",
+				return_value=plan,
+			),
+			patch("dt_master.node_preparation.docker_install.validate_docker_engine_install_plan"),
+			patch("dt_master.runtime_adapters.docker.run_trusted_helper") as run_helper,
+		):
+			result = self.adapter._install_engine(request_obj)
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.data["failure"]["detail"]["plan_status"], "preparation_required")
+		run_helper.assert_not_called()
+
+	def test_prepare_repository_requires_eligible_lifecycle_state(self):
+		self.node.docker_host_state = "Docker Inspection Required"
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="prepare_repository",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.run_trusted_helper") as run_helper,
+		):
+			result = self.adapter._prepare_repository(request_obj)
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.observed_state, "Preparation Not Applied")
+		run_helper.assert_not_called()
+
+	def test_repository_preparation_result_requires_exact_helper_contract(self):
+		valid = {
+			"schema_version": "1.0.0",
+			"helper_version": "0.3.0",
+			"operation": "prepare_repository",
+			"status": "succeeded",
+			"diagnostics": [],
+		}
+		self.assertEqual(self.adapter._validate_repository_preparation_result(valid), valid)
+		for key, value in (("helper_version", "0.4.0"), ("operation", "install_engine"), ("status", "failed")):
+			invalid = dict(valid)
+			invalid[key] = value
+			with self.subTest(key=key), self.assertRaises(ValueError):
+				self.adapter._validate_repository_preparation_result(invalid)
+		invalid = dict(valid, unexpected=True)
+		with self.assertRaises(ValueError):
+			self.adapter._validate_repository_preparation_result(invalid)
+
+
 	def test_install_engine_builds_closed_helper_request_from_fresh_plan(self):
 		version = "5:29.0.0-1~ubuntu.24.04~noble"
 		plan = {
@@ -1122,6 +1205,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				adapter.capabilities(),
 				(
 					"bootstrap_privileges",
+					"prepare_repository",
 					"install_engine",
 					"inspect",
 					"preflight",
