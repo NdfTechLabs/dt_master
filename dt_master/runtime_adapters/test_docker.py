@@ -73,7 +73,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			ssh_user="deploy",
 			ssh_port=22,
 			ssh_host_alias=None,
-			docker_host_state="Privilege Setup Required",
+			docker_host_state="Docker Inspection Required",
 			docker_host_management_snapshot=json.dumps({
 				"schema_version": "1.0.0",
 				"host_inspection": {
@@ -84,6 +84,10 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"privilege_bootstrap": {
 					"operation_id": "BOOTSTRAP-001",
 					"status": "Succeeded",
+				},
+				"privilege_readiness": {
+					"operation_id": "PRIVILEGE-CHECK-001",
+					"status": "Ready",
 				},
 			}),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
@@ -552,6 +556,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		return result, remote
 
 	def test_privilege_check_returns_readiness_and_does_not_run_docker_inventory(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
 			"schema_version": "1.0.0",
 			"observed_at": "2026-11-21T06:00:00Z",
@@ -585,6 +590,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		)
 
 	def test_privilege_check_reports_incomplete_without_claiming_ready(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
 			"schema_version": "1.0.0",
 			"observed_at": None,
@@ -790,16 +796,18 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Degraded")
 
 	def test_bootstrap_privileges_requires_successful_supported_host_inspection(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		self.node.docker_host_management_snapshot = "{}"
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
 			self.assertRaisesRegex(ValueError, "Host inspection"),
 		):
-			self.adapter.invoke("bootstrap_privileges", request("bootstrap_privileges"))
+			self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
 		remote.assert_not_called()
 
 	def test_privilege_check_requires_completed_helper_bootstrap(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		self.node.docker_host_management_snapshot = json.dumps({
 			"host_inspection": {
 				"operation_id": "HOST-INSPECT-001",
@@ -816,6 +824,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		check.assert_not_called()
 
 	def test_bootstrap_privileges_runs_existing_installers_then_readiness_probe(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
 			"schema_version": "1.0.0",
 			"observed_at": "2026-11-21T10:00:00Z",
@@ -866,6 +875,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertTrue(all(call.kwargs["use_sudo"] is False for call in remote.call_args_list))
 
 	def test_bootstrap_privileges_fails_closed_when_initial_authority_is_missing(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
 			"schema_version": "1.0.0",
 			"observed_at": None,
@@ -912,6 +922,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		)
 
 	def test_bootstrap_privileges_exposes_installer_exit_code_and_stderr(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
 			"schema_version": "1.0.0", "observed_at": None, "status": "Not Ready",
 			"execution_identity": "deploy",
@@ -938,6 +949,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(remote.call_count, 2)
 
 	def test_bootstrap_privileges_exposes_readiness_probe_stderr(self):
+		self.node.docker_host_state = "Privilege Setup Required"
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
