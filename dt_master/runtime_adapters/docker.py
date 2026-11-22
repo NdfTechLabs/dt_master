@@ -358,6 +358,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid Docker privilege checks")
 		allowed_checks = {
 			"execution_identity",
+			"release_manifest_integrity",
 			"helper_integrity",
 			"policy_integrity",
 			"inventory_integrity",
