@@ -26,6 +26,8 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		digest = hashlib.sha256(helper).hexdigest()
 		policy_digest = hashlib.sha256(policy).hexdigest()
 		inventory_digest = hashlib.sha256(inventory).hexdigest()
+		self.assertIn(f'EXPECTED_POLICY_SHA256 = "{policy_digest}"', helper.decode())
+		self.assertIn(f'EXPECTED_INVENTORY_SHA256 = "{inventory_digest}"', helper.decode())
 		helper_version = next(
 			line.split("=", 1)[1].strip().strip('"')
 			for line in helper.decode().splitlines()
@@ -59,6 +61,10 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		)
 		self.assertIn(
 			f'INVENTORY_SHA256="{inventory_digest}"',
+			installer,
+		)
+		self.assertIn(
+			f'check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "{hashlib.sha256(bytes.fromhex("99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6")).hexdigest()}"',
 			installer,
 		)
 		self.assertIn(
