@@ -1612,7 +1612,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
 
-
 	def _release_assess(self, request, execution_context=None):
 		"""Compare the assigned catalog release with read-only remote artifact evidence."""
 		from dt_master.docker_helper_releases import serialize_release_manifest
@@ -1810,7 +1809,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		for row in payload["components"]:
 			if (
 				not isinstance(row, dict)
-				or set(row) != {"id", "version", "expected_sha256", "observed_sha256", "owner", "group", "mode", "integrity"}
+				or set(row)
+				!= {
+					"id",
+					"version",
+					"expected_sha256",
+					"observed_sha256",
+					"owner",
+					"group",
+					"mode",
+					"integrity",
+				}
 				or row["id"] not in expected_ids
 				or row["id"] in seen
 				or row["integrity"] not in {"verified", "mismatch"}
