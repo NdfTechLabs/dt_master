@@ -67,14 +67,33 @@ class TestDockerReadiness(unittest.TestCase):
         self.assertEqual(result["readiness"], "Ready")
         self.assertEqual(result["diagnostics"], [])
 
-    def test_mandatory_failure_is_not_ready(self):
+    def test_engine_requirement_is_deferred_until_engine_is_available(self):
         result = evaluate_docker_readiness(
-            policy([check("docker_engine_required", True)]),
+            policy([
+                check("docker_engine_required", True),
+                check("min_engine_version", "28.0.0"),
+                check("docker_compose_required", True),
+                check("min_compose_version", "2.0.0"),
+            ]),
             snapshot(engine={"availability": "Unavailable", "server_version": None,
                              "api_version": None, "minimum_api_version": None}),
         )
+        self.assertEqual(result["readiness"], "Ready")
+        self.assertEqual(result["diagnostics"], [])
+
+    def test_host_requirements_remain_enforced_before_engine_installation(self):
+        data = snapshot(engine={"availability": "Unavailable", "server_version": None,
+                                "api_version": None, "minimum_api_version": None})
+        data["host"]["cpu"]["logical_cores"] = 1
+        result = evaluate_docker_readiness(
+            policy([
+                check("docker_engine_required", True),
+                check("min_cpu_cores", 4),
+            ]),
+            data,
+        )
         self.assertEqual(result["readiness"], "Not Ready")
-        self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_NOT_MET")
+        self.assertEqual(result["diagnostics"][0]["requirement"], "min_cpu_cores")
 
     def test_recommended_failure_is_degraded(self):
         result = evaluate_docker_readiness(
@@ -104,13 +123,13 @@ class TestDockerReadiness(unittest.TestCase):
         self.assertEqual(result["readiness"], "Unknown")
         self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_EVIDENCE_MISSING")
 
-    def test_unknown_engine_observation_is_not_a_confirmed_failure(self):
+    def test_unknown_engine_observation_is_deferred_before_installation(self):
         data = snapshot()
         data["engine"]["availability"] = "Unknown"
         result = evaluate_docker_readiness(
             policy([check("docker_engine_required", True)]), data
         )
-        self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(result["readiness"], "Ready")
 
     def test_unavailable_compose_probe_is_not_a_confirmed_failure(self):
         data = snapshot()
