@@ -93,6 +93,7 @@ class TestDockerReadiness(unittest.TestCase):
             policy([check("min_available_memory_bytes", 1_000_000)]), data
         )
         self.assertEqual(result["readiness"], "Unknown")
+        self.assertEqual(result["diagnostics"][0]["severity"], "Error")
 
     def test_failed_inspection_does_not_trust_fallback_false_values(self):
         data = snapshot(inspection_status="Failed")
