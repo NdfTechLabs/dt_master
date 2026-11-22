@@ -30,6 +30,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	def capabilities(self):
 		return (
 			"bootstrap_privileges",
+			"prepare_repository",
 			"install_engine",
 			"inspect",
 			"preflight",
@@ -1114,6 +1115,150 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			duration_ms=inspection.duration_ms,
 		)
 
+
+	@staticmethod
+	def _validate_repository_preparation_result(payload):
+		"""Validate the trusted helper's closed repository-preparation result."""
+		required = {"schema_version", "helper_version", "operation", "status", "diagnostics"}
+		if not isinstance(payload, dict) or set(payload) != required:
+			raise ValueError("Invalid Docker repository preparation result fields.")
+		if (
+			payload["schema_version"] != "1.0.0"
+			or payload["helper_version"] != "0.3.0"
+			or payload["operation"] != "prepare_repository"
+			or payload["status"] != "succeeded"
+			or payload["diagnostics"] != []
+		):
+			raise ValueError("Docker repository preparation did not satisfy the trusted helper contract.")
+		return payload
+
+	def _prepare_repository(self, request, execution_context=None):
+		"""Prepare the official Docker APT repository as a separate durable mutation."""
+		from dt_master.node_preparation.docker_install import (
+			build_docker_engine_install_plan,
+			validate_docker_engine_install_plan,
+		)
+
+		started = monotonic()
+		node = self._node_for_request(request)
+		helper_dispatched = False
+		phase = "lifecycle_eligibility"
+		try:
+			if getattr(node, "docker_host_state", None) != "Repository Preparation Required":
+				raise ValueError("Infrastructure Node must be in Repository Preparation Required state.")
+			self._require_privilege_verified(node)
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+
+			phase = "preparation_preflight"
+			inspection = self._inspect(request, execution_context=execution_context)
+			if inspection.data.get("inspection_status") != "Successful":
+				raise ValueError("A complete fresh Docker inspection is required before repository preparation.")
+			if inspection.data.get("readiness") != "Ready":
+				raise ValueError("Docker host readiness must be Ready before repository preparation.")
+			privilege = inspection.data.get("privilege_readiness") or {}
+			if privilege.get("status") != "Ready":
+				raise ValueError("Trusted Docker privilege readiness must be Ready.")
+			snapshot = inspection.data.get("snapshot") or {}
+			inventory = (snapshot.get("host_inventory") or {}).get("docker_install_inventory")
+			if not isinstance(inventory, dict):
+				raise ValueError("Docker Engine installation inventory is unavailable.")
+			plan = build_docker_engine_install_plan(request.target_name, inventory)
+			validate_docker_engine_install_plan(plan)
+			if plan.get("status") != "preparation_required":
+				raise ValueError("Fresh Docker Engine plan does not authorize repository preparation.")
+
+			phase = "repository_preparation_dispatch"
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+			helper_dispatched = True
+			code, stdout, stderr = run_trusted_helper(
+				node,
+				self._ssh_config(node),
+				{"schema_version": "1.0.0", "operation": "prepare_repository"},
+				timeout_seconds=420,
+				max_output_bytes=4096,
+				heartbeat=(
+					lambda: (
+						execution_context.heartbeat(),
+						execution_context.assert_leases(),
+					)
+					if execution_context is not None
+					else None
+				),
+			)
+			try:
+				helper_result = json.loads(stdout.strip(), object_pairs_hook=self._unique_json_object)
+				self._validate_repository_preparation_result(helper_result)
+			except (TypeError, ValueError) as exc:
+				raise ValueError("Trusted Docker repository preparation returned an invalid result.") from exc
+			if code != 0:
+				raise ValueError("Trusted Docker repository preparation did not complete successfully.")
+
+			phase = "post_preparation_inspection"
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+			fresh = self._inspect(request, execution_context=execution_context)
+			if fresh.data.get("inspection_status") != "Successful":
+				raise ValueError("Fresh Docker inspection failed after repository preparation.")
+			fresh_snapshot = fresh.data.get("snapshot") or {}
+			fresh_inventory = (fresh_snapshot.get("host_inventory") or {}).get("docker_install_inventory")
+			if not isinstance(fresh_inventory, dict):
+				raise ValueError("Fresh Docker installation inventory is unavailable after preparation.")
+			fresh_plan = build_docker_engine_install_plan(request.target_name, fresh_inventory)
+			validate_docker_engine_install_plan(fresh_plan)
+			self._persist_install_plan_evidence(node, request, fresh.data, fresh_plan)
+			ready = fresh_plan.get("status") == "ready"
+			return self.result_for(
+				request,
+				outcome="succeeded" if ready else "partial",
+				observed_state="Ready for Install" if ready else "Preparation Reconciliation Required",
+				capabilities=self.capabilities(),
+				diagnostics=() if ready else ({
+					"code": "DOCKER_REPOSITORY_PREPARATION_REQUIRES_RECONCILIATION",
+					"severity": "warning",
+					"message": "Repository preparation ran, but the fresh installation plan is not ready.",
+				},),
+				data={
+					"preparation_status": "succeeded",
+					"fresh_install_plan_status": fresh_plan["status"],
+					"fresh_plan_digest": fresh_plan["plan_digest"],
+					"fresh_state_fingerprint": fresh_plan["state_fingerprint"],
+					"engine_packages_installed": False,
+				},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+		except Exception as exc:
+			uncertain = helper_dispatched
+			return self.result_for(
+				request,
+				outcome="partial" if uncertain else "failed",
+				observed_state="Recovery Required" if uncertain else "Preparation Not Applied",
+				capabilities=(),
+				diagnostics=({
+					"code": "DOCKER_REPOSITORY_PREPARATION_RECONCILIATION_REQUIRED"
+					if uncertain else "DOCKER_REPOSITORY_PREPARATION_BLOCKED",
+					"severity": "error",
+					"message": "Repository preparation may have changed the node; fresh inspection is required."
+					if uncertain else "Repository preparation preconditions were not satisfied.",
+				},),
+				data={
+					"helper_dispatched": helper_dispatched,
+					"failure": {
+						"phase": phase,
+						"exception_type": type(exc).__name__,
+						"reason": sanitize_diagnostic_message(str(exc))[:500],
+						"stderr": sanitize_diagnostic_message(locals().get("stderr", ""))[:1000],
+					},
+					"engine_packages_installed": False,
+				},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+
+
 	def _install_engine(self, request, execution_context=None):
 		"""Install Docker through the trusted helper using existing Node readiness."""
 		from dt_master.node_preparation.docker_install import (
@@ -1194,87 +1339,10 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			phase = "install_plan_validation"
 			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
 			validate_docker_engine_install_plan(plan)
-			# Repository preparation is safe to perform before installation even
-			# when workload evidence is unavailable. It must never bypass that
-			# independent workload-safety blocker: a fresh plan is required after
-			# preparation, and Engine installation proceeds only when it is ready.
-			plan_reasons = set(plan.get("reason_codes") or [])
-			preparation_reasons = {
-				"APT_METADATA_NOT_FRESH",
-				"DOCKER_KEYRING_PATH_UNTRUSTED",
-				"DOCKER_REPOSITORY_UNTRUSTED",
-				"DOCKER_SIGNING_KEY_UNVERIFIED",
-				"WORKLOAD_STATE_UNAVAILABLE",
-			}
-			package_candidate_reasons = {
-				reason
-				for reason in plan_reasons
-				if reason.startswith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")
-			}
-			known_preparation_blockers = preparation_reasons | package_candidate_reasons
-			should_prepare_repository = (
-				bool(plan.get("prerequisites"))
-				and bool(plan_reasons)
-				and plan_reasons.issubset(known_preparation_blockers)
-				and bool(
-					set(plan.get("prerequisites") or [])
-					& {
-						"configure_official_docker_repository",
-						"refresh_apt_metadata",
-						"verify_and_pin_docker_signing_key",
-					}
-				)
-			)
-			if plan.get("status") == "preparation_required" or should_prepare_repository:
-				phase = "repository_preparation"
-				if execution_context is not None:
-					execution_context.heartbeat()
-					execution_context.assert_leases()
-				prepare_code, prepare_stdout, _prepare_stderr = run_trusted_helper(
-					node,
-					self._ssh_config(node),
-					{"schema_version": "1.0.0", "operation": "prepare_repository"},
-					timeout_seconds=420,
-					max_output_bytes=4096,
-				)
-				try:
-					prepare_result = json.loads(prepare_stdout.strip())
-				except (TypeError, ValueError) as exc:
-					raise ValueError("Docker repository preparation returned an invalid result.") from exc
-				if (
-					prepare_code != 0
-					or not isinstance(prepare_result, dict)
-					or set(prepare_result)
-					!= {"schema_version", "helper_version", "operation", "status", "diagnostics"}
-					or prepare_result.get("schema_version") != "1.0.0"
-					or prepare_result.get("operation") != "prepare_repository"
-					or prepare_result.get("status") != "succeeded"
-					or prepare_result.get("diagnostics") != []
-				):
-					failure_detail = {
-						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
-						"message": "Trusted helper repository preparation did not satisfy its success contract.",
-						"exit_code": prepare_code,
-						"stderr": sanitize_diagnostic_message(_prepare_stderr)[:1200],
-						"helper_result": prepare_result if isinstance(prepare_result, dict) else None,
-					}
-					raise ValueError("The trusted helper could not prepare the official Docker repository.")
-				if execution_context is not None:
-					execution_context.heartbeat()
-					execution_context.assert_leases()
-				phase = "post_preparation_inspection"
-				inspection = self._inspect(request, execution_context=execution_context)
-				if inspection.data.get("inspection_status") != "Successful":
-					raise ValueError("Fresh inspection failed after Docker repository preparation.")
-				snapshot = inspection.data.get("snapshot") or {}
-				host_inventory = snapshot.get("host_inventory") or {}
-				install_inventory = host_inventory.get("docker_install_inventory")
-				if not isinstance(install_inventory, dict):
-					raise ValueError("Fresh Docker installation inventory is unavailable.")
-				plan = build_docker_engine_install_plan(request.target_name, install_inventory)
-				validate_docker_engine_install_plan(plan)
+			# Repository preparation is a separate authorized durable operation.
+			# Engine installation must never mutate APT sources or signing keys.
 			if plan.get("status") != "ready":
-				failure_detail = {
+		failure_detail = {
 					"code": "DOCKER_INSTALL_PLAN_NOT_READY",
 					"plan_status": plan.get("status"),
 					"reason_codes": plan.get("reason_codes", []),
