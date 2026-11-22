@@ -352,7 +352,12 @@ function docker_setup_state(frm) {
 		}
 	} else if (state === "Host Inspection Required") {
 		action = { key: "inspect_host", label: "Inspect Host" };
-	} else if (releaseAssigned && releaseStatus !== "Current") {
+	} else if (
+		releaseAssigned &&
+		releaseStatus !== "Current" &&
+		state !== "Operation In Progress" &&
+		!["Reconciliation Required", "Failed"].includes(state)
+	) {
 		if (!hostSupported) {
 			blockedReason =
 				"Docker Helper Release assessment is locked until Host inspection confirms a supported operating system.";

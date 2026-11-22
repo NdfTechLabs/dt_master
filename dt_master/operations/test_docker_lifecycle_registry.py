@@ -1,4 +1,4 @@
-"""Tests for registered read-only Docker lifecycle operations."""
+"""Tests for registered Docker lifecycle operations."""
 
 import unittest
 from types import SimpleNamespace
@@ -38,7 +38,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 				["node-docker:NODE-01"],
 			)
 
-		def test_release_assessment_is_registered_as_durable_mutation(self):
+	def test_release_assessment_is_registered_as_durable_mutation(self):
 		definition = get_operation("host.node.docker.helper_release.assess")
 		self.assertEqual(definition.queue, "long")
 		self.assertEqual(definition.timeout_seconds, 360)
@@ -51,7 +51,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			["node-docker:NODE-01"],
 		)
 
-def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
+	def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
 		definition = get_operation("host.node.docker.privileges.bootstrap")
 		self.assertEqual(definition.queue, "long")
 		self.assertEqual(definition.timeout_seconds, 240)

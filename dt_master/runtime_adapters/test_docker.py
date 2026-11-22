@@ -788,11 +788,24 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"Unknown Release",
 		)
 
-	def test_release_assessment_marks_matching_verified_release_current(self):
-		from dt_master.docker_helper_releases import RELEASE_MANIFEST_SCHEMA_VERSION
-
+	def _release_manifest_fixture(self):
+		components = [
+			{
+				"id": component_id,
+				"path": filename,
+				"version": version,
+				"sha256": "a" * 64,
+				"required": True,
+				"responsibility": "Test component",
+			}
+			for component_id, filename, version in (
+				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
+				("install_policy", "docker_install_policy.py", "1.1.1"),
+				("host_inventory", "docker_install_inventory.py", "1.0.0"),
+			)
+		]
 		manifest = {
-			"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
+			"schema_version": "1.0.0",
 			"release": {
 				"id": "dt-docker-helper-0.3.2",
 				"version": "0.3.2",
@@ -800,77 +813,156 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"status": "supported",
 			},
 			"compatibility": {},
-			"components": [],
+			"components": components,
 			"lifecycle": {},
 		}
 		manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
-		remote = {
-			"schema_version": "1.0.0",
-			"observed_at": "2026-11-22T19:00:00Z",
-			"status": "recognized",
-			"manifest": {
-				"id": "dt-docker-helper-0.3.2",
-				"version": "0.3.2",
-				"channel": "stable",
-				"schema_version": "1.0.0",
-				"sha256": digest,
-			},
-			"components": [
-				{
-					"id": component_id,
-					"version": version,
-					"expected_sha256": "a" * 64,
-					"observed_sha256": "a" * 64,
-					"owner": "root",
-					"group": "root",
-					"mode": "755",
-					"integrity": "verified",
-				}
-				for component_id, version in (
-					("lifecycle_helper", "0.3.2"),
-					("install_policy", "1.1.1"),
-					("host_inventory", "1.0.0"),
-				)
-			],
-		}
 		release = SimpleNamespace(
 			release_id="dt-docker-helper-0.3.2",
 			version="0.3.2",
 			status="Published",
 			components=[],
 		)
+		return manifest, manifest_json, release
+
+	@staticmethod
+	def _release_inspection_state(status, manifest_matches, installer_ready, *, installed=False):
+		rows = []
+		for component_id, version in (
+			("lifecycle_helper", "0.3.2"),
+			("install_policy", "1.1.1"),
+			("host_inventory", "1.0.0"),
+		):
+			integrity = "verified" if status == "matching" else (
+				"missing" if status == "missing" else "mismatch"
+			)
+			rows.append({
+				"id": component_id,
+				"version": version,
+				"expected_sha256": "a" * 64,
+				"observed_sha256": "a" * 64 if integrity == "verified" else None,
+				"owner": "root" if installed and integrity == "verified" else "deploy",
+				"group": "root" if installed and integrity == "verified" else "deploy",
+				"mode": "755" if installed and integrity == "verified" else "644",
+				"integrity": integrity,
+			})
+		return {
+			"status": status,
+			"manifest_matches": manifest_matches,
+			"installer_ready": installer_ready,
+			"components": rows,
+		}
+
+	def _release_inspection_payload(self, digest, installed, deployed):
+		return {
+			"schema_version": "1.0.0",
+			"observed_at": "2026-11-22T19:00:00Z",
+			"expected_manifest_sha256": digest,
+			"installed": installed,
+			"deployed": deployed,
+		}
+
+	def test_release_assessment_marks_matching_installed_release_current(self):
+		manifest, manifest_json, release = self._release_manifest_fixture()
+		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
+		remote = self._release_inspection_payload(
+			digest,
+			self._release_inspection_state("matching", True, True, installed=True),
+			self._release_inspection_state("missing", False, False),
+		)
 		with (
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
-			patch("dt_master.docker_helper_releases.build_release_manifest", return_value=manifest),
-			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
-			patch(
-				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, json.dumps(remote), ""),
-			),
+			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json) as serialize,
+			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, json.dumps(remote), "")),
+			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
 			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
 			result = self.adapter._release_assess(request("release_assess"))
 		self.assertEqual(result.observed_state, "Current")
 		self.assertEqual(result.outcome, "succeeded")
+		serialize.assert_called_once()
+		self.assertEqual(serialize.call_args.kwargs["source_root"], Path(__file__).resolve().parents[2])
+		install.assert_not_called()
+		self.assertEqual(result.data["expected_manifest"], manifest)
 		self.assertEqual(
 			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"], "Current"
 		)
+
+	def test_release_assessment_installs_when_deployed_scripts_match_then_verifies(self):
+		manifest, manifest_json, release = self._release_manifest_fixture()
+		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
+		deployed = self._release_inspection_state("matching", True, True)
+		first = self._release_inspection_payload(
+			digest,
+			self._release_inspection_state("mismatch", False, True, installed=True),
+			deployed,
+		)
+		second = self._release_inspection_payload(
+			digest,
+			self._release_inspection_state("matching", True, True, installed=True),
+			deployed,
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				side_effect=[(0, json.dumps(first), ""), (0, json.dumps(second), "")],
+			) as remote,
+			patch.object(
+				self.adapter,
+				"_bootstrap_privileges",
+				return_value=SimpleNamespace(outcome="succeeded", observed_state="Ready", diagnostics=()),
+			) as install,
+		):
+			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			result = self.adapter._release_assess(request("release_assess"))
+		self.assertEqual(result.observed_state, "Current")
+		self.assertEqual(result.outcome, "succeeded")
+		install.assert_called_once()
+		self.assertEqual(remote.call_count, 2)
+		self.assertEqual(result.data["installation"]["outcome"], "succeeded")
+
+	def test_release_assessment_requests_manual_deployment_when_scripts_do_not_match(self):
+		manifest, manifest_json, release = self._release_manifest_fixture()
+		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
+		remote = self._release_inspection_payload(
+			digest,
+			self._release_inspection_state("mismatch", False, True, installed=True),
+			self._release_inspection_state("mismatch", False, False),
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
+			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, json.dumps(remote), "")),
+			patch.object(self.adapter, "_bootstrap_privileges") as install,
+		):
+			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			result = self.adapter._release_assess(request("release_assess"))
+		self.assertEqual(result.observed_state, "Scripts Deployment Required")
+		self.assertEqual(result.outcome, "succeeded")
+		install.assert_not_called()
 
 	def test_release_inspection_rejects_incomplete_component_inventory(self):
 		payload = {
 			"schema_version": "1.0.0",
 			"observed_at": "2026-11-22T19:00:00Z",
-			"status": "recognized",
-			"manifest": {
-				"id": "dt-docker-helper-0.3.2",
-				"version": "0.3.2",
-				"channel": "stable",
-				"schema_version": "1.0.0",
-				"sha256": "a" * 64,
+			"expected_manifest_sha256": "a" * 64,
+			"installed": {
+				"status": "missing",
+				"manifest_matches": False,
+				"installer_ready": False,
+				"components": [],
 			},
-			"components": [],
+			"deployed": {
+				"status": "missing",
+				"manifest_matches": False,
+				"installer_ready": False,
+				"components": [],
+			},
 		}
 		with self.assertRaises(ValueError):
 			self.adapter._validate_release_inspection(payload)
