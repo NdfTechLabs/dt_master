@@ -238,6 +238,25 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"The trusted Docker privilege helper must be installed before privilege verification."
 			)
 
+	@classmethod
+	def _require_privilege_verified(cls, node):
+		snapshot = cls._management_snapshot(node)
+		verification = snapshot.get("privilege_readiness") or {}
+		if (
+			getattr(node, "docker_host_state", None)
+				not in {
+					"Docker Inspection Required",
+					"Repository Preparation Required",
+					"Ready for Install",
+					"Engine Ready",
+				}
+			or verification.get("status") != "Ready"
+			or not verification.get("operation_id")
+		):
+			raise ValueError(
+				"Trusted Docker privilege verification must succeed before Docker Engine inspection."
+			)
+
 	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
@@ -504,6 +523,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 		node = self._node_for_request(request)
+		self._require_privilege_verified(node)
 		started = monotonic()
 		code, stdout, stderr = -1, "", ""
 		try:
