@@ -180,6 +180,28 @@ def docker_setup_restart_updates(node, checkpoint):
 	if not isinstance(management, dict):
 		management = {}
 
+	host_inspection = management.get("host_inspection") or {}
+	bootstrap = management.get("privilege_bootstrap") or {}
+	privilege = management.get("privilege_readiness") or {}
+	plan = management.get("docker_install_plan") or {}
+	if checkpoint != "connection" and not getattr(node, "access_verified", False):
+		raise ValueError("Verified SSH access is required for this restart checkpoint.")
+	if checkpoint in {"privilege_helper", "privilege_verification", "docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
+		if host_inspection.get("inspection_status") != "Successful" or host_inspection.get("os_support_status") != "Supported":
+			raise ValueError("A successful supported Host inspection is required for this restart checkpoint.")
+	if checkpoint in {"privilege_verification", "docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
+		if bootstrap.get("status") != "Succeeded":
+			raise ValueError("Docker privilege helper installation must be complete before this restart checkpoint.")
+	if checkpoint in {"docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
+		if privilege.get("status") != "Ready":
+			raise ValueError("Docker privilege readiness must be Ready before this restart checkpoint.")
+	if checkpoint == "preflight" and getattr(node, "docker_inspection_status", None) != "Successful":
+		raise ValueError("A successful Docker runtime inspection is required before restarting preflight.")
+	if checkpoint == "repository_preparation" and plan.get("status") not in {"blocked", "preparation_required"}:
+		raise ValueError("A current repository-preparation plan is required for this checkpoint.")
+	if checkpoint == "engine_installation" and plan.get("status") != "ready":
+		raise ValueError("A ready Docker install plan is required for the Engine installation checkpoint.")
+
 	invalidated = {
 		"connection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
 		"host_inspection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
