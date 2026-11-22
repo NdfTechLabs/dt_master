@@ -241,11 +241,9 @@ function docker_setup_state(frm) {
 		hostInspection.os_support_status === "Supported" &&
 		Boolean(hostInspection.operation_id);
 	const helperInstalled =
-		privilegeBootstrap.status === "Succeeded" &&
-		Boolean(privilegeBootstrap.operation_id);
+		privilegeBootstrap.status === "Succeeded" && Boolean(privilegeBootstrap.operation_id);
 	const privilegesReady =
-		privilegeReadiness.status === "Ready" &&
-		Boolean(privilegeReadiness.operation_id);
+		privilegeReadiness.status === "Ready" && Boolean(privilegeReadiness.operation_id);
 	const inspectionSuccessful = frm.doc.docker_inspection_status === "Successful";
 	const planStatus = installPlan.status || null;
 
@@ -255,13 +253,15 @@ function docker_setup_state(frm) {
 		if (sshConfigured) {
 			action = { key: "test_connection", label: "Test Node Connection" };
 		} else {
-			blockedReason = "Configure an SSH host alias, or an IP address and SSH user, before testing the connection.";
+			blockedReason =
+				"Configure an SSH host alias, or an IP address and SSH user, before testing the connection.";
 		}
 	} else if (state === "Host Inspection Required") {
 		action = { key: "inspect_host", label: "Inspect Host" };
 	} else if (state === "Privilege Setup Required") {
 		if (!hostSupported) {
-			blockedReason = "Docker privilege setup is locked because Host inspection has not confirmed a supported operating system.";
+			blockedReason =
+				"Docker privilege setup is locked because Host inspection has not confirmed a supported operating system.";
 		} else if (!helperInstalled) {
 			action = { key: "bootstrap_privileges", label: "Install Docker Privilege Helper" };
 		} else {
@@ -269,7 +269,8 @@ function docker_setup_state(frm) {
 		}
 	} else if (state === "Docker Inspection Required") {
 		if (!privilegesReady) {
-			blockedReason = "Docker runtime inspection is locked until trusted privilege verification succeeds.";
+			blockedReason =
+				"Docker runtime inspection is locked until trusted privilege verification succeeds.";
 		} else if (!inspectionSuccessful) {
 			action = { key: "inspect_docker", label: "Inspect Docker Runtime" };
 		} else {
@@ -279,20 +280,25 @@ function docker_setup_state(frm) {
 		if (planStatus === "preparation_required") {
 			action = { key: "prepare_repository", label: "Prepare Docker Repository" };
 		} else {
-			blockedReason = "The persisted install plan does not authorize repository preparation. Refresh the form and review the latest operation result.";
+			blockedReason =
+				"The persisted install plan does not authorize repository preparation. Refresh the form and review the latest operation result.";
 		}
 	} else if (state === "Ready for Install") {
 		if (planStatus === "ready") {
 			action = { key: "install_engine", label: "Install Docker Engine" };
 		} else {
-			blockedReason = "A current install plan with status Ready is required before Engine installation.";
+			blockedReason =
+				"A current install plan with status Ready is required before Engine installation.";
 		}
 	} else if (state === "Engine Ready") {
-		blockedReason = "Docker Engine installation completed and its postcondition was verified. Optional observations are available below.";
+		blockedReason =
+			"Docker Engine installation completed and its postcondition was verified. Optional observations are available below.";
 	} else if (state === "Operation In Progress") {
-		blockedReason = "A Docker lifecycle operation is in progress. Wait for it to finish in Task Manager, then refresh this form.";
+		blockedReason =
+			"A Docker lifecycle operation is in progress. Wait for it to finish in Task Manager, then refresh this form.";
 	} else if (state === "Reconciliation Required" || state === "Failed") {
-		blockedReason = "The last lifecycle operation requires investigation or reconciliation. Review its result in Task Manager before retrying.";
+		blockedReason =
+			"The last lifecycle operation requires investigation or reconciliation. Review its result in Task Manager before retrying.";
 	} else {
 		blockedReason = "The next Docker lifecycle action is not currently available.";
 	}
@@ -314,52 +320,144 @@ function docker_setup_state(frm) {
 
 function docker_setup_progress_html(frm, setup) {
 	const steps = [
-		{ label: "SSH connection", done: setup.connected, current: setup.action?.key === "test_connection" },
-		{ label: "Host inspection", done: setup.hostSupported, current: setup.action?.key === "inspect_host" },
-		{ label: "Privilege helper", done: setup.helperInstalled, current: setup.action?.key === "bootstrap_privileges" },
-		{ label: "Privilege verification", done: setup.privilegesReady, current: setup.action?.key === "check_privileges" },
-		{ label: "Docker runtime inspection", done: setup.inspectionSuccessful, current: setup.action?.key === "inspect_docker" },
-		{ label: "Install preflight", done: ["ready", "preparation_required"].includes(setup.planStatus), current: setup.action?.key === "preflight" },
-		{ label: "Repository preparation (if required)", resolved: setup.planStatus === "ready" && ["Ready for Install", "Engine Ready"].includes(setup.state), current: setup.action?.key === "prepare_repository" },
-		{ label: "Docker Engine installation", done: setup.state === "Engine Ready", current: setup.action?.key === "install_engine" },
+		{
+			label: "SSH connection",
+			done: setup.connected,
+			current: setup.action?.key === "test_connection",
+		},
+		{
+			label: "Host inspection",
+			done: setup.hostSupported,
+			current: setup.action?.key === "inspect_host",
+		},
+		{
+			label: "Privilege helper",
+			done: setup.helperInstalled,
+			current: setup.action?.key === "bootstrap_privileges",
+		},
+		{
+			label: "Privilege verification",
+			done: setup.privilegesReady,
+			current: setup.action?.key === "check_privileges",
+		},
+		{
+			label: "Docker runtime inspection",
+			done: setup.inspectionSuccessful,
+			current: setup.action?.key === "inspect_docker",
+		},
+		{
+			label: "Install preflight",
+			done: ["ready", "preparation_required"].includes(setup.planStatus),
+			current: setup.action?.key === "preflight",
+		},
+		{
+			label: "Repository preparation (if required)",
+			resolved:
+				setup.planStatus === "ready" &&
+				["Ready for Install", "Engine Ready"].includes(setup.state),
+			current: setup.action?.key === "prepare_repository",
+		},
+		{
+			label: "Docker Engine installation",
+			done: setup.state === "Engine Ready",
+			current: setup.action?.key === "install_engine",
+		},
 	];
-	const stepsHtml = steps.map((step, index) => {
-		const status = step.done ? "Completed" : step.resolved ? "Resolved" : step.current ? "Next" : "Locked";
-		const indicator = step.done || step.resolved ? "green" : step.current ? "blue" : "gray";
-		return "<li class=\"mb-1\"><span class=\"indicator-pill " + indicator + "\">" +
-			__(status) + "</span> <span>" + (index + 1) + ". " + __(step.label) + "</span></li>";
-	}).join("");
+	const stepsHtml = steps
+		.map((step, index) => {
+			const status = step.done
+				? "Completed"
+				: step.resolved
+				? "Resolved"
+				: step.current
+				? "Next"
+				: "Locked";
+			const indicator =
+				step.done || step.resolved ? "green" : step.current ? "blue" : "gray";
+			return (
+				'<li class="mb-1"><span class="indicator-pill ' +
+				indicator +
+				'">' +
+				__(status) +
+				"</span> <span>" +
+				(index + 1) +
+				". " +
+				__(step.label) +
+				"</span></li>"
+			);
+		})
+		.join("");
 	const planHtml = setup.installPlan.status
-		? "<div class=\"small text-muted mt-2\">" + __("Latest install plan") + ": <strong>" +
-			escape_html(setup.installPlan.status) + "</strong>" +
-			(setup.installPlan.observed_at ? " · " + escape_html(setup.installPlan.observed_at) : "") +
-			(setup.installPlan.plan_digest ? "<br>" + __("Plan digest") + ": " + escape_html(setup.installPlan.plan_digest) : "") +
-			"</div>"
-		: "<div class=\"small text-muted mt-2\">" + __("No validated Docker install plan is recorded yet.") + "</div>";
+		? '<div class="small text-muted mt-2">' +
+		  __("Latest install plan") +
+		  ": <strong>" +
+		  escape_html(setup.installPlan.status) +
+		  "</strong>" +
+		  (setup.installPlan.observed_at
+				? " · " + escape_html(setup.installPlan.observed_at)
+				: "") +
+		  (setup.installPlan.plan_digest
+				? "<br>" + __("Plan digest") + ": " + escape_html(setup.installPlan.plan_digest)
+				: "") +
+		  "</div>"
+		: '<div class="small text-muted mt-2">' +
+		  __("No validated Docker install plan is recorded yet.") +
+		  "</div>";
 	const actionHtml = setup.action
-		? "<button type=\"button\" class=\"btn btn-primary btn-sm mt-3\" data-docker-action=\"" +
-			escape_html(setup.action.key) + "\">" + __(setup.action.label) + "</button>"
-		: "<div class=\"alert " + (setup.state === "Engine Ready" ? "alert-success" : "alert-warning") + " mt-3 mb-0\">" +
-			escape_html(setup.blockedReason || __("No action is currently available.")) + "</div>";
+		? '<button type="button" class="btn btn-primary btn-sm mt-3" data-docker-action="' +
+		  escape_html(setup.action.key) +
+		  '">' +
+		  __(setup.action.label) +
+		  "</button>"
+		: '<div class="alert ' +
+		  (setup.state === "Engine Ready" ? "alert-success" : "alert-warning") +
+		  ' mt-3 mb-0">' +
+		  escape_html(setup.blockedReason || __("No action is currently available.")) +
+		  "</div>";
 	const roleHtml = frappe.user_roles.includes("System Manager")
 		? actionHtml
-		: "<div class=\"text-muted small mt-3\">" + __("Docker lifecycle actions are available to System Managers.") + "</div>";
-	const secondaryActionsHtml = frappe.user_roles.includes("System Manager") && setup.state === "Engine Ready"
-		? "<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"verify_runtime\">" + __("Verify Docker Runtime") + "</button>" +
-			"<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"updates\">" + __("Check Docker Updates") + "</button>"
-		: "";
-	return "<div class=\"border rounded p-3 mb-3\">" +
-		"<div class=\"d-flex justify-content-between align-items-center mb-2\">" +
-		"<strong>" + __("Guided Docker Setup") + "</strong>" +
-		"<span class=\"indicator-pill " +
-		(setup.state === "Engine Ready" ? "green" : setup.state === "Failed" || setup.state === "Reconciliation Required" ? "red" : "blue") +
-		"\">" + escape_html(setup.state) + "</span></div>" +
-		"<ol class=\"pl-3 mb-2\">" + stepsHtml + "</ol>" + planHtml + roleHtml + secondaryActionsHtml +
-		"<button type=\"button\" class=\"btn btn-default btn-xs mt-2\" data-docker-action=\"refresh\">" +
-		__("Refresh status") + "</button>" +
-		"<div class=\"small text-muted mt-2\">" +
-		__("Each step unlocks only after the preceding operation has produced the required persisted evidence. The server revalidates every action.") +
-		"</div></div>";
+		: '<div class="text-muted small mt-3">' +
+		  __("Docker lifecycle actions are available to System Managers.") +
+		  "</div>";
+	const secondaryActionsHtml =
+		frappe.user_roles.includes("System Manager") && setup.state === "Engine Ready"
+			? '<button type="button" class="btn btn-default btn-sm mt-3 ml-2" data-docker-action="verify_runtime">' +
+			  __("Verify Docker Runtime") +
+			  "</button>" +
+			  '<button type="button" class="btn btn-default btn-sm mt-3 ml-2" data-docker-action="updates">' +
+			  __("Check Docker Updates") +
+			  "</button>"
+			: "";
+	return (
+		'<div class="border rounded p-3 mb-3">' +
+		'<div class="d-flex justify-content-between align-items-center mb-2">' +
+		"<strong>" +
+		__("Guided Docker Setup") +
+		"</strong>" +
+		'<span class="indicator-pill ' +
+		(setup.state === "Engine Ready"
+			? "green"
+			: setup.state === "Failed" || setup.state === "Reconciliation Required"
+			? "red"
+			: "blue") +
+		'">' +
+		escape_html(setup.state) +
+		"</span></div>" +
+		'<ol class="pl-3 mb-2">' +
+		stepsHtml +
+		"</ol>" +
+		planHtml +
+		roleHtml +
+		secondaryActionsHtml +
+		'<button type="button" class="btn btn-default btn-xs mt-2" data-docker-action="refresh">' +
+		__("Refresh status") +
+		"</button>" +
+		'<div class="small text-muted mt-2">' +
+		__(
+			"Each step unlocks only after the preceding operation has produced the required persisted evidence. The server revalidates every action."
+		) +
+		"</div></div>"
+	);
 }
 
 function run_docker_setup_action(frm, action) {
@@ -367,7 +465,11 @@ function run_docker_setup_action(frm, action) {
 		case "test_connection":
 			return test_node_connection(frm);
 		case "inspect_host":
-			return run_node_action(frm, "Inspect Host", "dt_master.api.infrastructure_node.inspect_node");
+			return run_node_action(
+				frm,
+				"Inspect Host",
+				"dt_master.api.infrastructure_node.inspect_node"
+			);
 		case "bootstrap_privileges":
 			return run_docker_privilege_bootstrap(frm);
 		case "check_privileges":
@@ -393,7 +495,9 @@ function run_docker_setup_action(frm, action) {
 
 function run_docker_repository_prepare(frm) {
 	frappe.confirm(
-		__("Prepare the official Docker package repository and refresh trusted package metadata? This does not install Docker Engine."),
+		__(
+			"Prepare the official Docker package repository and refresh trusted package metadata? This does not install Docker Engine."
+		),
 		() => {
 			frappe.call({
 				method: "dt_master.api.infrastructure_node.prepare_docker_repository",
@@ -413,7 +517,9 @@ function run_docker_repository_prepare(frm) {
 				error() {
 					frappe.msgprint({
 						title: __("Docker Repository Preparation Not Started"),
-						message: __("The preparation operation could not be queued. Check the server error log."),
+						message: __(
+							"The preparation operation could not be queued. Check the server error log."
+						),
 						indicator: "red",
 					});
 				},
