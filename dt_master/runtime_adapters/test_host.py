@@ -73,11 +73,13 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			ssh_port=22,
 			ssh_host_alias=None,
 			docker_host_state="Host Inspection Required",
-			docker_host_management_snapshot=json.dumps({
-				"schema_version": "1.0.0",
-				"operation_id": "connection-op-001",
-				"connection_status": "Connected",
-			}),
+			docker_host_management_snapshot=json.dumps(
+				{
+					"schema_version": "1.0.0",
+					"operation_id": "connection-op-001",
+					"connection_status": "Connected",
+				}
+			),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 		)
 
@@ -155,21 +157,39 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			"observed_at": "2026-11-20T17:17:33Z",
 			"identity": {"hostname": "node-01", "fqdn": "node-01.example.test"},
 			"os": {
-				"pretty_name": "Ubuntu 24.04.4 LTS", "id": "ubuntu", "version_id": "24.04",
-				"version_codename": "noble", "id_like": "debian", "architecture": "x86_64",
-				"package_manager": "apt", "service_manager": "systemd",
+				"pretty_name": "Ubuntu 24.04.4 LTS",
+				"id": "ubuntu",
+				"version_id": "24.04",
+				"version_codename": "noble",
+				"id_like": "debian",
+				"architecture": "x86_64",
+				"package_manager": "apt",
+				"service_manager": "systemd",
 			},
 			"compute": {
-				"logical_cpu_cores": 6, "physical_cpu_cores": 3, "memory_total_bytes": 8 * 1024**3,
-				"memory_available_bytes": 4 * 1024**3, "swap_total_bytes": 2 * 1024**3,
-				"swap_free_bytes": 1 * 1024**3, "cpu_model": "Example CPU",
-				"load_average": [0.1, 0.2, 0.3], "uptime_seconds": 3600, "virtualization": "kvm",
+				"logical_cpu_cores": 6,
+				"physical_cpu_cores": 3,
+				"memory_total_bytes": 8 * 1024**3,
+				"memory_available_bytes": 4 * 1024**3,
+				"swap_total_bytes": 2 * 1024**3,
+				"swap_free_bytes": 1 * 1024**3,
+				"cpu_model": "Example CPU",
+				"load_average": [0.1, 0.2, 0.3],
+				"uptime_seconds": 3600,
+				"virtualization": "kvm",
 			},
 			"storage": {
-				"filesystems": [], "root_available_bytes": 50 * 1024**3,
-				"root_size_bytes": 100 * 1024**3, "disk_total_bytes": 100 * 1024**3,
+				"filesystems": [],
+				"root_available_bytes": 50 * 1024**3,
+				"root_size_bytes": 100 * 1024**3,
+				"disk_total_bytes": 100 * 1024**3,
 			},
-			"network": {"interfaces": [], "default_routes": [], "dns_nameservers": [], "listening_sockets": []},
+			"network": {
+				"interfaces": [],
+				"default_routes": [],
+				"dns_nameservers": [],
+				"listening_sockets": [],
+			},
 			"tools": {"python3": True, "nginx": True},
 			"services": {"nginx": {"active": "active", "enabled": "enabled"}},
 			"bench_available": False,
@@ -230,14 +250,22 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertNotIn("os_type", updates)
 		self.assertNotIn("os_version", updates)
 		self.assertIn("host_discovery_snapshot", updates)
-		self.assertEqual(set(updates) - {
-			"host_discovery_status", "host_discovered_on", "host_discovery_snapshot",
-			"storage_gb",
-		}, set())
+		self.assertEqual(
+			set(updates)
+			- {
+				"host_discovery_status",
+				"host_discovered_on",
+				"host_discovery_snapshot",
+				"storage_gb",
+			},
+			set(),
+		)
 
 	def test_fresh_host_is_inspectable_without_bench_project_paths(self):
 		result, run = self._run_inspection(
-			stdout=inspection_output(bench_available="false", python3_available="false", node_available="false")
+			stdout=inspection_output(
+				bench_available="false", python3_available="false", node_available="false"
+			)
 		)
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.data["host_stage"], "Fresh Host")
@@ -335,10 +363,12 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 				self.adapter.invoke("inspect", request())
 		run.assert_not_called()
 
-		self.node.docker_host_management_snapshot = json.dumps({
-			"operation_id": "connection-op-001",
-			"connection_status": "Connected",
-		})
+		self.node.docker_host_management_snapshot = json.dumps(
+			{
+				"operation_id": "connection-op-001",
+				"connection_status": "Connected",
+			}
+		)
 		self.node.docker_host_state = "Privilege Setup Required"
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
