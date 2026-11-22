@@ -29,8 +29,6 @@ COMMAND_TIMEOUT = 30
 INSTALL_TIMEOUT = 900
 INSTALL_MUTATION_ENABLED = True
 HELPER_DIR = Path("/usr/local/lib/dt-master/docker")
-EXPECTED_POLICY_SHA256 = "99a98c694e26d8fa39f82d8e5b8071103db61970d23f659145d7a1de9ff0ac47"
-EXPECTED_INVENTORY_SHA256 = "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"
 ENGINE_PACKAGES = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
 PACKAGE_VERSION = re.compile(r"^(?:[0-9]+:)?[0-9][A-Za-z0-9.+~_-]{0,158}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -161,7 +159,7 @@ def _request(raw: bytes) -> dict:
 
 
 def _load_policy():
-	"""Load only pinned root-owned policy artifacts from the fixed helper directory."""
+	"""Load root-owned policy artifacts verified against the installed release manifest."""
 	if os.geteuid() != 0:
 		raise HelperError("ROOT_REQUIRED", "host_validation")
 	try:
@@ -173,11 +171,49 @@ def _load_policy():
 			or stat.S_IMODE(directory.st_mode) != 0o755
 		):
 			raise HelperError("HELPER_DIRECTORY_UNTRUSTED", "host_validation")
-		expected = {
-			"docker_install_policy.py": EXPECTED_POLICY_SHA256,
-			"docker_install_inventory.py": EXPECTED_INVENTORY_SHA256,
-		}
-		for name, digest in expected.items():
+		manifest_path = HELPER_DIR / "docker_helper_release.json"
+		manifest_stat = manifest_path.lstat()
+		if (
+			not stat.S_ISREG(manifest_stat.st_mode)
+			or manifest_stat.st_uid != 0
+			or manifest_stat.st_gid != 0
+			or stat.S_IMODE(manifest_stat.st_mode) != 0o755
+		):
+			raise HelperError("RELEASE_MANIFEST_UNTRUSTED", "host_validation")
+		manifest = json.loads(
+			manifest_path.read_text(encoding="utf-8"),
+			object_pairs_hook=_unique_object,
+			parse_constant=_reject_constant,
+		)
+		if (
+			not isinstance(manifest, dict)
+			or set(manifest) != {"schema_version", "release", "compatibility", "components", "lifecycle"}
+			or manifest["schema_version"] != "1.0.0"
+			or manifest["release"].get("version") != HELPER_VERSION
+			or manifest["release"].get("status") != "supported"
+		):
+			raise HelperError("RELEASE_MANIFEST_INCOMPATIBLE", "host_validation")
+		components = manifest["components"]
+		if not isinstance(components, list):
+			raise HelperError("RELEASE_MANIFEST_INVALID", "host_validation")
+		expected = {}
+		for component in components:
+			if (
+				not isinstance(component, dict)
+				or set(component) != {"id", "path", "version", "sha256", "required", "responsibility"}
+				or component["path"] not in {"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"}
+				or not isinstance(component["sha256"], str)
+				or not SHA256.fullmatch(component["sha256"])
+			):
+				raise HelperError("RELEASE_COMPONENT_INVALID", "host_validation")
+			expected[component["path"]] = component["sha256"]
+		if set(expected) != {
+			"docker_lifecycle_helper.py",
+			"docker_install_policy.py",
+			"docker_install_inventory.py",
+		}:
+			raise HelperError("RELEASE_COMPONENT_SET_INVALID", "host_validation")
+		for name in ("docker_install_policy.py", "docker_install_inventory.py"):
 			path = HELPER_DIR / name
 			metadata = path.lstat()
 			if (
@@ -185,11 +221,13 @@ def _load_policy():
 				or metadata.st_uid != 0
 				or metadata.st_gid != 0
 				or stat.S_IMODE(metadata.st_mode) != 0o755
-				or hashlib.sha256(path.read_bytes()).hexdigest() != digest
+				or hashlib.sha256(path.read_bytes()).hexdigest() != expected[name]
 			):
 				raise HelperError("POLICY_ARTIFACT_UNTRUSTED", "host_validation")
-	except OSError as exc:
-		raise HelperError("POLICY_ARTIFACT_UNAVAILABLE", "host_validation") from exc
+	except HelperError:
+		raise
+	except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+		raise HelperError("RELEASE_MANIFEST_UNAVAILABLE", "host_validation") from exc
 	sys.path.insert(0, str(HELPER_DIR))
 	import docker_install_inventory
 	import docker_install_policy
