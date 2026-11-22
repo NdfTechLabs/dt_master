@@ -14,10 +14,10 @@ HELPER = Path("/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py")
 POLICY_ARTIFACT = Path("/usr/local/lib/dt-master/docker/docker_install_policy.py")
 INVENTORY_ARTIFACT = Path("/usr/local/lib/dt-master/docker/docker_install_inventory.py")
 POLICY = Path("/etc/sudoers.d/dt-master-docker")
-EXPECTED_HELPER_SHA256 = "b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b"
+EXPECTED_HELPER_SHA256 = "005f644f5384213988d1643b2af925f0b210d94ad7b9fa1be0179cda3303122f"
 EXPECTED_POLICY_SHA256 = "99a98c694e26d8fa39f82d8e5b8071103db61970d23f659145d7a1de9ff0ac47"
 EXPECTED_INVENTORY_SHA256 = "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"
-EXPECTED_HELPER_VERSION = "0.3.0"
+EXPECTED_HELPER_VERSION = "0.3.1"
 MAX_OUTPUT = 4096
 
 
