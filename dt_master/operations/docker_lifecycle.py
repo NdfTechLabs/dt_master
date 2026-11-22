@@ -4,6 +4,7 @@ This module defines the request boundary only. Durable operation registration
 lives in docker_lifecycle_registry; runtime execution lives in the Docker adapter.
 """
 
+import json
 import re
 
 ENGINE_MUTATIONS = frozenset(
@@ -24,8 +25,9 @@ COMPOSE_MUTATIONS = frozenset(
 )
 PRIVILEGE_BOOTSTRAP_OPERATIONS = frozenset({"host.node.docker.privileges.bootstrap"})
 REPOSITORY_PREPARATION_OPERATIONS = frozenset({"host.node.docker.repository.prepare"})
+SETUP_RESTART_OPERATIONS = frozenset({"host.node.docker.setup.restart"})
 MUTATING_OPERATIONS = (
-	ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS | REPOSITORY_PREPARATION_OPERATIONS
+	ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS | REPOSITORY_PREPARATION_OPERATIONS | SETUP_RESTART_OPERATIONS
 )
 READ_ONLY_OPERATIONS = frozenset(
 	{
@@ -37,6 +39,17 @@ READ_ONLY_OPERATIONS = frozenset(
 	}
 )
 DOCKER_LIFECYCLE_OPERATIONS = MUTATING_OPERATIONS | READ_ONLY_OPERATIONS
+
+DOCKER_SETUP_CHECKPOINTS = {
+	"connection": "Connection Required",
+	"host_inspection": "Host Inspection Required",
+	"privilege_helper": "Privilege Setup Required",
+	"privilege_verification": "Privilege Setup Required",
+	"docker_inspection": "Docker Inspection Required",
+	"preflight": "Docker Inspection Required",
+	"repository_preparation": "Repository Preparation Required",
+	"engine_installation": "Ready for Install",
+}
 
 _VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+:~_-]{0,79}$")
 _FINGERPRINT = re.compile(r"^[a-f0-9]{64}$")
@@ -135,3 +148,65 @@ def authorize_docker_lifecycle_node(target):
 	target.check_permission("read")
 	if not getattr(target, "access_verified", False):
 		frappe.throw(_("Infrastructure Node SSH access must be verified first."), frappe.PermissionError)
+
+
+def authorize_docker_setup_restart(target):
+	"""Authorize checkpoint recovery without requiring an already verified SSH session."""
+	import frappe
+	from frappe import _
+
+	frappe.only_for("System Manager")
+	if getattr(target, "doctype", None) != "Infrastructure Node":
+		frappe.throw(_("Docker setup recovery requires an Infrastructure Node target."), frappe.PermissionError)
+	target.check_permission("read")
+	if not (getattr(target, "ssh_host_alias", None) or (getattr(target, "ip_address", None) and getattr(target, "ssh_user", None))):
+		frappe.throw(_("Configure SSH access before restarting Docker setup."), frappe.ValidationError)
+
+
+def docker_setup_restart_updates(node, checkpoint):
+	"""Return the bounded projection changes needed to restart at a setup checkpoint."""
+	if checkpoint not in DOCKER_SETUP_CHECKPOINTS:
+		raise ValueError("Unsupported Docker setup restart checkpoint")
+	try:
+		management = json.loads(getattr(node, "docker_host_management_snapshot", None) or "{}")
+	except (TypeError, ValueError):
+		management = {}
+	if not isinstance(management, dict):
+		management = {}
+
+	invalidated = {
+		"connection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
+		"host_inspection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
+		"privilege_helper": ("privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
+		"privilege_verification": ("privilege_readiness", "docker_inspection", "docker_install_plan"),
+		"docker_inspection": ("docker_inspection", "docker_install_plan"),
+		"preflight": ("docker_install_plan",),
+		"repository_preparation": (),
+		"engine_installation": (),
+	}[checkpoint]
+	for key in invalidated:
+		management.pop(key, None)
+	if checkpoint == "connection":
+		management.pop("connection_status", None)
+		management.pop("connection_operation_id", None)
+		management.pop("operation_id", None)
+
+	from frappe.utils import now_datetime
+
+	updates = {
+		"docker_host_management_snapshot": json.dumps(management, sort_keys=True, separators=(",", ":")),
+		"docker_host_state": DOCKER_SETUP_CHECKPOINTS[checkpoint],
+		"docker_host_operation": None,
+		"docker_host_state_updated_on": now_datetime(),
+	}
+	if checkpoint == "connection":
+		updates["access_verified"] = 0
+	if checkpoint in {"connection", "host_inspection", "privilege_helper", "privilege_verification", "docker_inspection", "preflight"}:
+		updates.update({
+			"docker_inspection_status": "Not Inspected",
+			"docker_readiness": "Unknown",
+			"docker_readiness_evaluation": None,
+			"docker_inspected_on": None,
+			"docker_inspection_snapshot": None,
+		})
+	return updates
