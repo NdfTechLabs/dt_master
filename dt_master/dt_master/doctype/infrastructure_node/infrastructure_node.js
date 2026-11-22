@@ -1072,11 +1072,11 @@ function show_docker_setup_restart_dialog(frm) {
 				fieldname: "checkpoint",
 				fieldtype: "Select",
 				label: __("Restart from stage"),
-				options: checkpoints.map((item) => item.value).join("\n"),
+				options: checkpoints.map((item) => item.label).join("\n"),
 				reqd: 1,
-				default: "privilege_helper",
+				default: checkpoints[2].label,
 				onchange() {
-					const selected = checkpoints.find((item) => item.value === dialog.get_value("checkpoint"));
+					const selected = checkpoints.find((item) => item.label === dialog.get_value("checkpoint"));
 					dialog.fields_dict.restart_description.$wrapper.html(
 						'<div class="text-muted small">' +
 							escape_html(selected?.description || "") +
@@ -1092,7 +1092,7 @@ function show_docker_setup_restart_dialog(frm) {
 		],
 		primary_action_label: __("Restart from Stage"),
 		primary_action(values) {
-			const selected = checkpoints.find((item) => item.value === values.checkpoint);
+			const selected = checkpoints.find((item) => item.label === values.checkpoint);
 			if (!selected) return;
 			dialog.hide();
 			frappe.confirm(
@@ -1103,7 +1103,7 @@ function show_docker_setup_restart_dialog(frm) {
 				() => {
 					frappe.call({
 						method: "dt_master.api.infrastructure_node.restart_docker_setup_from",
-						args: { node_name: frm.doc.name, checkpoint: values.checkpoint },
+						args: { node_name: frm.doc.name, checkpoint: selected.value },
 						freeze: true,
 						freeze_message: __("Queueing Docker setup restart..."),
 						callback(response) {
