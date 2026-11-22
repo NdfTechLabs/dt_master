@@ -108,6 +108,12 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 	"""Return a normalized payload for one known Docker lifecycle operation."""
 	if operation_type not in DOCKER_LIFECYCLE_OPERATIONS:
 		raise ValueError("Unsupported Docker lifecycle operation")
+	if operation_type == "host.node.docker.setup.restart":
+		payload = _object(payload, {"checkpoint"})
+		checkpoint = payload.get("checkpoint")
+		if checkpoint not in DOCKER_SETUP_CHECKPOINTS:
+			raise ValueError("Unsupported Docker setup restart checkpoint")
+		return {"checkpoint": checkpoint}
 	if (
 		operation_type in READ_ONLY_OPERATIONS
 		or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS
