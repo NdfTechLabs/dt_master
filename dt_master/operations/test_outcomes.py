@@ -40,6 +40,46 @@ class TestOperationOutcomes(unittest.TestCase):
 			"repository_preparation",
 		)
 
+	def test_adapter_failure_reason_is_propagated_to_durable_summary(self):
+		exc = OperationDispositionError(
+			"Failed",
+			"REPOSITORY_PREPARATION_FAILED",
+			"The runtime adapter reported that the requested mutation failed.",
+			adapter_result={
+				"outcome": "failed",
+				"data": {
+					"failure": {
+						"phase": "repository_preparation_dispatch",
+						"reason": "Docker repository setup failed: apt-get update exited with code 100.",
+					}
+				},
+			},
+		)
+		fields = resolve_operation_disposition(exc, lease_acquired=True)
+		self.assertEqual(
+			fields["error_summary"],
+			"Repository preparation dispatch: Docker repository setup failed: apt-get update exited with code 100.",
+		)
+		self.assertEqual(fields["result_payload"], exc.adapter_result)
+
+	def test_adapter_failure_summary_redacts_credential_like_values(self):
+		exc = OperationDispositionError(
+			"Failed",
+			"REPOSITORY_PREPARATION_FAILED",
+			"The runtime adapter reported that the requested mutation failed.",
+			adapter_result={
+				"data": {
+					"failure": {
+						"phase": "repository_preparation_dispatch",
+						"reason": "Command failed with token=super-secret-value",
+					}
+				}
+			},
+		)
+		fields = resolve_operation_disposition(exc, lease_acquired=True)
+		self.assertNotIn("super-secret-value", fields["error_summary"])
+		self.assertIn("[REDACTED]", fields["error_summary"])
+
 	def test_partial_adapter_result_becomes_recovery_required(self):
 		with self.assertRaises(OperationDispositionError) as raised:
 			enforce_durable_operation_outcome(
