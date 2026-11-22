@@ -17,11 +17,15 @@ ROOT = Path(__file__).parents[1] / "scripts" / "bin" / "docker"
 class TestDockerPrivilegeReadiness(unittest.TestCase):
 	def test_helper_release_digest_and_version_are_consistent_across_components(self):
 		helper = (ROOT / "docker_lifecycle_helper.py").read_bytes()
+		policy = (ROOT / "docker_install_policy.py").read_bytes()
+		inventory = (ROOT / "docker_install_inventory.py").read_bytes()
 		installer = (ROOT / "install_docker_privilege_helper.sh").read_text()
 		probe = (ROOT / "check_docker_privilege_readiness.py").read_text()
 		adapter = Path(__file__).with_name("docker.py").read_text()
 
 		digest = hashlib.sha256(helper).hexdigest()
+		policy_digest = hashlib.sha256(policy).hexdigest()
+		inventory_digest = hashlib.sha256(inventory).hexdigest()
 		helper_version = next(
 			line.split("=", 1)[1].strip().strip('"')
 			for line in helper.decode().splitlines()
@@ -49,6 +53,22 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 
 		self.assertEqual(installer_digest, digest)
 		self.assertEqual(probe_digest, digest)
+		self.assertIn(
+			f'POLICY_SHA256="{policy_digest}"',
+			installer,
+		)
+		self.assertIn(
+			f'INVENTORY_SHA256="{inventory_digest}"',
+			installer,
+		)
+		self.assertIn(
+			f"EXPECTED_POLICY_SHA256 = \"{policy_digest}\"",
+			probe,
+		)
+		self.assertIn(
+			f"EXPECTED_INVENTORY_SHA256 = \"{inventory_digest}\"",
+			probe,
+		)
 		self.assertEqual(probe_version, helper_version)
 		self.assertEqual(adapter_version, helper_version)
 
