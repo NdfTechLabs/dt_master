@@ -1704,7 +1704,10 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					{
 						"code": "DOCKER_HELPER_RELEASE_SOURCE_INVALID",
 						"severity": "error",
-						"message": "The assigned release could not be generated from the installed dt_master source files.",
+						"message": sanitize_diagnostic_message(
+							"The assigned release could not be generated from the installed dt_master source files: "
+							+ str(exc)
+						),
 					},
 				),
 				data=snapshot,
