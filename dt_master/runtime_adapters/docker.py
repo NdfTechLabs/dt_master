@@ -1628,6 +1628,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					"message": "No Docker Helper Release is assigned to this Infrastructure Node.",
 				},
 			)
+			observed_at = now_datetime()
 			snapshot = {
 				"schema_version": "1.0.0",
 				"assessment_status": status,
@@ -1638,7 +1639,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"remote_release": None,
 				"components": [],
 			}
-			observed_at = now_datetime()
 			frappe.db.set_value(
 				"Infrastructure Node",
 				node.name,
