@@ -86,7 +86,10 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 	def test_node_accepts_published_docker_helper_release_assignment(self):
 		node = self._new_node()
 		node.docker_helper_release = "PUBLISHED-RELEASE"
-		with patch.object(frappe.db, "get_value", return_value="Published"):
+		with (
+			patch.object(frappe.db, "get_value", return_value="Published"),
+			patch.object(node, "_prepare_docker_helper_release_manifest"),
+		):
 			node.validate()
 
 	def test_new_node_rejects_severity_without_requirement(self):
