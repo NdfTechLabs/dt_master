@@ -63,6 +63,7 @@ def enforce_durable_operation_outcome(
 		)
 	raise ValueError("Runtime adapter returned an unsupported durable outcome")
 
+
 def _adapter_failure_summary(adapter_result: dict | None, fallback: str) -> str:
 	"""Build a concise, safe user-facing summary from structured adapter failure data."""
 	if not isinstance(adapter_result, dict):
