@@ -102,6 +102,16 @@ check_existing() {
     fi
 }
 
+# A pre-existing manifest must be a recognized predecessor of this release.
+if sudo -n test -e "${DEST_DIR}/${RELEASE_NAME}"; then
+    sudo -n test -f "${DEST_DIR}/${RELEASE_NAME}" && ! sudo -n test -L "${DEST_DIR}/${RELEASE_NAME}" \
+        || fail "Existing release manifest is not a regular file."
+    [[ "$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${RELEASE_NAME}")" == "0:0:755" ]] \
+        || fail "Existing release manifest has unsafe ownership or mode."
+    python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" "${DEST_DIR}/${RELEASE_NAME}" \
+        >/dev/null || fail "Existing helper release is not a declared upgrade predecessor."
+fi
+
 check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGACY_HELPER_SHA256" "$OLDER_LEGACY_HELPER_SHA256" "$OLDEST_LEGACY_HELPER_SHA256" "$ANCIENT_HELPER_SHA256"
 # The currently deployed 0.3.0 helper pinned this exact prior policy digest.
 # Accept it only as an explicit upgrade source; unknown policy files remain protected.
