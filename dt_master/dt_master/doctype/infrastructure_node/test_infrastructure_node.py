@@ -62,7 +62,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
 
-
 	def test_new_node_accepts_default_docker_helper_release_assessment(self):
 		node = self._new_node()
 		self.assertEqual(node.docker_helper_release_assessment_status, "Not Assessed")
@@ -91,8 +90,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			patch.object(node, "_prepare_docker_helper_release_manifest"),
 		):
 			node.validate()
-
-
 
 	def test_published_assignment_generates_node_specific_manifest(self):
 		node = self._new_node()

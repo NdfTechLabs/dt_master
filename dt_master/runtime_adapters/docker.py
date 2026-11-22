@@ -1683,9 +1683,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			expected_manifest_b64 = base64.b64encode(local_manifest_json.encode("utf-8")).decode("ascii")
 		except Exception as exc:
 			source_root = Path(__file__).resolve().parents[1]
-			is_source_drift = (
-				isinstance(exc, DockerHelperReleaseError)
-				and str(exc).startswith("Published release source drift detected")
+			is_source_drift = isinstance(exc, DockerHelperReleaseError) and str(exc).startswith(
+				"Published release source drift detected"
 			)
 			if is_source_drift:
 				try:
