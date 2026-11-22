@@ -1,7 +1,8 @@
-"""Registry definitions for Docker Engine installation, privilege bootstrap and observations.
+"""Registry definitions for Docker repository preparation, Engine installation,
+privilege bootstrap and observations.
 
-Only fixed, server-owned handlers are registered. Engine installation uses the
-existing durable coordinator, worker, node-scoped resource lease and adapter.
+Only fixed, server-owned handlers are registered. Mutations use the existing
+durable coordinator, worker, node-scoped resource lease and runtime adapter.
 """
 
 from dt_master.operations.docker_lifecycle import (
