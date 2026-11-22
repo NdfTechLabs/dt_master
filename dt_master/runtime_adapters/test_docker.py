@@ -1475,6 +1475,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 					"updates_check",
 					"verify",
 					"privilege_check",
+					"release_assess",
 				),
 			)
 		finally:
