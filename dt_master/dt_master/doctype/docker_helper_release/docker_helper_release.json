@@ -9,6 +9,10 @@
   "version",
   "channel",
   "status",
+  "schema_version",
+  "compatibility_section",
+  "compatibility",
+  "lifecycle",
   "components_section",
   "components",
   "aggregate_digest",
@@ -51,6 +55,36 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
+  },
+  {
+   "fieldname": "schema_version",
+   "fieldtype": "Data",
+   "label": "Manifest Schema Version",
+   "default": "1.0.0",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "compatibility_section",
+   "fieldtype": "Section Break",
+   "label": "Compatibility and Lifecycle",
+   "description": "These declarations are part of the immutable release contract and are projected into the deployment manifest."
+  },
+  {
+   "fieldname": "compatibility",
+   "fieldtype": "Code",
+   "label": "Compatibility",
+   "options": "JSON",
+   "reqd": 1,
+   "description": "Closed compatibility declaration: helper_protocol, privilege_readiness_contract, docker_install_plan, docker_install_policy, inventory_schema and upgrade_from."
+  },
+  {
+   "fieldname": "lifecycle",
+   "fieldtype": "Code",
+   "label": "Lifecycle",
+   "options": "JSON",
+   "reqd": 1,
+   "description": "Bootstrap, upgrade, reconciliation, activation order and verification semantics."
   },
   {
    "fieldname": "components_section",

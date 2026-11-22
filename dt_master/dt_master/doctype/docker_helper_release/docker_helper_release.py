@@ -6,9 +6,13 @@ from pathlib import Path
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from dt_master.docker_helper_releases import DockerHelperReleaseError, refresh_component_digests
+from dt_master.docker_helper_releases import (
+	DockerHelperReleaseError,
+	refresh_component_digests,
+	validate_release_metadata,
+)
 
-RELEASE_DEFINITION_FIELDS = ("release_id", "version", "channel", "components", "aggregate_digest")
+RELEASE_DEFINITION_FIELDS = ("release_id", "version", "channel", "compatibility", "lifecycle", "components", "aggregate_digest")
 
 
 def _definition(doc):

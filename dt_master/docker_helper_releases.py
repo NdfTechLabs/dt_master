@@ -20,6 +20,17 @@ _FILE_MODE = re.compile(r"^[0-7]{4}$")
 _SOURCE_PREFIX = "scripts/bin/docker/"
 _INSTALL_PREFIX = "/usr/local/lib/dt-master/docker/"
 
+RELEASE_MANIFEST_SCHEMA_VERSION = "1.0.0"
+COMPATIBILITY_FIELDS = (
+	"helper_protocol",
+	"privilege_readiness_contract",
+	"docker_install_plan",
+	"docker_install_policy",
+	"inventory_schema",
+)
+LIFECYCLE_FIELDS = ("bootstrap", "upgrade", "reconcile", "activation_order", "verification")
+MANIFEST_COMPONENT_IDS = {"lifecycle_helper", "install_policy", "host_inventory"}
+
 COMPONENT_FINGERPRINT_FIELDS = (
 	"component_id",
 	"version",
@@ -145,3 +156,114 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 		validate_component_definition(component, require_digest=False)
 		component.sha256 = component_source_digest(source_root, component.source_path)
 	return aggregate_release_digest(components)
+
+
+
+def _parse_json_object(value, label):
+	"""Parse a JSON object stored in a Frappe Code field or accept a mapping."""
+	if isinstance(value, str):
+		try:
+			value = json.loads(value)
+		except json.JSONDecodeError as exc:
+			raise DockerHelperReleaseError(f"Invalid {label} JSON") from exc
+	if not isinstance(value, dict):
+		raise DockerHelperReleaseError(f"{label} must be a JSON object")
+	return value
+
+
+def validate_release_metadata(compatibility, lifecycle):
+	"""Validate the versioned compatibility and lifecycle declarations."""
+	compatibility = _parse_json_object(compatibility, "compatibility")
+	if set(compatibility) != {*COMPATIBILITY_FIELDS, "upgrade_from"}:
+		raise DockerHelperReleaseError("Invalid release compatibility fields")
+	for name in COMPATIBILITY_FIELDS:
+		version_range = compatibility[name]
+		if not isinstance(version_range, dict) or set(version_range) != {"minimum", "maximum"}:
+			raise DockerHelperReleaseError(f"Invalid compatibility range: {name}")
+		for bound in ("minimum", "maximum"):
+			if not isinstance(version_range[bound], str) or not _VERSION.fullmatch(version_range[bound]):
+				raise DockerHelperReleaseError(f"Invalid compatibility version: {name}")
+		upgrade_from = compatibility["upgrade_from"]
+		if (
+			not isinstance(upgrade_from, list)
+			or len(upgrade_from) != len(set(upgrade_from))
+			or any(not isinstance(item, str) or not _VERSION.fullmatch(item) for item in upgrade_from)
+		):
+			raise DockerHelperReleaseError("Invalid upgrade predecessor list")
+
+	lifecycle = _parse_json_object(lifecycle, "lifecycle")
+	if set(lifecycle) != set(LIFECYCLE_FIELDS):
+		raise DockerHelperReleaseError("Invalid release lifecycle fields")
+	for name in ("bootstrap", "upgrade", "reconcile", "verification"):
+		if not isinstance(lifecycle[name], str) or not lifecycle[name].strip() or len(lifecycle[name]) > 1000:
+			raise DockerHelperReleaseError(f"Invalid lifecycle declaration: {name}")
+	activation_order = lifecycle["activation_order"]
+	if (
+		not isinstance(activation_order, list)
+		or len(activation_order) != len(MANIFEST_COMPONENT_IDS)
+		or set(activation_order) != MANIFEST_COMPONENT_IDS
+	):
+		raise DockerHelperReleaseError("Lifecycle activation order must contain each release component exactly once")
+	return compatibility, lifecycle
+
+
+def build_release_manifest(release) -> dict:
+	"""Project one published catalog release into the installer manifest contract.
+
+	The Frappe DocType remains authoritative. This JSON shape is a deployment
+	artifact consumed by the existing installer, readiness probe and root helper.
+	"""
+	def get(field):
+		return _value(release, field)
+
+	if get("status") != "Published":
+		raise DockerHelperReleaseError("Only a published Docker Helper Release can be deployed")
+	release_id = get("release_id")
+	version = get("version")
+	channel = get("channel")
+	if not isinstance(release_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", release_id):
+		raise DockerHelperReleaseError("Invalid release identifier")
+	if not isinstance(version, str) or not _VERSION.fullmatch(version):
+		raise DockerHelperReleaseError("Invalid release version")
+	if channel not in {"stable", "beta", "edge"}:
+		raise DockerHelperReleaseError("Invalid release channel")
+
+	compatibility, lifecycle = validate_release_metadata(get("compatibility"), get("lifecycle"))
+	components = canonical_component_records(get("components") or [])
+	if {row["component_id"] for row in components} != MANIFEST_COMPONENT_IDS:
+		raise DockerHelperReleaseError("Docker Helper Release component inventory is incomplete")
+
+	manifest_components = []
+	for row in components:
+		filename = PurePosixPath(row["source_path"]).name
+		if PurePosixPath(row["install_path"]).name != filename:
+			raise DockerHelperReleaseError(f"Source and install filenames differ: {row['component_id']}")
+		if (row["file_owner"], row["file_group"], row["file_mode"]) != ("root", "root", "0755"):
+			raise DockerHelperReleaseError(f"Unsupported deployment ownership or mode: {row['component_id']}")
+		manifest_components.append(
+			{
+				"id": row["component_id"],
+				"path": filename,
+				"version": row["version"],
+				"sha256": row["sha256"],
+				"required": row["required"],
+				"responsibility": row["responsibility"],
+			}
+		)
+	versions = {row["id"]: row["version"] for row in manifest_components}
+	if versions["lifecycle_helper"] != version:
+		raise DockerHelperReleaseError("Lifecycle helper version must equal the release version")
+
+	return {
+		"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
+		"release": {"id": release_id, "version": version, "channel": channel, "status": "supported"},
+		"compatibility": compatibility,
+		"components": manifest_components,
+		"lifecycle": lifecycle,
+	}
+
+
+def serialize_release_manifest(release) -> str:
+	"""Return deterministic UTF-8 JSON for deployment and digest comparison."""
+	manifest = build_release_manifest(release)
+	return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

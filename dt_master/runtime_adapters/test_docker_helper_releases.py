@@ -7,6 +7,7 @@ from pathlib import Path
 from dt_master.docker_helper_releases import (
 	DockerHelperReleaseError,
 	aggregate_release_digest,
+	build_release_manifest,
 	component_source_digest,
 )
 
@@ -73,6 +74,62 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		]
 		with self.assertRaises(DockerHelperReleaseError):
 			aggregate_release_digest(rows)
+
+
+	def test_release_manifest_projection_is_deterministic_and_uses_catalog_metadata(self):
+		compatibility = {
+			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
+			"docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+			"inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"upgrade_from": ["0.3.0", "0.3.1", "0.3.2"],
+		}
+		lifecycle = {
+			"bootstrap": "Install the complete release when no recognized helper exists.",
+			"upgrade": "Upgrade a recognized older release without repeating host preparation.",
+			"reconcile": "Repair only individually recognized and verifiable artifacts.",
+			"activation_order": ["install_policy", "host_inventory", "lifecycle_helper"],
+			"verification": "Verify all required digests, versions, ownership, modes and compatibility.",
+		}
+		components = []
+		for component_id, filename, version in (
+			("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
+			("install_policy", "docker_install_policy.py", "1.1.1"),
+			("host_inventory", "docker_install_inventory.py", "1.0.0"),
+		):
+			components.append({
+				"component_id": component_id,
+				"version": version,
+				"source_path": f"scripts/bin/docker/{filename}",
+				"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
+				"required": 1,
+				"file_owner": "root",
+				"file_group": "root",
+				"file_mode": "0755",
+				"sha256": "a" * 64,
+				"responsibility": f"{component_id} responsibility",
+			})
+		release = {
+			"release_id": "dt-docker-helper-0.3.2",
+			"version": "0.3.2",
+			"channel": "stable",
+			"status": "Published",
+			"compatibility": compatibility,
+			"lifecycle": lifecycle,
+			"components": components,
+		}
+		manifest = build_release_manifest(release)
+		self.assertEqual(manifest["release"]["id"], release["release_id"])
+		self.assertEqual([row["id"] for row in manifest["components"]], [
+			"host_inventory", "install_policy", "lifecycle_helper"
+		])
+		self.assertEqual(manifest["compatibility"], compatibility)
+		self.assertEqual(manifest["lifecycle"], lifecycle)
+
+	def test_release_manifest_projection_rejects_draft_releases(self):
+		with self.assertRaises(DockerHelperReleaseError):
+			build_release_manifest({"status": "Draft"})
 
 
 if __name__ == "__main__":

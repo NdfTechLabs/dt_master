@@ -1,6 +1,8 @@
 # Copyright (c) 2026, NDF Technology Labs Solutions LTD
 # See license.txt
 
+import json
+
 import frappe
 from frappe.tests import IntegrationTestCase
 
