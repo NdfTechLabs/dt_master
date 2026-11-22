@@ -954,6 +954,7 @@ function run_node_action(frm, label, method) {
 					),
 					indicator: "blue",
 				});
+				watch_docker_operation(frm, operation.operation_id, "Host inspection");
 			},
 			error() {
 				frappe.msgprint({
@@ -973,7 +974,6 @@ function run_node_action(frm, label, method) {
 		args: { node_name: frm.doc.name },
 		callback() {
 			frm.reload_doc();
-			watch_docker_operation(frm, operation.operation_id, "Host inspection");
 		},
 		error() {
 			frappe.msgprint(
