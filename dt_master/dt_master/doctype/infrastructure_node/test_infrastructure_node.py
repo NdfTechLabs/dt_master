@@ -343,6 +343,44 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		self.assertFalse(node.docker_host_management_snapshot)
 		node.validate()
 
+	def test_equivalent_docker_host_lifecycle_datetime_representations_are_unchanged(self):
+		timestamp = "2026-11-18 11:00:00"
+		self.assertEqual(
+			InfrastructureNode._normalize_inspection_value("docker_host_state_updated_on", timestamp),
+			get_datetime(timestamp),
+		)
+
+	def test_saved_node_accepts_equivalent_docker_host_lifecycle_datetime_representation(self):
+		node = self._new_node()
+		node.insert(ignore_permissions=True)
+		timestamp = "2026-11-18 11:00:00"
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			"docker_host_state_updated_on",
+			get_datetime(timestamp),
+			update_modified=False,
+		)
+		node.reload()
+		node.docker_host_state_updated_on = timestamp
+		node.node_name = f"{node.node_name}-updated"
+		node.save(ignore_permissions=True)
+
+	def test_saved_node_rejects_changed_docker_host_lifecycle_timestamp(self):
+		node = self._new_node()
+		node.insert(ignore_permissions=True)
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			"docker_host_state_updated_on",
+			get_datetime("2026-11-18 11:00:00"),
+			update_modified=False,
+		)
+		node.reload()
+		node.docker_host_state_updated_on = "2026-11-18 11:01:00"
+		with self.assertRaises(frappe.ValidationError):
+			node.save(ignore_permissions=True)
+
 	def test_new_node_rejects_client_supplied_docker_host_lifecycle_state(self):
 		node = self._new_node()
 		node.docker_host_state = "Engine Ready"
