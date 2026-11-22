@@ -93,6 +93,25 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			node.validate()
 
 
+
+	def test_published_assignment_generates_node_specific_manifest(self):
+		node = self._new_node()
+		node.docker_helper_release = "PUBLISHED-RELEASE"
+		release = type("Release", (), {"name": "PUBLISHED-RELEASE"})()
+		with (
+			patch.object(frappe.db, "get_value", return_value="Published"),
+			patch.object(frappe, "get_doc", return_value=release),
+			patch(
+				"dt_master.docker_helper_releases.serialize_release_manifest",
+				return_value='{"release":{"id":"PUBLISHED-RELEASE"}}',
+			),
+		):
+			node.validate()
+		self.assertEqual(
+			node.docker_helper_release_manifest,
+			'{"release":{"id":"PUBLISHED-RELEASE"}}',
+		)
+
 	def test_node_retires_previous_release_when_no_other_nodes_use_it(self):
 		node = self._new_node()
 		node.name = "NODE-1"
