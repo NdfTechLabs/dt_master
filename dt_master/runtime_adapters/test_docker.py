@@ -390,7 +390,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			adapter_id="docker-compose-v1",
 			runtime_type="docker",
 			target_doctype="Infrastructure Node",
-			target_name="NODE-0001",
+			target_name="NDF Tech Labs Contabo",
 			method="install_engine",
 			payload={"confirm": True},
 			operation_id="OP-0001",
@@ -423,6 +423,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		helper_request = run_helper.call_args.args[2]
 		self.assertEqual(helper_request["operation"], "install_engine")
 		self.assertEqual(helper_request["operation_id"], "OP-0001")
+		self.assertEqual(helper_request["target"]["name"], "NDF Tech Labs Contabo")
 		self.assertEqual(helper_request["plan"]["policy_version"], "1.1.1")
 		self.assertEqual(helper_request["plan"]["plan_digest"], "a" * 64)
 		self.assertEqual(helper_request["expected_state_fingerprint"], "b" * 64)
