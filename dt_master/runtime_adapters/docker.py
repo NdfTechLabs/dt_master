@@ -1453,6 +1453,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					"severity": "warning",
 					"message": "Docker Engine installation inventory did not satisfy the planning contract.",
 				}
+		if inspection.data.get("inspection_status") == "Successful" and install_plan is None:
+			self._persist_inspection_evidence(node, request, inspection.data)
 		if (
 			inspection.outcome == "failed"
 			or readiness in {"Unknown", "Not Ready"}
