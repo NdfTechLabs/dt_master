@@ -7,10 +7,10 @@ durable coordinator, worker, node-scoped resource lease and runtime adapter.
 
 from dt_master.operations.docker_lifecycle import (
 	authorize_docker_lifecycle_node,
-	docker_lifecycle_resource_lock_keys,
-	docker_setup_restart_updates,
 	authorize_docker_setup_restart,
+	docker_lifecycle_resource_lock_keys,
 	docker_setup_restart_lock_keys,
+	docker_setup_restart_updates,
 	validate_docker_lifecycle_payload,
 )
 from dt_master.operations.registry import OperationDefinition, register_operation
