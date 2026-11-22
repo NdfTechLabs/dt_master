@@ -318,6 +318,211 @@ function docker_setup_state(frm) {
 	};
 }
 
+function docker_install_plan_details_html(plan) {
+	if (!plan || !plan.status) {
+		return (
+			'<div class="small text-muted mt-2">' +
+			__("No validated Docker install plan is recorded yet.") +
+			"</div>"
+		);
+	}
+
+	const reasonDescriptions = {
+		HOST_IDENTITY_UNKNOWN: __("Host operating-system identity could not be established."),
+		HOST_UNSUPPORTED: __("This operating system, release, or architecture is not supported."),
+		PACKAGE_MANAGER_UNSUPPORTED: __("The host does not use a supported package manager."),
+		PACKAGE_MANAGER_BUSY: __("The package manager is currently locked by another process."),
+		DPKG_STATE_BROKEN: __("The package database reports an incomplete or inconsistent state."),
+		APT_METADATA_NOT_FRESH: __("APT package metadata is stale, aging, or unavailable."),
+		DOCKER_REPOSITORY_UNTRUSTED: __("The configured Docker package source is not the official trusted repository."),
+		DOCKER_KEYRING_PATH_UNTRUSTED: __("The Docker signing key is not stored at the approved keyring path."),
+		DOCKER_SIGNING_KEY_UNVERIFIED: __("The Docker signing key has not yet been verified against platform policy."),
+		DOCKER_SIGNING_KEY_MISMATCH: __("The observed Docker signing key does not match the pinned trust policy."),
+		ROOT_STORAGE_INSUFFICIENT: __("The root filesystem does not have the required free space."),
+		APT_CACHE_STORAGE_INSUFFICIENT: __("The APT cache filesystem does not have the required free space."),
+		WORKLOAD_STATE_UNAVAILABLE: __("Running workload state could not be inspected."),
+		ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED: __("Running containers may be interrupted when Docker starts; operator impact approval is required."),
+		CONFLICTING_PACKAGE_FAMILY: __("Conflicting Docker or container runtime packages are installed."),
+		PARTIAL_DOCKER_CE_INSTALLATION: __("Only part of the required Docker Engine package set is installed."),
+		ENGINE_PACKAGE_HELD: __("One or more required Docker Engine packages are held by the package manager."),
+		EXISTING_DOCKER_ENGINE_UNHEALTHY: __("An existing Docker Engine installation is not healthy."),
+		EXISTING_PACKAGE_ORIGIN_UNVERIFIED: __("The origin of one or more installed Docker packages could not be trusted."),
+	};
+
+	const describeReason = (code) => {
+		if (reasonDescriptions[code]) return reasonDescriptions[code];
+		if (code.startsWith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")) {
+			return __(
+				"No trusted official-repository package candidate is available for {0}.",
+				[code.split(":").slice(1).join(":")]
+			);
+		}
+		if (code.startsWith("PACKAGE_INVENTORY_MISSING:")) {
+			return __(
+				"Package inventory is missing the required entry for {0}.",
+				[code.split(":").slice(1).join(":")]
+			);
+		}
+		return __("The planner reported an additional condition requiring review.");
+	};
+
+	const reasonCodes = Array.isArray(plan.reason_codes) ? plan.reason_codes : [];
+	const diagnosticsHtml = reasonCodes.length
+		? '<ul class="mb-0">' +
+			reasonCodes
+				.map((code) => {
+					const warning =
+						plan.status === "preparation_required" ||
+						code === "ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED";
+					return (
+						'<li><span class="indicator-pill ' +
+						(warning ? "orange" : "red") +
+						'">' +
+						(warning ? __("Review") : __("Blocking")) +
+						"</span> <strong>" +
+						escape_html(code) +
+						"</strong>: " +
+						escape_html(describeReason(code)) +
+						"</li>"
+					);
+				})
+				.join("") +
+			"</ul>"
+		: '<span class="text-muted">' + __("No planner blockers or review conditions.") + "</span>";
+
+	const prerequisites = Array.isArray(plan.prerequisites) ? plan.prerequisites : [];
+	const prerequisiteLabels = {
+		configure_official_docker_repository: __("Configure official Docker repository"),
+		refresh_apt_metadata: __("Refresh APT package metadata"),
+		verify_and_pin_docker_signing_key: __("Verify and pin Docker signing key"),
+	};
+	const prerequisitesHtml = prerequisites.length
+		? '<ul class="mb-0">' +
+			prerequisites
+				.map(
+					(item) =>
+						"<li>" +
+						escape_html(prerequisiteLabels[item] || item) +
+						"</li>"
+				)
+				.join("") +
+			"</ul>"
+		: '<span class="text-muted">' + __("No additional planner prerequisites.") + "</span>";
+
+	const packages = Array.isArray(plan.packages) ? plan.packages : [];
+	const packageRows = packages
+		.map(
+			(row) =>
+				"<tr><td>" +
+				escape_html(row.name || "") +
+				"</td><td>" +
+				escape_html(row.action || "") +
+				"</td><td>" +
+				escape_html(row.installed_version || __("Not installed")) +
+				"</td><td>" +
+				escape_html(row.candidate_version || __("Unavailable")) +
+				"</td></tr>"
+		)
+		.join("");
+	const packageHtml = packages.length
+		? '<div class="table-responsive"><table class="table table-bordered table-sm mb-0"><thead><tr><th>' +
+			__("Package") +
+			"</th><th>" +
+			__("Action") +
+			"</th><th>" +
+			__("Installed version") +
+			"</th><th>" +
+			__("Candidate version") +
+			"</th></tr></thead><tbody>" +
+			packageRows +
+			"</tbody></table></div>"
+		: '<span class="text-muted">' + __("No package candidates were produced.") + "</span>";
+
+	const repository = plan.repository || {};
+	const apt = plan.apt_metadata || {};
+	const packageManager = plan.package_manager || {};
+	const storage = plan.storage || {};
+	const workload = plan.workload_impact || {};
+	const metadataRows = [
+		[__("Repository"), repository.source_id],
+		[__("Keyring path"), repository.keyring_path],
+		[__("Signing key evidence"), repository.fingerprint_evidence],
+		[__("Signing key trusted"), repository.signing_key_trusted === true ? __("Yes") : __("No")],
+		[__("APT metadata"), apt.status],
+		[__("Metadata age (seconds)"), apt.age_seconds],
+		[__("Package manager locked"), packageManager.locked === true ? __("Yes") : __("No")],
+		[__("dpkg audit clean"), packageManager.dpkg_audit_clean === true ? __("Yes") : __("No")],
+		[__("Root free space"), storage.root_available_bytes],
+		[__("APT cache free space"), storage.apt_cache_available_bytes],
+		[__("Running containers"), workload.running_containers],
+		[__("Total containers"), workload.total_containers],
+	];
+	const metadataHtml =
+		'<table class="table table-bordered table-sm mb-0"><tbody>' +
+		metadataRows
+			.map(
+				([label, value]) =>
+					"<tr><th class=\"text-muted\" style=\"width: 42%\">" +
+					escape_html(label) +
+					"</th><td>" +
+					escape_html(value === null || value === undefined ? __("Unknown") : String(value)) +
+					"</td></tr>"
+			)
+			.join("") +
+		"</tbody></table>";
+
+	return (
+		'<div class="border rounded p-3 mt-3">' +
+		'<div class="d-flex justify-content-between align-items-center mb-2"><strong>' +
+		__("Docker Engine Install Plan") +
+		'</strong><span class="indicator-pill ' +
+		(plan.status === "ready" || plan.status === "no_op"
+			? "green"
+			: plan.status === "preparation_required"
+			? "orange"
+			: "red") +
+		'">' +
+		escape_html(plan.status) +
+		"</span></div>" +
+		'<div class="small text-muted mb-3">' +
+		__("Policy version") +
+		": " +
+		escape_html(plan.policy_version || __("Unknown")) +
+		" · " +
+		__("Expires after") +
+		": " +
+		escape_html(String(plan.expires_after_seconds || 0)) +
+		" " +
+		__("seconds") +
+		"<br>" +
+		__("Plan digest") +
+		": " +
+		escape_html(plan.plan_digest || "") +
+		"</div>" +
+		'<div class="font-weight-bold mb-2">' +
+		__("Planner diagnostics") +
+		"</div>" +
+		diagnosticsHtml +
+		'<div class="font-weight-bold mt-3 mb-2">' +
+		__("Prerequisites") +
+		"</div>" +
+		prerequisitesHtml +
+		'<div class="font-weight-bold mt-3 mb-2">' +
+		__("Package candidates") +
+		"</div>" +
+		packageHtml +
+		'<details class="mt-3"><summary class="font-weight-bold">' +
+		__("Repository, package manager and host evidence") +
+		"</summary>" +
+		'<div class="mt-2">' +
+		metadataHtml +
+		"</div></details>" +
+		'<div class="small text-muted mt-2">' +
+		escape_html(plan.daemon_impact || "") +
+		"</div></div>"
+	);
+}
+
 function docker_setup_progress_html(frm, setup) {
 	const steps = [
 		{
@@ -387,22 +592,7 @@ function docker_setup_progress_html(frm, setup) {
 			);
 		})
 		.join("");
-	const planHtml = setup.installPlan.status
-		? '<div class="small text-muted mt-2">' +
-		  __("Latest install plan") +
-		  ": <strong>" +
-		  escape_html(setup.installPlan.status) +
-		  "</strong>" +
-		  (setup.installPlan.observed_at
-				? " · " + escape_html(setup.installPlan.observed_at)
-				: "") +
-		  (setup.installPlan.plan_digest
-				? "<br>" + __("Plan digest") + ": " + escape_html(setup.installPlan.plan_digest)
-				: "") +
-		  "</div>"
-		: '<div class="small text-muted mt-2">' +
-		  __("No validated Docker install plan is recorded yet.") +
-		  "</div>";
+	const planHtml = docker_install_plan_details_html(setup.installPlan);
 	const actionHtml = setup.action
 		? '<button type="button" class="btn btn-primary btn-sm mt-3" data-docker-action="' +
 		  escape_html(setup.action.key) +
