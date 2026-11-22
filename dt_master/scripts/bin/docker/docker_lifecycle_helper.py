@@ -232,6 +232,33 @@ def _load_policy():
 	import docker_install_inventory
 	import docker_install_policy
 
+	compatibility = manifest.get("compatibility")
+	actual_versions = {
+		"helper_protocol": REQUEST_SCHEMA_VERSION,
+		"privilege_readiness_contract": "1.0.0",
+		"docker_install_plan": docker_install_policy.PLAN_SCHEMA_VERSION,
+		"docker_install_policy": docker_install_policy.POLICY_VERSION,
+		"inventory_schema": docker_install_inventory.INSTALL_INVENTORY_SCHEMA_VERSION,
+	}
+	if not isinstance(compatibility, dict) or set(compatibility) != set(actual_versions) | {"upgrade_from"}:
+		raise HelperError("RELEASE_COMPATIBILITY_INVALID", "host_validation")
+	for name, version in actual_versions.items():
+		version_range = compatibility.get(name)
+		if (
+			not isinstance(version_range, dict)
+			or set(version_range) != {"minimum", "maximum"}
+			or version_range["minimum"] != version
+			or version_range["maximum"] != version
+		):
+			raise HelperError("RELEASE_COMPONENT_INCOMPATIBLE", "host_validation")
+	component_versions = {item["path"]: item["version"] for item in components}
+	if (
+		component_versions.get("docker_lifecycle_helper.py") != HELPER_VERSION
+		or component_versions.get("docker_install_policy.py") != docker_install_policy.POLICY_VERSION
+		or component_versions.get("docker_install_inventory.py")
+		!= docker_install_inventory.INSTALL_INVENTORY_SCHEMA_VERSION
+	):
+		raise HelperError("RELEASE_COMPONENT_VERSION_MISMATCH", "host_validation")
 	return docker_install_inventory, docker_install_policy
 
 
