@@ -118,7 +118,7 @@ class TestDockerReadiness(unittest.TestCase):
         data = snapshot(inspection_status="Failed")
         data["docker_cli"]["installed"] = False
         result = evaluate_docker_readiness(
-            policy([check("docker_engine_required", True)]), data
+            policy([check("min_cpu_cores", 4)]), data
         )
         self.assertEqual(result["readiness"], "Unknown")
         self.assertEqual(result["diagnostics"][0]["code"], "DOCKER_REQUIREMENT_EVIDENCE_MISSING")
@@ -148,7 +148,7 @@ class TestDockerReadiness(unittest.TestCase):
 
     def test_partial_inspection_is_not_treated_as_complete_evidence(self):
         result = evaluate_docker_readiness(
-            policy([check("docker_engine_required", True)]),
+            policy([check("min_cpu_cores", 4)]),
             snapshot(inspection_status="Partial"),
         )
         self.assertEqual(result["readiness"], "Unknown")
