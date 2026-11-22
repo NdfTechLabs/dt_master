@@ -28,6 +28,7 @@
 		"host.node.docker.inspect": __("Inspect Docker Runtime"),
 		"host.node.docker.preflight": __("Run Docker Preflight"),
 		"host.node.docker.repository.prepare": __("Prepare Docker Repository"),
+		"host.node.docker.setup.restart": __("Restart Guided Docker Setup"),
 		"host.node.docker.updates.check": __("Check Docker Updates"),
 		"host.node.docker.verify": __("Verify Docker Runtime"),
 		"host.node.inspect": __("Inspect Node"),
