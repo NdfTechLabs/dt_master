@@ -61,6 +61,17 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			["node-docker:NODE-01"],
 		)
 
+	def test_repository_preparation_is_registered_as_single_attempt_mutation(self):
+		definition = get_operation("host.node.docker.repository.prepare")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 600)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(definition.validate_payload({}), {})
+		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
+		operation = SimpleNamespace(operation_type="host.node.docker.repository.prepare")
+		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
+
+
 	def test_other_docker_package_lifecycle_mutations_are_not_registered(self):
 		types = set(registered_operation_types())
 		for operation_type in (
