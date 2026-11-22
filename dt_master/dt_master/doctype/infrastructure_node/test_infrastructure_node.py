@@ -2,9 +2,9 @@
 # See license.txt
 
 import json
+from unittest.mock import patch
 
 import frappe
-from unittest.mock import patch
 from frappe.tests import IntegrationTestCase
 from frappe.utils import get_datetime
 
@@ -75,7 +75,6 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.docker_helper_release_assessment_status = "Current"
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
-
 
 	def test_node_rejects_unpublished_docker_helper_release_assignment(self):
 		node = self._new_node()
