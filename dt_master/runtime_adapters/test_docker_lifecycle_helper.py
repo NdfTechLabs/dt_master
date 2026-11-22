@@ -199,6 +199,20 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         with self.assertRaises(helper.HelperError):
             helper._request(b'{"schema_version":"1.0.0","operation":"run_shell"}')
 
+    def test_install_request_accepts_frappe_node_names_with_spaces(self):
+        import json
+        value = request()
+        value["target"]["name"] = "NDF Tech Labs Contabo"
+        self.assertEqual(helper._request(json.dumps(value).encode())["target"]["name"], "NDF Tech Labs Contabo")
+
+    def test_install_request_rejects_invalid_node_names(self):
+        import json
+        for name in ("", "NODE\n0001", "N" * 141):
+            value = request()
+            value["target"]["name"] = name
+            with self.subTest(name=repr(name)), self.assertRaises(helper.HelperError):
+                helper._request(json.dumps(value).encode())
+
     def test_install_request_rejects_unknown_fields_and_duplicate_keys(self):
         value = request()
         value["command"] = "apt install docker"
