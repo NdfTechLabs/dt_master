@@ -8,6 +8,8 @@ from dt_master.operations.docker_lifecycle import (
 	MUTATING_OPERATIONS,
 	READ_ONLY_OPERATIONS,
 	authorize_docker_lifecycle_node,
+	DOCKER_SETUP_CHECKPOINTS,
+	docker_setup_restart_updates,
 	docker_lifecycle_resource_lock_keys,
 	validate_docker_lifecycle_payload,
 )
@@ -192,6 +194,128 @@ class TestDockerRepositoryPreparationEndpoint(unittest.TestCase):
 			infrastructure_node.prepare_docker_repository("NODE-01")
 
 		start_operation.assert_not_called()
+
+
+class TestDockerSetupCheckpointRecovery(unittest.TestCase):
+	def test_restart_payload_accepts_all_eight_checkpoints_and_rejects_unknown(self):
+		operation = "host.node.docker.setup.restart"
+		self.assertEqual(len(DOCKER_SETUP_CHECKPOINTS), 8)
+		for checkpoint in DOCKER_SETUP_CHECKPOINTS:
+			with self.subTest(checkpoint=checkpoint):
+				self.assertEqual(
+					validate_docker_lifecycle_payload(operation, {"checkpoint": checkpoint}),
+					{"checkpoint": checkpoint},
+				)
+		for payload in ({}, {"checkpoint": "unknown"}, {"checkpoint": "connection", "force": True}):
+			with self.subTest(payload=payload), self.assertRaises(ValueError):
+				validate_docker_lifecycle_payload(operation, payload)
+
+	def test_restart_from_privilege_helper_preserves_host_and_clears_downstream_evidence(self):
+		node = SimpleNamespace(
+			access_verified=True,
+			docker_host_management_snapshot=(
+				'{"host_inspection":{"inspection_status":"Successful","os_support_status":"Supported"},'
+				'"privilege_bootstrap":{"status":"Succeeded"},'
+				'"privilege_readiness":{"status":"Ready"},'
+				'"docker_inspection":{"inspection_status":"Successful"},'
+				'"docker_install_plan":{"status":"blocked"}}'
+			),
+		)
+		updates = docker_setup_restart_updates(node, "privilege_helper")
+		import json
+		management = json.loads(updates["docker_host_management_snapshot"])
+		self.assertIn("host_inspection", management)
+		self.assertNotIn("privilege_bootstrap", management)
+		self.assertNotIn("privilege_readiness", management)
+		self.assertNotIn("docker_inspection", management)
+		self.assertNotIn("docker_install_plan", management)
+		self.assertEqual(updates["docker_host_state"], "Privilege Setup Required")
+		self.assertEqual(updates["docker_inspection_status"], "Not Inspected")
+
+	def test_restart_from_preflight_preserves_runtime_inspection(self):
+		node = SimpleNamespace(
+			access_verified=True,
+			docker_inspection_status="Successful",
+			docker_host_management_snapshot=(
+				'{"host_inspection":{"inspection_status":"Successful","os_support_status":"Supported"},'
+				'"privilege_bootstrap":{"status":"Succeeded"},"privilege_readiness":{"status":"Ready"},'
+				'"docker_inspection":{"inspection_status":"Successful"},"docker_install_plan":{"status":"blocked"}}'
+			),
+		)
+		updates = docker_setup_restart_updates(node, "preflight")
+		import json
+		management = json.loads(updates["docker_host_management_snapshot"])
+		self.assertIn("docker_inspection", management)
+		self.assertNotIn("docker_install_plan", management)
+		self.assertNotIn("docker_inspection_snapshot", updates)
+		self.assertEqual(updates["docker_host_state"], "Docker Inspection Required")
+
+	def test_restart_from_connection_invalidates_connection_and_all_downstream_evidence(self):
+		node = SimpleNamespace(
+			access_verified=True,
+			docker_host_management_snapshot=(
+				'{"connection_status":"Connected","connection_operation_id":"op-1",'
+				'"host_inspection":{"inspection_status":"Successful"},"privilege_bootstrap":{"status":"Succeeded"}}'
+			),
+		)
+		updates = docker_setup_restart_updates(node, "connection")
+		import json
+		management = json.loads(updates["docker_host_management_snapshot"])
+		self.assertNotIn("connection_status", management)
+		self.assertNotIn("connection_operation_id", management)
+		self.assertNotIn("host_inspection", management)
+		self.assertEqual(updates["access_verified"], 0)
+		self.assertEqual(updates["docker_host_state"], "Connection Required")
+
+	def test_restart_checkpoint_requires_its_upstream_evidence(self):
+		node = SimpleNamespace(
+			access_verified=True,
+			docker_host_management_snapshot="{}",
+			docker_inspection_status="Not Inspected",
+		)
+		with self.assertRaisesRegex(ValueError, "Host inspection"):
+			docker_setup_restart_updates(node, "privilege_helper")
+		with self.assertRaisesRegex(ValueError, "privilege readiness"):
+			docker_setup_restart_updates(node, "docker_inspection")
+
+
+class TestDockerSetupRestartEndpoint(unittest.TestCase):
+	def test_restart_endpoint_queues_durable_checkpoint_operation(self):
+		from unittest.mock import Mock, patch
+		from dt_master.api import infrastructure_node
+
+		node = SimpleNamespace(
+			name="NODE-01", ssh_host_alias="node-alias", ip_address=None, ssh_user="ubuntu",
+			check_permission=Mock(),
+		)
+		with (
+			patch.object(infrastructure_node.frappe, "only_for"),
+			patch.object(infrastructure_node.frappe, "get_doc", return_value=node),
+			patch.object(infrastructure_node, "start_operation", return_value={"operation_id": "restart-01"}) as start,
+		):
+			result = infrastructure_node.restart_docker_setup_from("NODE-01", "privilege_helper")
+		self.assertEqual(result, {"operation_id": "restart-01"})
+		start.assert_called_once()
+		self.assertEqual(start.call_args.kwargs["operation_type"], "host.node.docker.setup.restart")
+		self.assertEqual(start.call_args.kwargs["payload"], {"checkpoint": "privilege_helper"})
+
+	def test_restart_endpoint_rejects_unconfigured_ssh(self):
+		from unittest.mock import Mock, patch
+		from dt_master.api import infrastructure_node
+
+		node = SimpleNamespace(
+			name="NODE-01", ssh_host_alias=None, ip_address=None, ssh_user=None,
+			check_permission=Mock(),
+		)
+		with (
+			patch.object(infrastructure_node.frappe, "only_for"),
+			patch.object(infrastructure_node.frappe, "get_doc", return_value=node),
+			patch.object(infrastructure_node.frappe, "throw", side_effect=ValueError),
+			patch.object(infrastructure_node, "start_operation") as start,
+			self.assertRaises(ValueError),
+		):
+			infrastructure_node.restart_docker_setup_from("NODE-01", "connection")
+		start.assert_not_called()
 
 
 if __name__ == "__main__":
