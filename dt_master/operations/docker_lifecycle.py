@@ -229,7 +229,7 @@ def docker_setup_restart_updates(node, checkpoint):
 	}
 	if checkpoint == "connection":
 		updates["access_verified"] = 0
-	if checkpoint in {"connection", "host_inspection", "privilege_helper", "privilege_verification", "docker_inspection", "preflight"}:
+	if checkpoint in {"connection", "host_inspection", "privilege_helper", "privilege_verification", "docker_inspection"}:
 		updates.update({
 			"docker_inspection_status": "Not Inspected",
 			"docker_readiness": "Unknown",
