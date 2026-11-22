@@ -702,7 +702,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		if (
 			inspection.get("inspection_status") != "Successful"
-			or inspection.get("readiness") != "Ready"
 			or (inspection.get("privilege_readiness") or {}).get("status") != "Ready"
 		):
 			return False
@@ -1604,16 +1603,23 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				}
 		if inspection.data.get("inspection_status") == "Successful" and install_plan is None:
 			self._persist_inspection_evidence(node, request, inspection.data)
-		if (
-			inspection.outcome == "failed"
-			or readiness in {"Unknown", "Not Ready"}
-			or privilege == "Not Ready"
-		):
+		inspection_status = inspection.data.get("inspection_status")
+		if inspection_status != "Successful" or inspection.outcome == "failed":
 			outcome, state = "failed", "Blocked"
-		elif readiness == "Degraded" or inspection.outcome == "partial" or privilege == "Incomplete":
-			outcome, state = "partial", "Degraded"
+		elif privilege != "Ready":
+			outcome, state = ("failed", "Blocked") if privilege == "Not Ready" else ("partial", "Degraded")
+		elif install_plan is None:
+			outcome, state = "failed", "Blocked"
+		elif self._requires_repository_preparation(install_plan):
+			# Preflight successfully assessed the host. Repository prerequisites
+			# are a next lifecycle action, not a failed inspection.
+			outcome, state = "succeeded", "Repository Preparation Required"
+		elif install_plan.get("status") == "ready":
+			outcome, state = "succeeded", "Ready for Install"
 		else:
-			outcome, state = "succeeded", "Ready"
+			# A valid blocked plan is still a successful assessment. The plan's
+			# reasons remain visible and Engine installation stays unavailable.
+			outcome, state = "succeeded", "Blocked"
 		privilege_diagnostics = tuple(
 			{
 				"code": item["code"],
