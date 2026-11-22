@@ -1204,6 +1204,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			fresh = self._inspect(request, execution_context=execution_context)
 			if fresh.data.get("inspection_status") != "Successful":
 				raise ValueError("Fresh Docker inspection failed after repository preparation.")
+			if fresh.data.get("readiness") != "Ready":
+				raise ValueError("Fresh Docker host readiness is not Ready after repository preparation.")
+			fresh_privilege = fresh.data.get("privilege_readiness") or {}
+			if fresh_privilege.get("status") != "Ready":
+				raise ValueError("Trusted Docker privilege readiness is not Ready after repository preparation.")
 			fresh_snapshot = fresh.data.get("snapshot") or {}
 			fresh_inventory = (fresh_snapshot.get("host_inventory") or {}).get("docker_install_inventory")
 			if not isinstance(fresh_inventory, dict):
