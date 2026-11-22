@@ -113,6 +113,65 @@ frappe.ui.form.on("Infrastructure Node", {
 	},
 });
 
+function watch_docker_operation(frm, operationId, label) {
+	if (!operationId) return;
+	frm.__docker_operation_watchers = frm.__docker_operation_watchers || new Set();
+	if (frm.__docker_operation_watchers.has(operationId)) return;
+	frm.__docker_operation_watchers.add(operationId);
+
+	const completedStates = new Set(["Succeeded", "Failed", "Cancelled", "Recovery Required"]);
+	const pollInterval = 5000;
+	const maxAttempts = 360;
+
+	(async () => {
+		try {
+			for (let attempt = 0; attempt < maxAttempts; attempt++) {
+				await new Promise((resolve) => setTimeout(resolve, pollInterval));
+				let operation;
+				try {
+					const response = await frappe.call({
+						method: "dt_master.api.operations.get_operation",
+						args: { operation_id: operationId },
+					});
+					operation = response.message;
+				} catch (error) {
+					continue;
+				}
+				if (!operation || !completedStates.has(operation.execution_state)) continue;
+
+				if (frm.is_dirty && frm.is_dirty()) {
+					frappe.show_alert({
+						message: __(
+							"{0} has finished ({1}). This form has unsaved changes, so save or reload it to view the updated Docker state.",
+							[__(label), operation.execution_state]
+						),
+						indicator: operation.execution_state === "Succeeded" ? "green" : "orange",
+					});
+				} else {
+					await frm.reload_doc();
+					frappe.show_alert({
+						message: __(
+							"{0} finished: {1}. Infrastructure Node status has been refreshed.",
+							[__(label), operation.execution_state]
+						),
+						indicator: operation.execution_state === "Succeeded" ? "green" : "orange",
+					});
+				}
+				return;
+			}
+			frappe.show_alert({
+				message: __(
+					"{0} is still running or could not be confirmed. Task Manager remains the source of progress; refresh this form when it finishes.",
+					[__(label)]
+				),
+				indicator: "orange",
+			});
+		} finally {
+			frm.__docker_operation_watchers.delete(operationId);
+		}
+	})();
+}
+
 function test_node_connection(frm) {
 	frappe.call({
 		method: "dt_master.api.infrastructure_node.test_node_connection",
@@ -123,11 +182,12 @@ function test_node_connection(frm) {
 			const operation = response.message || {};
 			frappe.show_alert({
 				message: __(
-					"Node connection test queued. Operation: {0}. Follow progress and results in Task Manager.",
+					"Node connection test queued. Operation: {0}. Task Manager tracks progress; this form refreshes when it finishes.",
 					[operation.operation_id || __("unknown")]
 				),
 				indicator: "blue",
 			});
+			watch_docker_operation(frm, operation.operation_id, "Node connection test");
 		},
 		error() {
 			frappe.msgprint({
@@ -151,11 +211,12 @@ function run_docker_privilege_bootstrap(frm) {
 			const operation = response.message || {};
 			frappe.show_alert({
 				message: __(
-					"Docker privilege bootstrap queued. Operation: {0}. Follow progress and results in Task Manager.",
+					"Docker privilege bootstrap queued. Operation: {0}. Task Manager tracks progress; this form refreshes when it finishes.",
 					[operation.operation_id || __("unknown")]
 				),
 				indicator: "blue",
 			});
+			watch_docker_operation(frm, operation.operation_id, "Docker privilege bootstrap");
 		},
 		error() {
 			frappe.msgprint({
@@ -179,11 +240,12 @@ function run_docker_engine_install(frm) {
 			const operation = response.message || {};
 			frappe.show_alert({
 				message: __(
-					"Docker Engine installation queued. Operation: {0}. Follow progress and verification in Task Manager.",
+					"Docker Engine installation queued. Operation: {0}. Task Manager tracks progress; this form refreshes after verification finishes.",
 					[operation.operation_id || __("unknown")]
 				),
 				indicator: "blue",
 			});
+			watch_docker_operation(frm, operation.operation_id, "Docker Engine installation");
 		},
 		error() {
 			frappe.msgprint({
@@ -205,11 +267,12 @@ function run_docker_observation(frm, observation, label) {
 			const operation = response.message || {};
 			frappe.show_alert({
 				message: __(
-					"{0} queued. Operation: {1}. Follow progress and results in Task Manager.",
+					"{0} queued. Operation: {1}. Task Manager tracks progress; this form refreshes when it finishes.",
 					[__(label), operation.operation_id || __("unknown")]
 				),
 				indicator: "blue",
 			});
+			watch_docker_operation(frm, operation.operation_id, label);
 		},
 		error() {
 			frappe.msgprint({
@@ -698,11 +761,12 @@ function run_docker_repository_prepare(frm) {
 					const operation = response.message || {};
 					frappe.show_alert({
 						message: __(
-							"Docker repository preparation queued. Operation: {0}. Follow progress and results in Task Manager, then refresh this form.",
+							"Docker repository preparation queued. Operation: {0}. Task Manager tracks progress; this form refreshes when it finishes.",
 							[operation.operation_id || __("unknown")]
 						),
 						indicator: "blue",
 					});
+					watch_docker_operation(frm, operation.operation_id, "Docker repository preparation");
 				},
 				error() {
 					frappe.msgprint({
@@ -885,7 +949,7 @@ function run_node_action(frm, label, method) {
 				const operation = response.message || {};
 				frappe.show_alert({
 					message: __(
-						"Node inspection queued. Operation: {0}. View progress and results in Task Manager.",
+						"Node inspection queued. Operation: {0}. Task Manager tracks progress; this form refreshes when it finishes.",
 						[operation.operation_id || __("unknown")]
 					),
 					indicator: "blue",
@@ -909,6 +973,7 @@ function run_node_action(frm, label, method) {
 		args: { node_name: frm.doc.name },
 		callback() {
 			frm.reload_doc();
+			watch_docker_operation(frm, operation.operation_id, "Host inspection");
 		},
 		error() {
 			frappe.msgprint(
