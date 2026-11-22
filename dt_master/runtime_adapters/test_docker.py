@@ -687,6 +687,16 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertNotIn("docker_install_plan", management)
 		self.assertNotIn("docker_host_state", persisted)
 
+	def test_invalid_install_inventory_does_not_persist_plan_evidence(self):
+		snapshot = self._snapshot()
+		del snapshot["host_inventory"]["docker_install_inventory"]["packages"]
+		self._run(method="preflight", snapshot=snapshot)
+		updates = [call.args[2] for call in self.db_set_value.call_args_list]
+		persisted = next(item for item in updates if "docker_inspection_snapshot" in item)
+		management = json.loads(persisted["docker_host_management_snapshot"])
+		self.assertNotIn("docker_install_plan", management)
+		self.assertNotIn("docker_host_state", persisted)
+
 	def test_internal_install_inspection_does_not_persist_lifecycle_projection(self):
 		inspection = self._snapshot()
 		self.db_set_value.reset_mock()
