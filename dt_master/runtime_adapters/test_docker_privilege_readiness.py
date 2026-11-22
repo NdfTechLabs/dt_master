@@ -42,7 +42,9 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 			for line in probe.splitlines()
 			if line.startswith("EXPECTED_HELPER_VERSION =")
 		)
-		adapter_version_line = next(line for line in adapter.splitlines() if 'payload["helper_version"] !=' in line)
+		adapter_version_line = next(
+			line for line in adapter.splitlines() if 'payload["helper_version"] !=' in line
+		)
 		adapter_version = adapter_version_line.split("!=", 1)[1].strip().strip('"')
 
 		self.assertEqual(installer_digest, digest)
