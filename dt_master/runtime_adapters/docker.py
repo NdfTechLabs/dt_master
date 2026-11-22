@@ -399,7 +399,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		return result
 
 	@staticmethod
-	def _validate_trusted_helper_self_test(payload):
+	def _validate_trusted_helper_self_test(payload, expected_version):
 		required = {
 			"schema_version",
 			"helper_version",
@@ -412,7 +412,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid trusted Docker helper self-test response")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.2"
+			or payload["helper_version"] != expected_version
 			or payload["operation"] != "self_test"
 			or payload["status"] != "ok"
 			or type(payload["effective_uid"]) is not int
@@ -453,7 +453,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					helper_response = json.loads(
 						helper_stdout.strip(), object_pairs_hook=self._unique_json_object
 					)
-					self._validate_trusted_helper_self_test(helper_response)
+					self._validate_trusted_helper_self_test(helper_response, readiness["helper"]["version"])
 				except (TypeError, ValueError) as exc:
 					raise TrustedHelperExecutionError(
 						"invalid_response",
