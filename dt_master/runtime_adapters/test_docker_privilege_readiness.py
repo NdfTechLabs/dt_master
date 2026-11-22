@@ -64,7 +64,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 			installer,
 		)
 		self.assertIn(
-			f'check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "{hashlib.sha256(bytes.fromhex("99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6")).hexdigest()}"',
+			'check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"',
 			installer,
 		)
 		self.assertIn(
