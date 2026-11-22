@@ -1072,7 +1072,7 @@ function show_docker_setup_restart_dialog(frm) {
 				fieldname: "checkpoint",
 				fieldtype: "Select",
 				label: __("Restart from stage"),
-				options: checkpoints.map((item) => ({ label: item.label, value: item.value })),
+				options: checkpoints.map((item) => item.value).join("\n"),
 				reqd: 1,
 				default: "privilege_helper",
 				onchange() {
