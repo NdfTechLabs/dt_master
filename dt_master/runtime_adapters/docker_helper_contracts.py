@@ -32,6 +32,7 @@ HELPER_PHASES = frozenset(
 _PACKAGE_VERSION = re.compile(r"^(?:[0-9]+:)?[0-9][A-Za-z0-9.+~_-]{0,158}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+_NODE_NAME = re.compile(r"^[^\x00-\x1f\x7f]{1,140}$")
 _DIAGNOSTIC_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 
@@ -110,7 +111,8 @@ def validate_install_engine_request(request: dict) -> dict:
 	target = _object(request["target"], {"doctype", "name"}, "helper target")
 	if target["doctype"] != "Infrastructure Node":
 		raise DockerHelperContractError("Invalid helper target doctype")
-	_identifier(target["name"], "target name")
+	if not isinstance(target["name"], str) or not _NODE_NAME.fullmatch(target["name"]):
+		raise DockerHelperContractError("Invalid target name")
 	plan = _object(
 		request["plan"],
 		{"schema_version", "policy_version", "plan_digest", "packages"},
