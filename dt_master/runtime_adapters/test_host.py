@@ -56,6 +56,12 @@ def inspection_output(**overrides):
 class TestHostRuntimeAdapter(unittest.TestCase):
 	def setUp(self):
 		self.adapter = HostRuntimeAdapter()
+		now_datetime_patcher = patch(
+			"dt_master.runtime_adapters.host.now_datetime",
+			return_value=datetime.datetime(2026, 11, 22, 10, 0, 0),
+		)
+		now_datetime_patcher.start()
+		self.addCleanup(now_datetime_patcher.stop)
 		self.node = SimpleNamespace(
 			name="NODE-0001",
 			access_verified=1,
@@ -121,7 +127,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.host.frappe.db.set_value"),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script",
-				return_value=(0, "DT_MASTER_SSH_OK\\n", ""),
+				return_value=(0, "DT_MASTER_SSH_OK" + chr(10), ""),
 			) as run,
 		):
 			result = self.adapter.invoke("connection_check", request("connection_check"))
