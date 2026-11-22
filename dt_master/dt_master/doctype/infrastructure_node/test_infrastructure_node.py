@@ -92,6 +92,41 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		):
 			node.validate()
 
+
+	def test_node_retires_previous_release_when_no_other_nodes_use_it(self):
+		node = self._new_node()
+		node.name = "NODE-1"
+		node.docker_helper_release = "NEW-RELEASE"
+		previous = type("Previous", (), {"docker_helper_release": "OLD-RELEASE"})()
+		release = type("Release", (), {"status": "Published", "save": lambda *args, **kwargs: None})()
+		with (
+			patch.object(frappe.db, "count", return_value=0),
+			patch.object(frappe, "get_doc", return_value=release) as get_doc,
+			patch.object(release, "save") as save,
+		):
+			node._retire_unassigned_previous_helper_release(previous)
+		get_doc.assert_called_once_with("Docker Helper Release", "OLD-RELEASE")
+		save.assert_called_once_with(ignore_permissions=True)
+		self.assertEqual(release.status, "Retired")
+
+	def test_node_keeps_previous_release_published_when_another_node_uses_it(self):
+		node = self._new_node()
+		node.name = "NODE-1"
+		node.docker_helper_release = "NEW-RELEASE"
+		previous = type("Previous", (), {"docker_helper_release": "SHARED-RELEASE"})()
+		with (
+			patch.object(frappe.db, "count", return_value=1),
+			patch.object(frappe, "get_doc") as get_doc,
+		):
+			node._retire_unassigned_previous_helper_release(previous)
+		get_doc.assert_not_called()
+
+	def test_new_node_rejects_client_supplied_release_manifest(self):
+		node = self._new_node()
+		node.docker_helper_release_manifest = '{"release":{"id":"forged"}}'
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
 	def test_new_node_rejects_severity_without_requirement(self):
 		node = self._new_node()
 		node.docker_engine_severity = "Required"
