@@ -1,6 +1,6 @@
 """Unit tests for the pure Docker readiness evaluator."""
-from datetime import datetime, timezone
 import unittest
+from datetime import datetime, timezone
 
 from dt_master.docker_readiness import (
     ReadinessContractError,
