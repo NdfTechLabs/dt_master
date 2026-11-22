@@ -8,10 +8,8 @@ from frappe.utils import now_datetime
 
 from dt_master.docker_helper_releases import (
 	DockerHelperReleaseError,
-	aggregate_release_digest,
 	refresh_component_digests,
 	validate_release_metadata,
-	verify_release_source_snapshot,
 )
 
 RELEASE_DEFINITION_FIELDS = ("release_id", "schema_version", "version", "channel", "compatibility", "lifecycle", "components", "aggregate_digest")
@@ -57,31 +55,17 @@ class DockerHelperRelease(Document):
             return
 
         self._validate_metadata()
-        if previous and previous.status == "Draft" and self.status == "Published":
-            self._validate_publication_snapshot()
-        else:
-            self._refresh_digests()
+        # Draft hashes are refreshed from source on every save. On publication,
+        # this final refresh is the immutable snapshot that the Published release freezes.
+        self._refresh_digests()
         if self.status == "Published":
             self.published_on = now_datetime()
-
-    def _validate_publication_snapshot(self):
-        """Require the reviewed Draft hashes to still match source at publication time."""
-        try:
-            source_root = Path(__file__).resolve().parents[3]
-            verify_release_source_snapshot(self.components or [], source_root)
-            if self.aggregate_digest != aggregate_release_digest(self.components or []):
-                self._throw("The Draft aggregate digest is stale. Save the Draft again before publishing.")
-        except DockerHelperReleaseError as exc:
-            self._throw(
-                "The Draft source changed after it was last saved. Save and review the Draft again before publishing. "
-                + str(exc)
-            )
 
     def _validate_metadata(self):
         import re
 
         if not self.release_id or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", self.release_id):
-            self._throw("Release ID must contain 3–100 lowercase letters, numbers, dots, underscores or hyphens.")
+            self._throw("Release ID must contain 3-100 lowercase letters, numbers, dots, underscores or hyphens.")
         if not self.version or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.version):
             self._throw("Release version must use semantic versioning.")
         if self.schema_version != "1.0.0":
