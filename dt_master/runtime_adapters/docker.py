@@ -660,6 +660,42 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 	@staticmethod
+	def _install_plan_ui_summary(plan):
+		"""Project a validated plan into a bounded, non-executable UI summary."""
+		return {
+			"schema_version": plan["schema_version"],
+			"status": plan["status"],
+			"policy_version": plan["policy"]["version"],
+			"plan_digest": plan["plan_digest"],
+			"state_fingerprint": plan["state_fingerprint"],
+			"reason_codes": list(plan["reason_codes"]),
+			"prerequisites": list(plan["prerequisites"]),
+			"package_set": list(plan["package_set"]),
+			"packages": [
+				{
+					"name": row["name"],
+					"action": row["action"],
+					"installed_version": row["installed_version"],
+					"candidate_version": row["candidate_version"],
+				}
+				for row in plan["packages"]
+			],
+			"repository": {
+				"source_id": plan["repository"]["source_id"],
+				"keyring_path": plan["repository"]["keyring_path"],
+				"fingerprint_evidence": plan["repository"]["fingerprint_evidence"],
+				"signing_key_trusted": plan["repository"]["signing_key_policy"]["trusted"],
+			},
+			"apt_metadata": dict(plan["apt_metadata"]),
+			"package_manager": dict(plan["package_manager"]),
+			"storage": dict(plan["storage"]),
+			"services": dict(plan["services"]),
+			"workload_impact": dict(plan["workload_impact"]),
+			"daemon_impact": plan["daemon_impact"],
+			"expires_after_seconds": plan["expires_after_seconds"],
+		}
+
+	@staticmethod
 	def _persist_install_plan_evidence(node, request, inspection, plan):
 		"""Persist a validated plan only when it is bound to this successful inspection."""
 		from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
@@ -686,10 +722,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			"inspection_operation_id": request.operation_id,
 			"inspection_correlation_id": request.correlation_id,
 			"observed_at": str(observed_at),
-			"status": plan["status"],
-			"plan_digest": plan["plan_digest"],
-			"state_fingerprint": plan["state_fingerprint"],
-			"policy_version": plan["policy"]["version"],
+			**DockerRuntimeAdapter._install_plan_ui_summary(plan),
 		}
 		updates = {
 			"docker_inspection_status": inspection["inspection_status"],
