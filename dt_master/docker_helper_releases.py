@@ -192,6 +192,44 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	return aggregate_release_digest(components)
 
 
+
+def create_draft_release_from_source(release, source_root: str | Path):
+	"""Create or reuse a Draft containing the current source hashes of a Published release.
+
+	The Published record is never modified. The deterministic draft identifier makes
+	repeated assessments of the same source snapshot idempotent.
+	"""
+	if _value(release, "status") != "Published":
+		raise DockerHelperReleaseError("Source-drift drafts can only be created from a Published release.")
+
+	import frappe
+
+	components = [
+		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
+		for component in (_value(release, "components") or [])
+	]
+	aggregate_digest = refresh_component_digests(components, source_root)
+	draft_id = f"{_value(release, 'release_id')[:80]}-draft-{aggregate_digest[:12]}"
+	existing = frappe.db.exists("Docker Helper Release", draft_id)
+	if existing:
+		draft = frappe.get_doc("Docker Helper Release", draft_id)
+		if draft.status == "Draft" and draft.aggregate_digest == aggregate_digest:
+			return draft, False
+		raise DockerHelperReleaseError("A release with the generated source-drift draft identifier already exists.")
+
+	draft = frappe.new_doc("Docker Helper Release")
+	draft.release_id = draft_id
+	draft.schema_version = _value(release, "schema_version")
+	draft.version = _value(release, "version")
+	draft.channel = _value(release, "channel")
+	draft.status = "Draft"
+	draft.compatibility = _value(release, "compatibility")
+	draft.lifecycle = _value(release, "lifecycle")
+	for component in components:
+		draft.append("components", component)
+	draft.insert(ignore_permissions=True)
+	return draft, True
+
 def _parse_json_object(value, label):
 	"""Parse a JSON object stored in a Frappe Code field or accept a mapping."""
 	if isinstance(value, str):
