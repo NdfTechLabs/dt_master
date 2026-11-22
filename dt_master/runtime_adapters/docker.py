@@ -1615,7 +1615,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			)
 
 	def _release_assess(self, request, execution_context=None):
-		"""Assess the assigned release and install it when matching scripts are deployed."""
+		"""Assess the assigned release and stop when source or deployment drift is detected."""
 		from dt_master.docker_helper_releases import (
 			DockerHelperReleaseError,
 			create_draft_release_from_source,
