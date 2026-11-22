@@ -214,12 +214,27 @@ def execute_operation(operation_id):
         frappe.db.rollback()
         _release_leases(leases)
         frappe.db.commit()
-        frappe.log_error(frappe.get_traceback(), f"Infrastructure Operation {operation_id} failed")
         completed_on = now_datetime()
 
         from dt_master.operations.outcomes import resolve_operation_disposition
 
         disposition_fields = resolve_operation_disposition(exc, lease_acquired=bool(leases))
+        failure_details = disposition_fields.get("result_payload")
+        error_log = frappe.get_traceback()
+        if isinstance(failure_details, dict):
+            try:
+                from dt_master.operations.coordinator import _reject_secret_values
+
+                _reject_secret_values(failure_details, "failure_details")
+                diagnostics_json = json.dumps(
+                    failure_details, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                )
+                if len(diagnostics_json.encode("utf-8")) <= 65536:
+                    error_log += "\\n\\nStructured runtime adapter failure details:\\n" + diagnostics_json
+            except Exception:
+                # Keep the original traceback if diagnostic data fails safety validation.
+                pass
+        frappe.log_error(error_log, f"Infrastructure Operation {operation_id} failed")
         disposition = disposition_fields["execution_state"]
         error_code = disposition_fields["error_code"]
         error_summary = disposition_fields["error_summary"]
