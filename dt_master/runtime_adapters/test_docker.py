@@ -653,7 +653,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertIn("privilege_readiness", management)
 
 	def test_failed_and_partial_inspections_do_not_persist_or_advance_state(self):
-		for code, expected in ((255, "Failed"), (0, "Partial")):
+		for code, expected in ((255, "Failed"), (124, "Timed Out"), (0, "Partial")):
 			with self.subTest(expected=expected):
 				self.db_set_value.reset_mock()
 				snapshot = self._snapshot()
