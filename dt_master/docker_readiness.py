@@ -234,7 +234,9 @@ def evaluate_docker_readiness(
         observed = _path_value(snapshot, _REQUIREMENT_PATHS[key])
         if not evidence_trustworthy or observed is None:
             add(
-                "DOCKER_REQUIREMENT_EVIDENCE_MISSING", "Warning", key, observed, expected,
+                "DOCKER_REQUIREMENT_EVIDENCE_MISSING",
+                "Error" if severity == "required" else "Warning",
+                key, observed, expected,
                 f"Reliable inspection evidence is unavailable for {key}.",
                 "Obtain a successful, complete Docker inspection.",
             )
@@ -267,7 +269,9 @@ def evaluate_docker_readiness(
 
         if observed is None:
             add(
-                "DOCKER_REQUIREMENT_EVIDENCE_INVALID", "Warning", key, observed, expected,
+                "DOCKER_REQUIREMENT_EVIDENCE_INVALID",
+                "Error" if severity == "required" else "Warning",
+                key, observed, expected,
                 f"Inspection returned an invalid value for {key}.",
                 "Correct the inspection probe and run inspection again.",
             )
