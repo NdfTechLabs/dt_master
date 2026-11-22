@@ -1235,6 +1235,23 @@ def bootstrap_docker_privileges(node_name):
 
 
 @frappe.whitelist(methods=["POST"])
+def prepare_docker_repository(node_name):
+	"""Queue the fixed Docker repository preparation operation."""
+	frappe.only_for("System Manager")
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("read")
+	if not node.access_verified:
+		frappe.throw("Node SSH access must be verified before Docker repository preparation.")
+	return start_operation(
+		operation_type="host.node.docker.repository.prepare",
+		target_doctype="Infrastructure Node",
+		target_name=node.name,
+		payload={},
+		idempotency_key=f"docker-repository-prepare:{node.name}:{uuid.uuid4().hex}",
+	)
+
+
+@frappe.whitelist(methods=["POST"])
 def install_docker_engine(node_name):
 	"""Queue Docker Engine installation through the existing durable Task Manager."""
 	frappe.only_for("System Manager")
