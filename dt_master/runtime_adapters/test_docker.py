@@ -1054,6 +1054,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 							"code": "DOCKER_REQUIREMENT_EVIDENCE_MISSING",
 							"severity": "Error",
 							"requirement": "min_available_storage_bytes",
+							"message": "Required host storage evidence is unavailable.",
 						}
 					],
 					"evaluator_version": "1.1.0",
