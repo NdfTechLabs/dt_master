@@ -2,11 +2,15 @@
 # See license.txt
 
 import json
+from pathlib import Path
 
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from dt_master.docker_helper_releases import build_release_manifest
+from dt_master.docker_helper_releases import (
+    build_release_manifest,
+    create_draft_release_from_source,
+)
 
 
 class IntegrationTestDockerHelperRelease(IntegrationTestCase):
@@ -92,6 +96,25 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         release.version = "0.3.3"
         with self.assertRaises(frappe.ValidationError):
             release.save(ignore_permissions=True)
+
+    def test_source_drift_draft_creation_is_idempotent_and_preserves_published_release(self):
+        release = self._new_release()
+        release.insert(ignore_permissions=True)
+        release.status = "Published"
+        release.save(ignore_permissions=True)
+        original_digest = release.aggregate_digest
+        source_root = Path(__file__).resolve().parents[3]
+
+        first, created = create_draft_release_from_source(release, source_root)
+        second, created_again = create_draft_release_from_source(release, source_root)
+
+        self.assertTrue(created)
+        self.assertFalse(created_again)
+        self.assertEqual(first.name, second.name)
+        self.assertEqual(first.status, "Draft")
+        release.reload()
+        self.assertEqual(release.status, "Published")
+        self.assertEqual(release.aggregate_digest, original_digest)
 
     def test_published_release_can_only_be_retired_without_definition_changes(self):
         release = self._new_release()
