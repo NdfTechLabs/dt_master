@@ -223,7 +223,18 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		inventory = {"packages": []}
 		inspection_data = {
 			"inspection_status": "Successful",
-			"readiness": "Ready",
+			"readiness": "Not Ready",
+			"readiness_evaluation": {
+				"diagnostics": [
+					{
+						"code": "DOCKER_REQUIREMENT_NOT_MET",
+						"severity": "Error",
+						"requirement": "docker_engine_required",
+						"expected": True,
+						"observed": "Not Installed",
+					}
+				]
+			},
 			"privilege_readiness": {"status": "Ready"},
 			"snapshot": {"host_inventory": {"docker_install_inventory": inventory}},
 		}
@@ -270,6 +281,48 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		)
 		self.assertEqual(run_helper.call_args.kwargs["timeout_seconds"], 420)
 		persist.assert_called_once_with(self.node, request_obj, inspection_data, ready_plan)
+
+	def test_prepare_repository_blocks_unmet_host_resource_requirements(self):
+		self.node.docker_host_state = "Repository Preparation Required"
+		request_obj = RuntimeAdapterRequest(
+			adapter_id="docker-compose-v1",
+			runtime_type="docker",
+			target_doctype="Infrastructure Node",
+			target_name="NODE-0001",
+			method="prepare_repository",
+			operation_id="OP-0001",
+			correlation_id="CORR-0001",
+		)
+		inspection = SimpleNamespace(
+			data={
+				"inspection_status": "Successful",
+				"readiness": "Not Ready",
+				"readiness_evaluation": {
+					"diagnostics": [
+						{
+							"code": "DOCKER_REQUIREMENT_NOT_MET",
+							"severity": "Error",
+							"requirement": "min_available_storage_bytes",
+							"expected": 10_000,
+							"observed": 1_000,
+						}
+					]
+				},
+				"privilege_readiness": {"status": "Ready"},
+				"snapshot": {"host_inventory": {"docker_install_inventory": {"packages": []}}},
+			}
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch.object(self.adapter, "_inspect", return_value=inspection),
+			patch("dt_master.runtime_adapters.docker.run_trusted_helper") as run_helper,
+		):
+			result = self.adapter._prepare_repository(request_obj)
+		self.assertEqual(result.outcome, "failed")
+		self.assertEqual(result.observed_state, "Preparation Not Applied")
+		self.assertEqual(result.data["failure"]["phase"], "preparation_preflight")
+		self.assertFalse(result.data["helper_dispatched"])
+		run_helper.assert_not_called()
 
 	def test_repository_preparation_planner_gate_accepts_only_known_prerequisite_blockers(self):
 		preparation_required = {
