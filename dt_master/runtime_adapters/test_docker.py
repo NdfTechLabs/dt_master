@@ -1,4 +1,4 @@
-"""Tests for the read-only Docker runtime adapter."""
+"""Tests for Docker runtime adapter inspection and lifecycle operations."""
 
 import json
 import unittest
