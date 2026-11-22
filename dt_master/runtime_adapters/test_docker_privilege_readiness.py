@@ -95,10 +95,10 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 
 	def test_accepts_only_root_helper_self_test_response(self):
 		payload = self.helper_self_test()
-		self.assertEqual(DockerRuntimeAdapter._validate_trusted_helper_self_test(payload), payload)
+		self.assertEqual(DockerRuntimeAdapter._validate_trusted_helper_self_test(payload, "0.3.2"), payload)
 		payload["effective_uid"] = 1000
 		with self.assertRaises(ValueError):
-			DockerRuntimeAdapter._validate_trusted_helper_self_test(payload)
+			DockerRuntimeAdapter._validate_trusted_helper_self_test(payload, "0.3.2")
 
 	def test_rejects_extra_fields_in_helper_self_test_response(self):
 		payload = self.helper_self_test()
