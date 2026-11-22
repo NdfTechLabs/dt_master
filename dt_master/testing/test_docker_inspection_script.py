@@ -141,6 +141,8 @@ printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 10000
         self.assertFalse(result["docker_cli"]["installed"])
         self.assertEqual(result["engine"]["availability"], "Not Installed")
         self.assertIn("DOCKER_CLI_MISSING", {item["code"] for item in result["diagnostics"]})
+        self.assertEqual(result["storage"]["filesystem"]["mount_point"], "/")
+        self.assertEqual(result["storage"]["filesystem"]["available_bytes"], 50_000_000_000)
 
     def test_unavailable_daemon_is_distinguished_from_missing_cli(self):
         result = self.run_inspection(mode="unavailable")
