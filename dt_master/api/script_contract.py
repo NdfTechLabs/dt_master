@@ -446,6 +446,9 @@ def run_trusted_helper(
 	if operation == "self_test":
 		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
 			raise ValueError("Unsupported trusted Docker helper request")
+	elif operation == "prepare_repository":
+		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
+			raise ValueError("Unsupported trusted Docker helper request")
 	elif operation == "install_engine":
 		from dt_master.runtime_adapters.docker_helper_contracts import validate_install_engine_request
 
