@@ -167,10 +167,7 @@ def capture_component_source_snapshot(components, source_root: str | Path) -> di
 
 def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
 	"""Verify local source files against immutable hashes in the release record."""
-	expected = {
-		_value(component, "component_id"): _value(component, "sha256")
-		for component in components
-	}
+	expected = {_value(component, "component_id"): _value(component, "sha256") for component in components}
 	observed = capture_component_source_snapshot(components, source_root)
 	mismatches = {
 		component_id: {"expected": expected[component_id], "observed": digest}
@@ -179,9 +176,7 @@ def verify_release_source_snapshot(components, source_root: str | Path) -> dict[
 	}
 	if mismatches:
 		details = ", ".join(sorted(mismatches))
-		raise DockerHelperReleaseError(
-			"Published release source drift detected for component(s): " + details
-		)
+		raise DockerHelperReleaseError("Published release source drift detected for component(s): " + details)
 	return observed
 
 
