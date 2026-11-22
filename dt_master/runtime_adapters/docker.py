@@ -581,6 +581,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			"snapshot": snapshot,
 			"privilege_readiness": privilege_readiness,
 		}
+		if request.method == "inspect" and status == "Successful":
+			self._persist_inspection_evidence(node, request, data)
 		return self.result_for(
 			request,
 			outcome=outcome,
@@ -590,6 +592,92 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			data=data,
 			duration_ms=snapshot["duration_ms"],
 		)
+
+	@staticmethod
+	def _persist_inspection_evidence(node, request, inspection):
+		"""Persist only a complete standalone observation; internal inspections are projections only."""
+		if inspection.get("inspection_status") != "Successful":
+			return
+		observed_at = now_datetime()
+		management = DockerRuntimeAdapter._management_snapshot(node)
+		management["docker_inspection"] = {
+			"operation_id": request.operation_id,
+			"correlation_id": request.correlation_id,
+			"observed_at": str(observed_at),
+			"inspection_status": inspection["inspection_status"],
+			"readiness": inspection["readiness"],
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"docker_inspection_status": inspection["inspection_status"],
+				"docker_readiness": inspection["readiness"],
+				"docker_readiness_evaluation": json.dumps(
+					inspection["readiness_evaluation"], sort_keys=True, separators=(",", ":")
+				),
+				"docker_inspected_on": observed_at,
+				"docker_inspection_snapshot": json.dumps(
+					inspection["snapshot"], sort_keys=True, separators=(",", ":")
+				),
+				"docker_host_management_snapshot": json.dumps(
+					management, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
+		)
+
+	@staticmethod
+	def _persist_install_plan_evidence(node, request, inspection, plan):
+		"""Persist a validated plan only when it is bound to this successful inspection."""
+		from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
+
+		if inspection.get("inspection_status") != "Successful":
+			return False
+		validate_docker_engine_install_plan(plan)
+		if plan.get("status") not in {"preparation_required", "ready", "blocked", "no_op"}:
+			raise ValueError("Docker Engine installation plan status is invalid.")
+		observed_at = now_datetime()
+		management = DockerRuntimeAdapter._management_snapshot(node)
+		management["docker_inspection"] = {
+			"operation_id": request.operation_id,
+			"correlation_id": request.correlation_id,
+			"observed_at": str(observed_at),
+			"inspection_status": inspection["inspection_status"],
+			"readiness": inspection["readiness"],
+		}
+		management["docker_install_plan"] = {
+			"inspection_operation_id": request.operation_id,
+			"inspection_correlation_id": request.correlation_id,
+			"observed_at": str(observed_at),
+			"status": plan["status"],
+			"plan_digest": plan["plan_digest"],
+			"state_fingerprint": plan["state_fingerprint"],
+			"policy_version": plan["policy"]["version"],
+		}
+		updates = {
+			"docker_inspection_status": inspection["inspection_status"],
+			"docker_readiness": inspection["readiness"],
+			"docker_readiness_evaluation": json.dumps(
+				inspection["readiness_evaluation"], sort_keys=True, separators=(",", ":")
+			),
+			"docker_inspected_on": observed_at,
+			"docker_inspection_snapshot": json.dumps(
+				inspection["snapshot"], sort_keys=True, separators=(",", ":")
+			),
+			"docker_host_management_snapshot": json.dumps(
+				management, sort_keys=True, separators=(",", ":")
+			),
+		}
+		if plan["status"] == "preparation_required":
+			updates["docker_host_state"] = "Repository Preparation Required"
+		elif plan["status"] == "ready":
+			updates["docker_host_state"] = "Ready for Install"
+		if plan["status"] in {"preparation_required", "ready"}:
+			updates["docker_host_operation"] = request.operation_id
+			updates["docker_host_state_updated_on"] = observed_at
+		frappe.db.set_value("Infrastructure Node", node.name, updates, update_modified=False)
+		return True
 
 	@staticmethod
 	def _validate_update_check(payload):
@@ -1351,6 +1439,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		else:
 			try:
 				install_plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+				from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
+				validate_docker_engine_install_plan(install_plan)
 			except (TypeError, ValueError):
 				plan_diagnostic = {
 					"code": "DOCKER_ENGINE_INSTALL_PLAN_INVALID",
@@ -1387,6 +1477,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				}
 			)
 		diagnostics = tuple(diagnostic_rows[:100])
+		if inspection.data.get("inspection_status") == "Successful" and install_plan is not None:
+			self._persist_install_plan_evidence(node, request, inspection.data, install_plan)
 		return self.result_for(
 			request,
 			outcome=outcome,
