@@ -843,6 +843,24 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			management["docker_install_plan"]["plan_digest"],
 			result.data["docker_engine_install_plan"]["plan_digest"],
 		)
+		plan_summary = management["docker_install_plan"]
+		self.assertEqual(
+			plan_summary["reason_codes"],
+			result.data["docker_engine_install_plan"]["reason_codes"],
+		)
+		self.assertEqual(
+			plan_summary["prerequisites"],
+			result.data["docker_engine_install_plan"]["prerequisites"],
+		)
+		self.assertEqual(
+			plan_summary["packages"],
+			result.data["docker_engine_install_plan"]["packages"],
+		)
+		self.assertIn("repository", plan_summary)
+		self.assertIn("apt_metadata", plan_summary)
+		self.assertIn("workload_impact", plan_summary)
+		self.assertNotIn("mutation_authorized", plan_summary)
+		self.assertNotIn("target", plan_summary)
 		self.assertEqual(persisted["docker_host_state"], "Repository Preparation Required")
 
 	def test_unavailable_inventory_does_not_persist_plan_evidence_or_advance_state(self):
