@@ -76,7 +76,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		with self.assertRaises(DockerHelperReleaseError):
 			aggregate_release_digest(rows)
 
-	def test_release_manifest_projection_is_deterministic_and_uses_catalog_metadata(self):
+	def test_release_manifest_projection_rejects_published_source_drift(self):
 		compatibility = {
 			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
@@ -127,12 +127,14 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				source = Path(directory) / component["source_path"]
 				source.parent.mkdir(parents=True, exist_ok=True)
 				source.write_bytes(component["component_id"].encode("utf-8"))
+			with self.assertRaisesRegex(DockerHelperReleaseError, "source drift"):
+				build_release_manifest(release, source_root=directory)
+			for component in components:
+				component["sha256"] = hashlib.sha256(component["component_id"].encode("utf-8")).hexdigest()
 			manifest = build_release_manifest(release, source_root=directory)
 			for row in manifest["components"]:
 				component_row = next(item for item in components if item["component_id"] == row["id"])
-				expected = hashlib.sha256(component_row["component_id"].encode("utf-8")).hexdigest()
-				self.assertEqual(row["sha256"], expected)
-				self.assertEqual(component_row["sha256"], "a" * 64)
+				self.assertEqual(row["sha256"], component_row["sha256"])
 		self.assertEqual(manifest["release"]["id"], release["release_id"])
 		self.assertEqual(
 			[row["id"] for row in manifest["components"]],
