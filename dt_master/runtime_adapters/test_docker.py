@@ -682,7 +682,9 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"diagnostics": [],
 		}
 
-	def _run(self, method="inspect", code=0, snapshot=None, readiness="Ready"):
+	def _run(
+		self, method="inspect", code=0, snapshot=None, readiness="Ready", readiness_diagnostics=None
+	):
 		snapshot = snapshot or self._snapshot()
 		self.node.docker_host_state = "Docker Inspection Required"
 		self.node.docker_host_management_snapshot = json.dumps(
@@ -710,7 +712,11 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			) as remote,
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
-				return_value={"readiness": readiness, "diagnostics": [], "evaluator_version": "1.1.0"},
+				return_value={
+					"readiness": readiness,
+					"diagnostics": readiness_diagnostics or [],
+					"evaluator_version": "1.1.0",
+				},
 			),
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
@@ -956,8 +962,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_preflight_ready(self):
 		result, _ = self._run(method="preflight")
 		self.assertEqual(result.outcome, "succeeded")
-		self.assertEqual(result.observed_state, "Ready")
-		self.assertEqual(result.data["preflight_status"], "Ready")
+		self.assertEqual(result.observed_state, "Repository Preparation Required")
+		self.assertEqual(result.data["preflight_status"], "Repository Preparation Required")
 		self.assertEqual(result.data["docker_engine_install_plan_status"], "preparation_required")
 		self.assertFalse(result.data["docker_engine_install_plan"]["mutation_authorized"])
 		self.assertEqual(result.data["docker_engine_install_plan"]["mode"], "plan_only")
@@ -1002,7 +1008,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		):
 			result = self.adapter.invoke("preflight", request("preflight"))
 		self.assertEqual(result.outcome, "succeeded")
-		self.assertEqual(result.data["preflight_status"], "Ready")
+		self.assertEqual(result.data["preflight_status"], "Ready for Install")
+		self.assertEqual(result.observed_state, "Ready for Install")
 		self.assertEqual(result.data["docker_engine_install_plan_status"], "ready")
 		self.assertIn(
 			"ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED",
@@ -1040,7 +1047,17 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
-				return_value={"readiness": "Unknown", "diagnostics": [], "evaluator_version": "1.1.0"},
+				return_value={
+					"readiness": "Unknown",
+					"diagnostics": [
+						{
+							"code": "DOCKER_REQUIREMENT_EVIDENCE_MISSING",
+							"severity": "Error",
+							"requirement": "min_available_storage_bytes",
+						}
+					],
+					"evaluator_version": "1.1.0",
+				},
 			),
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
@@ -1062,8 +1079,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
 			result = self.adapter.invoke("preflight", request("preflight"))
-		self.assertEqual(result.outcome, "partial")
-		self.assertEqual(result.observed_state, "Degraded")
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Repository Preparation Required")
 
 	def test_bootstrap_privileges_requires_successful_supported_host_inspection(self):
 		self.node.docker_host_state = "Privilege Setup Required"
