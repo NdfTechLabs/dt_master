@@ -161,7 +161,6 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	return aggregate_release_digest(components)
 
 
-
 def _parse_json_object(value, label):
 	"""Parse a JSON object stored in a Frappe Code field or accept a mapping."""
 	if isinstance(value, str):
@@ -203,11 +202,13 @@ def validate_release_metadata(compatibility, lifecycle):
 	activation_order = lifecycle["activation_order"]
 	if (
 		not isinstance(activation_order, list)
-			or any(not isinstance(item, str) for item in activation_order)
-			or len(activation_order) != len(MANIFEST_COMPONENT_IDS)
-			or set(activation_order) != MANIFEST_COMPONENT_IDS
+		or any(not isinstance(item, str) for item in activation_order)
+		or len(activation_order) != len(MANIFEST_COMPONENT_IDS)
+		or set(activation_order) != MANIFEST_COMPONENT_IDS
 	):
-		raise DockerHelperReleaseError("Lifecycle activation order must contain each release component exactly once")
+		raise DockerHelperReleaseError(
+			"Lifecycle activation order must contain each release component exactly once"
+		)
 	return compatibility, lifecycle
 
 
@@ -217,6 +218,7 @@ def build_release_manifest(release) -> dict:
 	The Frappe DocType remains authoritative. This JSON shape is a deployment
 	artifact consumed by the existing installer, readiness probe and root helper.
 	"""
+
 	def get(field):
 		return _value(release, field)
 

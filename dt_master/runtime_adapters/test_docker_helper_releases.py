@@ -75,7 +75,6 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		with self.assertRaises(DockerHelperReleaseError):
 			aggregate_release_digest(rows)
 
-
 	def test_release_manifest_projection_is_deterministic_and_uses_catalog_metadata(self):
 		compatibility = {
 			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
@@ -98,18 +97,20 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			("install_policy", "docker_install_policy.py", "1.1.1"),
 			("host_inventory", "docker_install_inventory.py", "1.0.0"),
 		):
-			components.append({
-				"component_id": component_id,
-				"version": version,
-				"source_path": f"scripts/bin/docker/{filename}",
-				"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
-				"required": 1,
-				"file_owner": "root",
-				"file_group": "root",
-				"file_mode": "0755",
-				"sha256": "a" * 64,
-				"responsibility": f"{component_id} responsibility",
-			})
+			components.append(
+				{
+					"component_id": component_id,
+					"version": version,
+					"source_path": f"scripts/bin/docker/{filename}",
+					"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
+					"required": 1,
+					"file_owner": "root",
+					"file_group": "root",
+					"file_mode": "0755",
+					"sha256": "a" * 64,
+					"responsibility": f"{component_id} responsibility",
+				}
+			)
 		release = {
 			"release_id": "dt-docker-helper-0.3.2",
 			"version": "0.3.2",
@@ -122,9 +123,10 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		}
 		manifest = build_release_manifest(release)
 		self.assertEqual(manifest["release"]["id"], release["release_id"])
-		self.assertEqual([row["id"] for row in manifest["components"]], [
-			"host_inventory", "install_policy", "lifecycle_helper"
-		])
+		self.assertEqual(
+			[row["id"] for row in manifest["components"]],
+			["host_inventory", "install_policy", "lifecycle_helper"],
+		)
 		self.assertEqual(manifest["compatibility"], compatibility)
 		self.assertEqual(manifest["lifecycle"], lifecycle)
 
