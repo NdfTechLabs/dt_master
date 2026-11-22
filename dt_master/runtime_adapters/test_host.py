@@ -4,7 +4,7 @@ import datetime
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from dt_master.runtime_adapters.contracts import RuntimeAdapterRequest
 from dt_master.runtime_adapters.host import HostRuntimeAdapter
@@ -64,6 +64,12 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			ssh_user="deploy",
 			ssh_port=22,
 			ssh_host_alias=None,
+			docker_host_state="Host Inspection Required",
+			docker_host_management_snapshot=json.dumps({
+				"schema_version": "1.0.0",
+				"operation_id": "connection-op-001",
+				"connection_status": "Connected",
+			}),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 		)
 
@@ -71,6 +77,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		stdout = stdout if stdout is not None else inspection_output()
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.frappe.db.set_value"),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)
 			) as run,
@@ -105,15 +112,19 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Unreachable")
 		self.assertEqual(result.diagnostics[0]["code"], "NODE_SSH_CONNECTION_FAILED")
 
-	def test_connection_check_rejects_unverified_node_before_ssh(self):
+	def test_connection_check_can_probe_before_access_is_verified(self):
 		self.node.access_verified = 0
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
+			patch("dt_master.runtime_adapters.host.frappe.db.set_value"),
+			patch(
+				"dt_master.runtime_adapters.host.run_remote_script",
+				return_value=(0, "DT_MASTER_SSH_OK\\n", ""),
+			) as run,
 		):
-			with self.assertRaises(ValueError):
-				self.adapter.invoke("connection_check", request("connection_check"))
-		run.assert_not_called()
+			result = self.adapter.invoke("connection_check", request("connection_check"))
+		self.assertEqual(result.outcome, "succeeded")
+		run.assert_called_once()
 
 	def test_inspection_uses_existing_ssh_script_contract_without_sudo(self):
 		result, run = self._run_inspection()
@@ -173,14 +184,18 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("inspect", request())
 		self.assertEqual(result.data["schema_version"], "2.0.0")
 		self.assertEqual(result.data["discovery"]["network"]["interfaces"], [])
-		updates = set_value.call_args.args[2]
-		self.assertEqual(updates["cpu_cores"], 6)
-		self.assertEqual(updates["ram_gb"], 8)
-		self.assertEqual(updates["storage_gb"], 100)
-		self.assertEqual(updates["os_type"], "Ubuntu")
-		self.assertEqual(updates["os_version"], "24.04")
-		self.assertEqual(updates["host_discovery_status"], "Successful")
-		self.assertIn("host_discovery_snapshot", updates)
+		updates = [call.args[2] for call in set_value.call_args_list]
+		discovery_updates = next(item for item in updates if "host_discovery_status" in item)
+		lifecycle_updates = next(item for item in updates if "docker_host_state" in item)
+		self.assertEqual(discovery_updates["cpu_cores"], 6)
+		self.assertEqual(discovery_updates["ram_gb"], 8)
+		self.assertEqual(discovery_updates["storage_gb"], 100)
+		self.assertEqual(discovery_updates["os_type"], "Ubuntu")
+		self.assertEqual(discovery_updates["os_version"], "24.04")
+		self.assertEqual(discovery_updates["host_discovery_status"], "Successful")
+		self.assertIn("host_discovery_snapshot", discovery_updates)
+		self.assertEqual(lifecycle_updates["docker_host_state"], "Privilege Setup Required")
+		self.assertEqual(lifecycle_updates["docker_host_operation"], "operation-001")
 
 	def test_prefill_preserves_operator_values_and_treats_zero_as_blank(self):
 		node = SimpleNamespace(
@@ -302,8 +317,21 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.outcome, "failed")
 		self.assertEqual(result.observed_state, "Blocked")
 
-	def test_unverified_node_is_rejected_before_ssh(self):
-		self.node.access_verified = 0
+	def test_inspection_requires_successful_connection_evidence_and_next_state(self):
+		self.node.docker_host_management_snapshot = "{}"
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
+		):
+			with self.assertRaises(ValueError):
+				self.adapter.invoke("inspect", request())
+		run.assert_not_called()
+
+		self.node.docker_host_management_snapshot = json.dumps({
+			"operation_id": "connection-op-001",
+			"connection_status": "Connected",
+		})
+		self.node.docker_host_state = "Privilege Setup Required"
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
