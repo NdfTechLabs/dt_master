@@ -319,3 +319,50 @@ def execute_operation(operation_id):
             frappe.db.commit()
         finally:
             frappe.set_user(previous_user)
+
+    elif (
+        operation.operation_type == "host.node.docker.privileges.bootstrap"
+        and isinstance(result, dict)
+        and isinstance(result.get("data"), dict)
+        and result["data"].get("bootstrap_status") == "Ready"
+    ):
+        # Bootstrap already performed the readiness probe. Re-run the independent
+        # release inspection under a fresh operation and a fresh node lease before
+        # projecting the assigned release as Current.
+        from dt_master.operations.coordinator import start_operation
+
+        previous_user = frappe.session.user
+        try:
+            frappe.set_user(operation.initiated_by)
+            assessment = start_operation(
+                "host.node.docker.helper_release.assess",
+                operation.target_doctype,
+                operation.target_name,
+                {},
+                idempotency_key=f"docker-helper-post-bootstrap-assess:{operation.operation_id}",
+                correlation_id=operation.correlation_id,
+            )
+            record_operation_event(
+                operation_id,
+                "release_reassessment_dispatched",
+                phase="continuation",
+                message="Bootstrap readiness passed; an independent release assessment was dispatched to verify installed files.",
+                event_data={"assessment_operation_id": assessment["operation_id"]},
+            )
+            frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Docker Helper Release post-bootstrap assessment dispatch failed: {operation_id}",
+            )
+            record_operation_event(
+                operation_id,
+                "release_reassessment_dispatch_failed",
+                phase="continuation",
+                message="Bootstrap readiness passed, but independent release verification could not be dispatched.",
+                event_data={"error_code": "DOCKER_HELPER_POST_BOOTSTRAP_ASSESSMENT_DISPATCH_FAILED"},
+            )
+            frappe.db.commit()
+        finally:
+            frappe.set_user(previous_user)
