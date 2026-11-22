@@ -288,7 +288,7 @@ function docker_setup_state(frm) {
 			blockedReason = "A current install plan with status Ready is required before Engine installation.";
 		}
 	} else if (state === "Engine Ready") {
-		action = { key: "verify_runtime", label: "Verify Docker Runtime" };
+		blockedReason = "Docker Engine installation completed and its postcondition was verified. Optional observations are available below.";
 	} else if (state === "Operation In Progress") {
 		blockedReason = "A Docker lifecycle operation is in progress. Wait for it to finish in Task Manager, then refresh this form.";
 	} else if (state === "Reconciliation Required" || state === "Failed") {
@@ -339,13 +339,14 @@ function docker_setup_progress_html(frm, setup) {
 	const actionHtml = setup.action
 		? "<button type=\"button\" class=\"btn btn-primary btn-sm mt-3\" data-docker-action=\"" +
 			escape_html(setup.action.key) + "\">" + __(setup.action.label) + "</button>"
-		: "<div class=\"alert alert-warning mt-3 mb-0\">" +
+		: "<div class=\"alert " + (setup.state === "Engine Ready" ? "alert-success" : "alert-warning") + " mt-3 mb-0\">" +
 			escape_html(setup.blockedReason || __("No action is currently available.")) + "</div>";
 	const roleHtml = frappe.user_roles.includes("System Manager")
 		? actionHtml
 		: "<div class=\"text-muted small mt-3\">" + __("Docker lifecycle actions are available to System Managers.") + "</div>";
 	const secondaryActionsHtml = frappe.user_roles.includes("System Manager") && setup.state === "Engine Ready"
-		? "<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"updates\">" + __("Check Docker Updates") + "</button>"
+		? "<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"verify_runtime\">" + __("Verify Docker Runtime") + "</button>" +
+			"<button type=\"button\" class=\"btn btn-default btn-sm mt-3 ml-2\" data-docker-action=\"updates\">" + __("Check Docker Updates") + "</button>"
 		: "";
 	return "<div class=\"border rounded p-3 mb-3\">" +
 		"<div class=\"d-flex justify-content-between align-items-center mb-2\">" +
