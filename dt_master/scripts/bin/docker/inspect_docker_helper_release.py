@@ -89,11 +89,18 @@ def inspect_components(directory, expected_rows, require_root):
 			digest, owner, group, mode, integrity = None, "unknown", "unknown", "unknown", "missing"
 		except (OSError, KeyError, ValueError):
 			digest, owner, group, mode, integrity = None, "unknown", "unknown", "unknown", "mismatch"
-		rows.append({
-			"id": component_id, "version": expected["version"],
-			"expected_sha256": expected["sha256"], "observed_sha256": digest,
-			"owner": owner, "group": group, "mode": mode, "integrity": integrity,
-		})
+		rows.append(
+			{
+				"id": component_id,
+				"version": expected["version"],
+				"expected_sha256": expected["sha256"],
+				"observed_sha256": digest,
+				"owner": owner,
+				"group": group,
+				"mode": mode,
+				"integrity": integrity,
+			}
+		)
 	return rows
 
 
@@ -102,9 +109,7 @@ def manifest_matches(path, expected, require_root=False):
 		info = path.lstat()
 		if not stat.S_ISREG(info.st_mode) or path.is_symlink():
 			return False
-		if require_root and (
-			info.st_uid != 0 or info.st_gid != 0 or stat.S_IMODE(info.st_mode) != 0o755
-		):
+		if require_root and (info.st_uid != 0 or info.st_gid != 0 or stat.S_IMODE(info.st_mode) != 0o755):
 			return False
 		return json.loads(path.read_text(encoding="utf-8")) == expected
 	except (OSError, TypeError, ValueError, json.JSONDecodeError):
@@ -138,7 +143,9 @@ def inspect():
 	deployed_root = Path(os.environ["SCRIPT_BASE_DIR"])
 	installed_rows = inspect_components(INSTALLED_ROOT, expected_rows, require_root=True)
 	deployed_rows = inspect_components(deployed_root, expected_rows, require_root=False)
-	installed_manifest_ok = manifest_matches(INSTALLED_ROOT / "docker_helper_release.json", manifest, require_root=True)
+	installed_manifest_ok = manifest_matches(
+		INSTALLED_ROOT / "docker_helper_release.json", manifest, require_root=True
+	)
 	deployed_manifest_ok = manifest_matches(deployed_root / "docker_helper_release.json", manifest)
 	installer_ready = regular_installer_files(deployed_root)
 	return {
@@ -168,7 +175,17 @@ if __name__ == "__main__":
 			"schema_version": "1.0.0",
 			"observed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
 			"expected_manifest_sha256": "0" * 64,
-			"installed": {"status": "missing", "manifest_matches": False, "installer_ready": False, "components": []},
-			"deployed": {"status": "missing", "manifest_matches": False, "installer_ready": False, "components": []},
+			"installed": {
+				"status": "missing",
+				"manifest_matches": False,
+				"installer_ready": False,
+				"components": [],
+			},
+			"deployed": {
+				"status": "missing",
+				"manifest_matches": False,
+				"installer_ready": False,
+				"components": [],
+			},
 		}
 	print(json.dumps(result, sort_keys=True, separators=(",", ":")))

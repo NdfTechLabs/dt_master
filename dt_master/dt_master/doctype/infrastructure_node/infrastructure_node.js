@@ -216,7 +216,11 @@ function run_docker_helper_release_assessment(frm) {
 				),
 				indicator: "blue",
 			});
-			watch_docker_operation(frm, operation.operation_id, "Docker Helper Release assessment");
+			watch_docker_operation(
+				frm,
+				operation.operation_id,
+				"Docker Helper Release assessment"
+			);
 		},
 		error() {
 			frappe.msgprint({
@@ -227,7 +231,6 @@ function run_docker_helper_release_assessment(frm) {
 		},
 	});
 }
-
 
 function run_docker_privilege_bootstrap(frm) {
 	frappe.call({
@@ -364,9 +367,10 @@ function docker_setup_state(frm) {
 		} else {
 			action = {
 				key: "assess_helper_release",
-				label: releaseStatus === "Scripts Deployment Required"
-					? "Restart Release Assessment"
-					: "Assess Docker Helper Release",
+				label:
+					releaseStatus === "Scripts Deployment Required"
+						? "Restart Release Assessment"
+						: "Assess Docker Helper Release",
 			};
 		}
 	} else if (state === "Privilege Setup Required") {

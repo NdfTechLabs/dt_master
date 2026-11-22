@@ -833,19 +833,21 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			("install_policy", "1.1.1"),
 			("host_inventory", "1.0.0"),
 		):
-			integrity = "verified" if status == "matching" else (
-				"missing" if status == "missing" else "mismatch"
+			integrity = (
+				"verified" if status == "matching" else ("missing" if status == "missing" else "mismatch")
 			)
-			rows.append({
-				"id": component_id,
-				"version": version,
-				"expected_sha256": "a" * 64,
-				"observed_sha256": "a" * 64 if integrity == "verified" else None,
-				"owner": "root" if installed and integrity == "verified" else "deploy",
-				"group": "root" if installed and integrity == "verified" else "deploy",
-				"mode": "755" if installed and integrity == "verified" else "644",
-				"integrity": integrity,
-			})
+			rows.append(
+				{
+					"id": component_id,
+					"version": version,
+					"expected_sha256": "a" * 64,
+					"observed_sha256": "a" * 64 if integrity == "verified" else None,
+					"owner": "root" if installed and integrity == "verified" else "deploy",
+					"group": "root" if installed and integrity == "verified" else "deploy",
+					"mode": "755" if installed and integrity == "verified" else "644",
+					"integrity": integrity,
+				}
+			)
 		return {
 			"status": status,
 			"manifest_matches": manifest_matches,
@@ -873,8 +875,13 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		with (
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
-			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json) as serialize,
-			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, json.dumps(remote), "")),
+			patch(
+				"dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json
+			) as serialize,
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				return_value=(0, json.dumps(remote), ""),
+			),
 			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
 			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
@@ -937,7 +944,10 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
 			patch("dt_master.docker_helper_releases.serialize_release_manifest", return_value=manifest_json),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", return_value=(0, json.dumps(remote), "")),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				return_value=(0, json.dumps(remote), ""),
+			),
 			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
 			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
