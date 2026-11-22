@@ -64,7 +64,7 @@ def load_release_manifest():
 					"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"
 				}
 				or not isinstance(component["sha256"], str)
-				or len(component["sha256"]) != 64
+				or not __import__("re").fullmatch(r"[a-f0-9]{64}", component["sha256"])
 			):
 				return None
 			expected[component["path"]] = component["sha256"]
@@ -243,6 +243,7 @@ def main():
 				item["name"]
 				in {
 					"execution_identity",
+					"release_manifest_integrity",
 					"helper_integrity",
 					"policy_integrity",
 					"inventory_integrity",
