@@ -33,6 +33,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		self.assertEqual(probe_digest, digest)
 		self.assertEqual(probe_version, helper_version)
 		self.assertEqual(adapter_version, helper_version)
+
 	def payload(self):
 		return {
 			"schema_version": "1.0.0",
