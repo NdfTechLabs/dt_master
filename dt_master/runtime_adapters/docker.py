@@ -1796,6 +1796,10 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			not isinstance(manifest, dict)
 			or set(manifest) != {"id", "version", "channel", "schema_version", "sha256"}
 			or not all(isinstance(manifest[key], str) for key in manifest)
+			or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", manifest["id"])
+			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["version"])
+			or manifest["channel"] not in {"stable", "beta", "edge"}
+			or manifest["schema_version"] != "1.0.0"
 			or not re.fullmatch(r"[a-f0-9]{64}", manifest["sha256"])
 		):
 			raise ValueError("Invalid installed Docker Helper Release manifest evidence.")
@@ -1825,6 +1829,13 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				)
 			):
 				raise ValueError("Invalid installed Docker Helper Release component row.")
+			if row["integrity"] == "verified" and (
+				row["observed_sha256"] != row["expected_sha256"]
+				or row["owner"] != "root"
+				or row["group"] != "root"
+				or row["mode"] != "755"
+			):
+				raise ValueError("Verified component evidence does not match its integrity metadata.")
 			seen.add(row["id"])
 		if seen != expected_ids:
 			raise ValueError("Installed Docker Helper Release component inventory is incomplete.")
