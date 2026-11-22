@@ -78,7 +78,7 @@ esac
         fake_df = self.bin_dir / "df"
         fake_df.write_text(
             """#!/bin/sh
-printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 100000000000 50000000000 50000000000 /'
+printf '%s\\n' 'Mounted on 1B-blocks Used Available' '/ 100000000000 50000000000 50000000000'
 """
         )
         fake_df.chmod(0o755)
@@ -172,6 +172,7 @@ printf '%s\\n' 'Filesystem 1B-blocks Used Available Mounted on' '/dev/test 10000
                 "info --format {{json .}}",
                 "ps --all --quiet",
                 "ps --quiet",
+                "info --format {{.ServerVersion}}",
             ],
         )
         forbidden = {"run", "create", "start", "stop", "rm", "rmi", "pull", "build", "volume", "network"}
