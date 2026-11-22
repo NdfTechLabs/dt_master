@@ -912,7 +912,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Current")
 		self.assertEqual(result.outcome, "succeeded")
 		serialize.assert_called_once()
-		self.assertEqual(serialize.call_args.kwargs["source_root"], Path(__file__).resolve().parents[2])
+		self.assertEqual(serialize.call_args.kwargs["source_root"], Path(__file__).resolve().parents[1])
 		install.assert_not_called()
 		self.assertEqual(result.data["expected_manifest"], manifest)
 		self.assertEqual(
