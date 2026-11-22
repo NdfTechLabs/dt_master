@@ -1447,6 +1447,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
 				validate_docker_engine_install_plan(install_plan)
 			except (TypeError, ValueError):
+				install_plan = None
 				plan_diagnostic = {
 					"code": "DOCKER_ENGINE_INSTALL_PLAN_INVALID",
 					"severity": "warning",
