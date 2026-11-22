@@ -71,7 +71,6 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 		operation = SimpleNamespace(operation_type="host.node.docker.repository.prepare")
 		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
 
-
 	def test_other_docker_package_lifecycle_mutations_are_not_registered(self):
 		types = set(registered_operation_types())
 		for operation_type in (
@@ -84,6 +83,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.compose.uninstall",
 		):
 			self.assertNotIn(operation_type, types)
+
 
 if __name__ == "__main__":
 	unittest.main()

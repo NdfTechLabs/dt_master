@@ -1146,7 +1146,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			duration_ms=inspection.duration_ms,
 		)
 
-
 	@staticmethod
 	def _validate_repository_preparation_result(payload):
 		"""Validate the trusted helper's closed repository-preparation result."""
@@ -1188,7 +1187,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			phase = "preparation_preflight"
 			inspection = self._inspect(request, execution_context=execution_context)
 			if inspection.data.get("inspection_status") != "Successful":
-				raise ValueError("A complete fresh Docker inspection is required before repository preparation.")
+				raise ValueError(
+					"A complete fresh Docker inspection is required before repository preparation."
+				)
 			if inspection.data.get("readiness") != "Ready":
 				raise ValueError("Docker host readiness must be Ready before repository preparation.")
 			privilege = inspection.data.get("privilege_readiness") or {}
@@ -1242,7 +1243,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				raise ValueError("Fresh Docker host readiness is not Ready after repository preparation.")
 			fresh_privilege = fresh.data.get("privilege_readiness") or {}
 			if fresh_privilege.get("status") != "Ready":
-				raise ValueError("Trusted Docker privilege readiness is not Ready after repository preparation.")
+				raise ValueError(
+					"Trusted Docker privilege readiness is not Ready after repository preparation."
+				)
 			fresh_snapshot = fresh.data.get("snapshot") or {}
 			fresh_inventory = (fresh_snapshot.get("host_inventory") or {}).get("docker_install_inventory")
 			if not isinstance(fresh_inventory, dict):
@@ -1256,11 +1259,15 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				outcome="succeeded" if ready else "partial",
 				observed_state="Ready for Install" if ready else "Preparation Reconciliation Required",
 				capabilities=self.capabilities(),
-				diagnostics=() if ready else ({
-					"code": "DOCKER_REPOSITORY_PREPARATION_REQUIRES_RECONCILIATION",
-					"severity": "warning",
-					"message": "Repository preparation ran, but the fresh installation plan is not ready.",
-				},),
+				diagnostics=()
+				if ready
+				else (
+					{
+						"code": "DOCKER_REPOSITORY_PREPARATION_REQUIRES_RECONCILIATION",
+						"severity": "warning",
+						"message": "Repository preparation ran, but the fresh installation plan is not ready.",
+					},
+				),
 				data={
 					"preparation_status": "succeeded",
 					"fresh_install_plan_status": fresh_plan["status"],
@@ -1277,13 +1284,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				outcome="partial" if uncertain else "failed",
 				observed_state="Recovery Required" if uncertain else "Preparation Not Applied",
 				capabilities=(),
-				diagnostics=({
-					"code": "DOCKER_REPOSITORY_PREPARATION_RECONCILIATION_REQUIRED"
-					if uncertain else "DOCKER_REPOSITORY_PREPARATION_BLOCKED",
-					"severity": "error",
-					"message": "Repository preparation may have changed the node; fresh inspection is required."
-					if uncertain else "Repository preparation preconditions were not satisfied.",
-				},),
+				diagnostics=(
+					{
+						"code": "DOCKER_REPOSITORY_PREPARATION_RECONCILIATION_REQUIRED"
+						if uncertain
+						else "DOCKER_REPOSITORY_PREPARATION_BLOCKED",
+						"severity": "error",
+						"message": "Repository preparation may have changed the node; fresh inspection is required."
+						if uncertain
+						else "Repository preparation preconditions were not satisfied.",
+					},
+				),
 				data={
 					"helper_dispatched": helper_dispatched,
 					"failure": {
@@ -1296,7 +1307,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
-
 
 	def _install_engine(self, request, execution_context=None):
 		"""Install Docker through the trusted helper using existing Node readiness."""

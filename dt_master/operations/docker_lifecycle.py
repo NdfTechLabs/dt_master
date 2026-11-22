@@ -24,7 +24,9 @@ COMPOSE_MUTATIONS = frozenset(
 )
 PRIVILEGE_BOOTSTRAP_OPERATIONS = frozenset({"host.node.docker.privileges.bootstrap"})
 REPOSITORY_PREPARATION_OPERATIONS = frozenset({"host.node.docker.repository.prepare"})
-MUTATING_OPERATIONS = ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS | REPOSITORY_PREPARATION_OPERATIONS
+MUTATING_OPERATIONS = (
+	ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS | REPOSITORY_PREPARATION_OPERATIONS
+)
 READ_ONLY_OPERATIONS = frozenset(
 	{
 		"host.node.docker.privileges.check",
@@ -93,7 +95,11 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 	"""Return a normalized payload for one known Docker lifecycle operation."""
 	if operation_type not in DOCKER_LIFECYCLE_OPERATIONS:
 		raise ValueError("Unsupported Docker lifecycle operation")
-	if operation_type in READ_ONLY_OPERATIONS or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS or operation_type in REPOSITORY_PREPARATION_OPERATIONS:
+	if (
+		operation_type in READ_ONLY_OPERATIONS
+		or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS
+		or operation_type in REPOSITORY_PREPARATION_OPERATIONS
+	):
 		return _empty(payload)
 	if operation_type == "host.node.docker.install":
 		return _install(payload)

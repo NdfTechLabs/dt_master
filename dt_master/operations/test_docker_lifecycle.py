@@ -34,14 +34,12 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			{"confirm": True},
 		)
 
-
 	def test_repository_preparation_is_a_closed_empty_payload_mutation(self):
 		operation = "host.node.docker.repository.prepare"
 		self.assertIn(operation, MUTATING_OPERATIONS)
 		self.assertEqual(validate_docker_lifecycle_payload(operation, {}), {})
 		with self.assertRaises(ValueError):
 			validate_docker_lifecycle_payload(operation, {"confirm": True})
-
 
 	def test_engine_install_requires_only_explicit_confirmation(self):
 		self.assertEqual(

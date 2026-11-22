@@ -209,7 +209,6 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Preparation Not Applied")
 		run_helper.assert_not_called()
 
-
 	def test_prepare_repository_reinspects_and_persists_fresh_install_plan(self):
 		self.node.docker_host_state = "Repository Preparation Required"
 		request_obj = RuntimeAdapterRequest(
@@ -262,14 +261,15 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.data["fresh_install_plan_status"], "ready")
 		self.assertFalse(result.data["engine_packages_installed"])
 		self.assertEqual(inspect.call_count, 2)
-		self.assertEqual(run_helper.call_args.args[2], {
-			"schema_version": "1.0.0",
-			"operation": "prepare_repository",
-		})
+		self.assertEqual(
+			run_helper.call_args.args[2],
+			{
+				"schema_version": "1.0.0",
+				"operation": "prepare_repository",
+			},
+		)
 		self.assertEqual(run_helper.call_args.kwargs["timeout_seconds"], 420)
 		persist.assert_called_once_with(self.node, request_obj, inspection_data, ready_plan)
-
-
 
 	def test_repository_preparation_planner_gate_accepts_only_known_prerequisite_blockers(self):
 		preparation_required = {
@@ -291,7 +291,6 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertTrue(self.adapter._requires_repository_preparation(blocked_but_preparable))
 		self.assertFalse(self.adapter._requires_repository_preparation(blocked_for_unrelated_reason))
 
-
 	def test_repository_preparation_result_requires_exact_helper_contract(self):
 		valid = {
 			"schema_version": "1.0.0",
@@ -301,7 +300,11 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"diagnostics": [],
 		}
 		self.assertEqual(self.adapter._validate_repository_preparation_result(valid), valid)
-		for key, value in (("helper_version", "0.4.0"), ("operation", "install_engine"), ("status", "failed")):
+		for key, value in (
+			("helper_version", "0.4.0"),
+			("operation", "install_engine"),
+			("status", "failed"),
+		):
 			invalid = dict(valid)
 			invalid[key] = value
 			with self.subTest(key=key), self.assertRaises(ValueError):
@@ -309,7 +312,6 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		invalid = dict(valid, unexpected=True)
 		with self.assertRaises(ValueError):
 			self.adapter._validate_repository_preparation_result(invalid)
-
 
 	def test_install_engine_builds_closed_helper_request_from_fresh_plan(self):
 		version = "5:29.0.0-1~ubuntu.24.04~noble"
