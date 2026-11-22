@@ -26,7 +26,7 @@ def request(method="inspect"):
 def helper_install_result(status="succeeded", phase="result_verification", exit_code=0):
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.3.0",
+		"helper_version": "0.3.1",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": status,
@@ -236,7 +236,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		}
 		helper_result = {
 			"schema_version": "1.0.0",
-			"helper_version": "0.3.0",
+			"helper_version": "0.3.1",
 			"operation": "prepare_repository",
 			"status": "succeeded",
 			"diagnostics": [],
@@ -294,7 +294,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_repository_preparation_result_requires_exact_helper_contract(self):
 		valid = {
 			"schema_version": "1.0.0",
-			"helper_version": "0.3.0",
+			"helper_version": "0.3.1",
 			"operation": "prepare_repository",
 			"status": "succeeded",
 			"diagnostics": [],
@@ -730,7 +730,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.3.0",
+				"version": "0.3.1",
 				"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
@@ -1120,7 +1120,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.3.0",
+				"version": "0.3.1",
 				"sha256": "a" * 64,
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
