@@ -1672,7 +1672,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		try:
 			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
 			local_manifest_json = serialize_release_manifest(
-				release, source_root=Path(__file__).resolve().parents[2]
+				release, source_root=Path(__file__).resolve().parents[1]
 			)
 			local_manifest = json.loads(local_manifest_json)
 			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
