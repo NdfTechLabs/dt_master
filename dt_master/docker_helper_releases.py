@@ -75,6 +75,7 @@ def validate_component_definition(component, *, require_digest=True):
 	source = PurePosixPath(source_path)
 	if (
 		source.is_absolute()
+		or str(source) != source_path
 		or not source_path.startswith(_SOURCE_PREFIX)
 		or any(part in {"", ".", ".."} for part in source.parts)
 	):
@@ -84,6 +85,7 @@ def validate_component_definition(component, *, require_digest=True):
 	target = PurePosixPath(install_path)
 	if (
 		not target.is_absolute()
+		or str(target) != install_path
 		or not install_path.startswith(_INSTALL_PREFIX)
 		or any(part in {"", ".", ".."} for part in target.parts)
 	):
@@ -186,8 +188,8 @@ def validate_release_metadata(compatibility, lifecycle):
 		upgrade_from = compatibility["upgrade_from"]
 		if (
 			not isinstance(upgrade_from, list)
-			or len(upgrade_from) != len(set(upgrade_from))
 			or any(not isinstance(item, str) or not _VERSION.fullmatch(item) for item in upgrade_from)
+			or len(upgrade_from) != len(set(upgrade_from))
 		):
 			raise DockerHelperReleaseError("Invalid upgrade predecessor list")
 
@@ -200,8 +202,9 @@ def validate_release_metadata(compatibility, lifecycle):
 	activation_order = lifecycle["activation_order"]
 	if (
 		not isinstance(activation_order, list)
-		or len(activation_order) != len(MANIFEST_COMPONENT_IDS)
-		or set(activation_order) != MANIFEST_COMPONENT_IDS
+			or any(not isinstance(item, str) for item in activation_order)
+			or len(activation_order) != len(MANIFEST_COMPONENT_IDS)
+			or set(activation_order) != MANIFEST_COMPONENT_IDS
 	):
 		raise DockerHelperReleaseError("Lifecycle activation order must contain each release component exactly once")
 	return compatibility, lifecycle

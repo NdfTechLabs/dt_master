@@ -12,7 +12,7 @@ from dt_master.docker_helper_releases import (
 	validate_release_metadata,
 )
 
-RELEASE_DEFINITION_FIELDS = ("release_id", "version", "channel", "compatibility", "lifecycle", "components", "aggregate_digest")
+RELEASE_DEFINITION_FIELDS = ("release_id", "schema_version", "version", "channel", "compatibility", "lifecycle", "components", "aggregate_digest")
 
 
 def _definition(doc):
@@ -37,8 +37,11 @@ def _definition(doc):
         )
     return {
         "release_id": doc.get("release_id"),
+        "schema_version": doc.get("schema_version"),
         "version": doc.get("version"),
         "channel": doc.get("channel"),
+        "compatibility": doc.get("compatibility"),
+        "lifecycle": doc.get("lifecycle"),
         "components": sorted(components, key=lambda item: item["component_id"] or ""),
         "aggregate_digest": doc.get("aggregate_digest"),
     }
@@ -63,6 +66,12 @@ class DockerHelperRelease(Document):
             self._throw("Release ID must contain 3–100 lowercase letters, numbers, dots, underscores or hyphens.")
         if not self.version or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.version):
             self._throw("Release version must use semantic versioning.")
+        if self.schema_version != "1.0.0":
+            self._throw("Unsupported Docker Helper Release manifest schema version.")
+        try:
+            validate_release_metadata(self.compatibility, self.lifecycle)
+        except DockerHelperReleaseError as exc:
+            self._throw(str(exc))
         if self.channel not in {"stable", "beta", "edge"}:
             self._throw("Invalid Docker Helper Release channel.")
         if self.status not in {"Draft", "Published"}:

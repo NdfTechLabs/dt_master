@@ -14,6 +14,22 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         release.version = "0.3.2"
         release.channel = "stable"
         release.status = "Draft"
+        release.schema_version = "1.0.0"
+        release.compatibility = json.dumps({
+            "helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
+            "privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
+            "docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
+            "docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+            "inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
+            "upgrade_from": ["0.3.0", "0.3.1", "0.3.2"],
+        })
+        release.lifecycle = json.dumps({
+            "bootstrap": "Install the release when no recognized helper release is present.",
+            "upgrade": "Replace a recognized older release with this complete release without repeating host preparation.",
+            "reconcile": "Repair only recognized, individually verifiable release artifacts; unknown or untrusted artifacts require operator intervention.",
+            "activation_order": ["install_policy", "host_inventory", "lifecycle_helper"],
+            "verification": "A release is current only when every required component digest, owner, group, mode, version and compatibility requirement passes.",
+        })
         for component_id, filename, version, responsibility in (
             (
                 "lifecycle_helper",
