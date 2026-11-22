@@ -403,7 +403,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid trusted Docker helper self-test response")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.1"
+			or payload["helper_version"] != "0.3.2"
 			or payload["operation"] != "self_test"
 			or payload["status"] != "ok"
 			or type(payload["effective_uid"]) is not int
@@ -1218,7 +1218,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid Docker repository preparation result fields.")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.1"
+			or payload["helper_version"] != "0.3.2"
 			or payload["operation"] != "prepare_repository"
 			or payload["status"] != "succeeded"
 			or payload["diagnostics"] != []
@@ -1499,7 +1499,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			if execution_context is not None:
 				execution_context.heartbeat()
 				execution_context.assert_leases()
-			helper_dispatched = True
 			code, stdout, stderr = run_trusted_helper(
 				node,
 				self._ssh_config(node),
@@ -1515,6 +1514,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					else None
 				),
 			)
+			helper_dispatched = True
 			failure_detail = {
 				"code": "DOCKER_ENGINE_HELPER_RESPONSE",
 				"exit_code": code,
@@ -1528,6 +1528,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				request, helper_result, execution_context=execution_context
 			)
 		except TrustedHelperExecutionError as exc:
+			helper_dispatched = exc.may_have_executed
 			uncertain = exc.may_have_executed
 			failure = {
 				"phase": phase,
