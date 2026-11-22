@@ -213,7 +213,7 @@ def _load_policy():
 			"docker_install_inventory.py",
 		}:
 			raise HelperError("RELEASE_COMPONENT_SET_INVALID", "host_validation")
-		for name in ("docker_install_policy.py", "docker_install_inventory.py"):
+		for name in ("docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"):
 			path = HELPER_DIR / name
 			metadata = path.lstat()
 			if (
