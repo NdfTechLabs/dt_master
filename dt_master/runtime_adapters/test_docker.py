@@ -682,7 +682,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"diagnostics": [],
 		}
 
-	def _run(self, method="inspect", code=0, snapshot=None):
+	def _run(self, method="inspect", code=0, snapshot=None, readiness="Ready"):
 		snapshot = snapshot or self._snapshot()
 		self.node.docker_host_state = "Docker Inspection Required"
 		self.node.docker_host_management_snapshot = json.dumps(
@@ -710,7 +710,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			) as remote,
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
-				return_value={"readiness": "Ready", "diagnostics": [], "evaluator_version": "1.1.0"},
+				return_value={"readiness": readiness, "diagnostics": [], "evaluator_version": "1.1.0"},
 			),
 			patch.object(self.adapter, "_privilege_readiness", return_value={"status": "Ready"}),
 		):
@@ -861,6 +861,17 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertIn("workload_impact", plan_summary)
 		self.assertNotIn("mutation_authorized", plan_summary)
 		self.assertNotIn("target", plan_summary)
+		self.assertEqual(persisted["docker_host_state"], "Repository Preparation Required")
+
+	def test_preflight_persists_valid_plan_when_engine_readiness_is_not_ready(self):
+		result, _remote = self._run(method="preflight", readiness="Not Ready")
+		self.assertEqual(result.outcome, "succeeded")
+		self.assertEqual(result.observed_state, "Repository Preparation Required")
+		self.assertEqual(result.data["readiness"], "Not Ready")
+		updates = [call.args[2] for call in self.db_set_value.call_args_list]
+		persisted = next(item for item in updates if "docker_inspection_snapshot" in item)
+		management = json.loads(persisted["docker_host_management_snapshot"])
+		self.assertEqual(management["docker_install_plan"]["status"], "preparation_required")
 		self.assertEqual(persisted["docker_host_state"], "Repository Preparation Required")
 
 	def test_unavailable_inventory_does_not_persist_plan_evidence_or_advance_state(self):
