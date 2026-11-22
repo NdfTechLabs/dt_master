@@ -696,7 +696,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		}
 
 	@staticmethod
-	def _persist_install_plan_evidence(node, request, inspection, plan):
+	def _persist_install_plan_evidence(node, request, inspection, plan, allow_lifecycle_transition=True):
 		"""Persist a validated plan only when it is bound to this successful inspection."""
 		from dt_master.node_preparation.docker_install import validate_docker_engine_install_plan
 
@@ -735,13 +735,14 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			),
 			"docker_host_management_snapshot": json.dumps(management, sort_keys=True, separators=(",", ":")),
 		}
-		if DockerRuntimeAdapter._requires_repository_preparation(plan):
-			updates["docker_host_state"] = "Repository Preparation Required"
-		elif plan["status"] == "ready":
-			updates["docker_host_state"] = "Ready for Install"
-		if DockerRuntimeAdapter._requires_repository_preparation(plan) or plan["status"] == "ready":
-			updates["docker_host_operation"] = request.operation_id
-			updates["docker_host_state_updated_on"] = observed_at
+		if allow_lifecycle_transition:
+			if DockerRuntimeAdapter._requires_repository_preparation(plan):
+				updates["docker_host_state"] = "Repository Preparation Required"
+			elif plan["status"] == "ready":
+				updates["docker_host_state"] = "Ready for Install"
+			if DockerRuntimeAdapter._requires_repository_preparation(plan) or plan["status"] == "ready":
+				updates["docker_host_operation"] = request.operation_id
+				updates["docker_host_state_updated_on"] = observed_at
 		frappe.db.set_value("Infrastructure Node", node.name, updates, update_modified=False)
 		return True
 
@@ -1604,11 +1605,23 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		if inspection.data.get("inspection_status") == "Successful" and install_plan is None:
 			self._persist_inspection_evidence(node, request, inspection.data)
 		inspection_status = inspection.data.get("inspection_status")
+		readiness_evaluation = inspection.data.get("readiness_evaluation") or {}
+		host_requirements = {
+			"min_cpu_cores",
+			"min_total_memory_bytes",
+			"min_available_memory_bytes",
+			"min_available_storage_bytes",
+		}
+		resource_failures = [
+			item
+			for item in readiness_evaluation.get("diagnostics", [])
+			if item.get("severity") == "Error" and item.get("requirement") in host_requirements
+		]
 		if inspection_status != "Successful":
 			outcome, state = "failed", "Blocked"
 		elif privilege != "Ready":
 			outcome, state = ("failed", "Blocked") if privilege == "Not Ready" else ("partial", "Degraded")
-		elif install_plan is None:
+		elif install_plan is None or resource_failures:
 			outcome, state = "failed", "Blocked"
 		elif self._requires_repository_preparation(install_plan):
 			# Preflight successfully assessed the host. Repository prerequisites
@@ -1641,7 +1654,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			)
 		diagnostics = tuple(diagnostic_rows[:100])
 		if inspection.data.get("inspection_status") == "Successful" and install_plan is not None:
-			self._persist_install_plan_evidence(node, request, inspection.data, install_plan)
+			self._persist_install_plan_evidence(
+				node, request, inspection.data, install_plan, allow_lifecycle_transition=not resource_failures
+			)
 		return self.result_for(
 			request,
 			outcome=outcome,
