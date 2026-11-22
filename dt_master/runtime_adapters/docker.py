@@ -707,7 +707,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			updates["docker_host_state"] = "Repository Preparation Required"
 		elif plan["status"] == "ready":
 			updates["docker_host_state"] = "Ready for Install"
-		if plan["status"] in {"preparation_required", "ready"}:
+		if DockerRuntimeAdapter._requires_repository_preparation(plan) or plan["status"] == "ready":
 			updates["docker_host_operation"] = request.operation_id
 			updates["docker_host_state_updated_on"] = observed_at
 		frappe.db.set_value("Infrastructure Node", node.name, updates, update_modified=False)
