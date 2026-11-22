@@ -1052,18 +1052,62 @@ function start_execution_log_stream(dialog, node_name) {
 	});
 }
 
-
-
 function show_docker_setup_restart_dialog(frm) {
 	const checkpoints = [
-		{ value: "connection", label: __("1. SSH Connection"), description: __("Repeat connection verification and rebuild all downstream evidence.") },
-		{ value: "host_inspection", label: __("2. Host Inspection"), description: __("Preserve SSH verification; repeat Host inspection and all later stages.") },
-		{ value: "privilege_helper", label: __("3. Docker Privilege Helper"), description: __("Preserve Host inspection; reinstall helper and rebuild downstream evidence.") },
-		{ value: "privilege_verification", label: __("4. Privilege Verification"), description: __("Preserve helper installation; repeat privilege verification and later stages.") },
-		{ value: "docker_inspection", label: __("5. Docker Runtime Inspection"), description: __("Preserve privilege readiness; repeat runtime inspection and later stages.") },
-		{ value: "preflight", label: __("6. Install Preflight"), description: __("Preserve runtime inspection; discard the plan and calculate a fresh one.") },
-		{ value: "repository_preparation", label: __("7. Repository Preparation"), description: __("Retain the current preparation plan and repeat repository preparation.") },
-		{ value: "engine_installation", label: __("8. Docker Engine Installation"), description: __("Retain prerequisites; rerun fresh checks before Engine installation.") },
+		{
+			value: "connection",
+			label: __("1. SSH Connection"),
+			description: __("Repeat connection verification and rebuild all downstream evidence."),
+		},
+		{
+			value: "host_inspection",
+			label: __("2. Host Inspection"),
+			description: __(
+				"Preserve SSH verification; repeat Host inspection and all later stages."
+			),
+		},
+		{
+			value: "privilege_helper",
+			label: __("3. Docker Privilege Helper"),
+			description: __(
+				"Preserve Host inspection; reinstall helper and rebuild downstream evidence."
+			),
+		},
+		{
+			value: "privilege_verification",
+			label: __("4. Privilege Verification"),
+			description: __(
+				"Preserve helper installation; repeat privilege verification and later stages."
+			),
+		},
+		{
+			value: "docker_inspection",
+			label: __("5. Docker Runtime Inspection"),
+			description: __(
+				"Preserve privilege readiness; repeat runtime inspection and later stages."
+			),
+		},
+		{
+			value: "preflight",
+			label: __("6. Install Preflight"),
+			description: __(
+				"Preserve runtime inspection; discard the plan and calculate a fresh one."
+			),
+		},
+		{
+			value: "repository_preparation",
+			label: __("7. Repository Preparation"),
+			description: __(
+				"Retain the current preparation plan and repeat repository preparation."
+			),
+		},
+		{
+			value: "engine_installation",
+			label: __("8. Docker Engine Installation"),
+			description: __(
+				"Retain prerequisites; rerun fresh checks before Engine installation."
+			),
+		},
 	];
 	const dialog = new frappe.ui.Dialog({
 		title: __("Restart Guided Docker Setup"),
@@ -1076,7 +1120,9 @@ function show_docker_setup_restart_dialog(frm) {
 				reqd: 1,
 				default: checkpoints[2].label,
 				onchange() {
-					const selected = checkpoints.find((item) => item.label === dialog.get_value("checkpoint"));
+					const selected = checkpoints.find(
+						(item) => item.label === dialog.get_value("checkpoint")
+					);
 					dialog.fields_dict.restart_description.$wrapper.html(
 						'<div class="text-muted small">' +
 							escape_html(selected?.description || "") +
@@ -1087,7 +1133,10 @@ function show_docker_setup_restart_dialog(frm) {
 			{
 				fieldname: "restart_description",
 				fieldtype: "HTML",
-				options: '<div class="text-muted small">' + escape_html(checkpoints[2].description) + "</div>",
+				options:
+					'<div class="text-muted small">' +
+					escape_html(checkpoints[2].description) +
+					"</div>",
 			},
 		],
 		primary_action_label: __("Restart from Stage"),
@@ -1115,12 +1164,18 @@ function show_docker_setup_restart_dialog(frm) {
 								),
 								indicator: "blue",
 							});
-							watch_docker_operation(frm, operation.operation_id, "Docker setup restart");
+							watch_docker_operation(
+								frm,
+								operation.operation_id,
+								"Docker setup restart"
+							);
 						},
 						error() {
 							frappe.msgprint({
 								title: __("Restart Not Started"),
-								message: __("The restart could not be queued. Check the server error log."),
+								message: __(
+									"The restart could not be queued. Check the server error log."
+								),
 								indicator: "red",
 							});
 						},

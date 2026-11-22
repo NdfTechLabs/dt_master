@@ -6,12 +6,12 @@ from types import SimpleNamespace
 
 from dt_master.operations.docker_lifecycle import (
 	DOCKER_LIFECYCLE_OPERATIONS,
+	DOCKER_SETUP_CHECKPOINTS,
 	MUTATING_OPERATIONS,
 	READ_ONLY_OPERATIONS,
 	authorize_docker_lifecycle_node,
-	DOCKER_SETUP_CHECKPOINTS,
-	docker_setup_restart_updates,
 	docker_lifecycle_resource_lock_keys,
+	docker_setup_restart_updates,
 	validate_docker_lifecycle_payload,
 )
 
@@ -244,6 +244,7 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 		)
 		updates = docker_setup_restart_updates(node, "preflight")
 		import json
+
 		management = json.loads(updates["docker_host_management_snapshot"])
 		self.assertIn("docker_inspection", management)
 		self.assertNotIn("docker_install_plan", management)
@@ -260,6 +261,7 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 		)
 		updates = docker_setup_restart_updates(node, "connection")
 		import json
+
 		management = json.loads(updates["docker_host_management_snapshot"])
 		self.assertNotIn("connection_status", management)
 		self.assertNotIn("connection_operation_id", management)
@@ -270,10 +272,12 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 	def test_restart_checkpoint_requires_its_upstream_evidence(self):
 		node = SimpleNamespace(
 			access_verified=True,
-			docker_host_management_snapshot=json.dumps({
-				"host_inspection": {"inspection_status": "Successful", "os_support_status": "Supported"},
-				"privilege_bootstrap": {"status": "Succeeded"},
-			}),
+			docker_host_management_snapshot=json.dumps(
+				{
+					"host_inspection": {"inspection_status": "Successful", "os_support_status": "Supported"},
+					"privilege_bootstrap": {"status": "Succeeded"},
+				}
+			),
 			docker_inspection_status="Not Inspected",
 		)
 		with self.assertRaisesRegex(ValueError, "Host inspection"):
@@ -288,16 +292,22 @@ class TestDockerSetupCheckpointRecovery(unittest.TestCase):
 class TestDockerSetupRestartEndpoint(unittest.TestCase):
 	def test_restart_endpoint_queues_durable_checkpoint_operation(self):
 		from unittest.mock import Mock, patch
+
 		from dt_master.api import infrastructure_node
 
 		node = SimpleNamespace(
-			name="NODE-01", ssh_host_alias="node-alias", ip_address=None, ssh_user="ubuntu",
+			name="NODE-01",
+			ssh_host_alias="node-alias",
+			ip_address=None,
+			ssh_user="ubuntu",
 			check_permission=Mock(),
 		)
 		with (
 			patch.object(infrastructure_node.frappe, "only_for"),
 			patch.object(infrastructure_node.frappe, "get_doc", return_value=node),
-			patch.object(infrastructure_node, "start_operation", return_value={"operation_id": "restart-01"}) as start,
+			patch.object(
+				infrastructure_node, "start_operation", return_value={"operation_id": "restart-01"}
+			) as start,
 		):
 			result = infrastructure_node.restart_docker_setup_from("NODE-01", "privilege_helper")
 		self.assertEqual(result, {"operation_id": "restart-01"})
@@ -307,10 +317,14 @@ class TestDockerSetupRestartEndpoint(unittest.TestCase):
 
 	def test_restart_endpoint_rejects_unconfigured_ssh(self):
 		from unittest.mock import Mock, patch
+
 		from dt_master.api import infrastructure_node
 
 		node = SimpleNamespace(
-			name="NODE-01", ssh_host_alias=None, ip_address=None, ssh_user=None,
+			name="NODE-01",
+			ssh_host_alias=None,
+			ip_address=None,
+			ssh_user=None,
 			check_permission=Mock(),
 		)
 		with (

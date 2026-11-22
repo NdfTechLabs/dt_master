@@ -27,7 +27,11 @@ PRIVILEGE_BOOTSTRAP_OPERATIONS = frozenset({"host.node.docker.privileges.bootstr
 REPOSITORY_PREPARATION_OPERATIONS = frozenset({"host.node.docker.repository.prepare"})
 SETUP_RESTART_OPERATIONS = frozenset({"host.node.docker.setup.restart"})
 MUTATING_OPERATIONS = (
-	ENGINE_MUTATIONS | COMPOSE_MUTATIONS | PRIVILEGE_BOOTSTRAP_OPERATIONS | REPOSITORY_PREPARATION_OPERATIONS | SETUP_RESTART_OPERATIONS
+	ENGINE_MUTATIONS
+	| COMPOSE_MUTATIONS
+	| PRIVILEGE_BOOTSTRAP_OPERATIONS
+	| REPOSITORY_PREPARATION_OPERATIONS
+	| SETUP_RESTART_OPERATIONS
 )
 READ_ONLY_OPERATIONS = frozenset(
 	{
@@ -163,9 +167,14 @@ def authorize_docker_setup_restart(target):
 
 	frappe.only_for("System Manager")
 	if getattr(target, "doctype", None) != "Infrastructure Node":
-		frappe.throw(_("Docker setup recovery requires an Infrastructure Node target."), frappe.PermissionError)
+		frappe.throw(
+			_("Docker setup recovery requires an Infrastructure Node target."), frappe.PermissionError
+		)
 	target.check_permission("read")
-	if not (getattr(target, "ssh_host_alias", None) or (getattr(target, "ip_address", None) and getattr(target, "ssh_user", None))):
+	if not (
+		getattr(target, "ssh_host_alias", None)
+		or (getattr(target, "ip_address", None) and getattr(target, "ssh_user", None))
+	):
 		frappe.throw(_("Configure SSH access before restarting Docker setup."), frappe.ValidationError)
 
 
@@ -186,26 +195,66 @@ def docker_setup_restart_updates(node, checkpoint):
 	plan = management.get("docker_install_plan") or {}
 	if checkpoint != "connection" and not getattr(node, "access_verified", False):
 		raise ValueError("Verified SSH access is required for this restart checkpoint.")
-	if checkpoint in {"privilege_helper", "privilege_verification", "docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
-		if host_inspection.get("inspection_status") != "Successful" or host_inspection.get("os_support_status") != "Supported":
-			raise ValueError("A successful supported Host inspection is required for this restart checkpoint.")
-	if checkpoint in {"privilege_verification", "docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
+	if checkpoint in {
+		"privilege_helper",
+		"privilege_verification",
+		"docker_inspection",
+		"preflight",
+		"repository_preparation",
+		"engine_installation",
+	}:
+		if (
+			host_inspection.get("inspection_status") != "Successful"
+			or host_inspection.get("os_support_status") != "Supported"
+		):
+			raise ValueError(
+				"A successful supported Host inspection is required for this restart checkpoint."
+			)
+	if checkpoint in {
+		"privilege_verification",
+		"docker_inspection",
+		"preflight",
+		"repository_preparation",
+		"engine_installation",
+	}:
 		if bootstrap.get("status") != "Succeeded":
-			raise ValueError("Docker privilege helper installation must be complete before this restart checkpoint.")
+			raise ValueError(
+				"Docker privilege helper installation must be complete before this restart checkpoint."
+			)
 	if checkpoint in {"docker_inspection", "preflight", "repository_preparation", "engine_installation"}:
 		if privilege.get("status") != "Ready":
 			raise ValueError("Docker privilege readiness must be Ready before this restart checkpoint.")
 	if checkpoint == "preflight" and getattr(node, "docker_inspection_status", None) != "Successful":
 		raise ValueError("A successful Docker runtime inspection is required before restarting preflight.")
-	if checkpoint == "repository_preparation" and plan.get("status") not in {"blocked", "preparation_required"}:
+	if checkpoint == "repository_preparation" and plan.get("status") not in {
+		"blocked",
+		"preparation_required",
+	}:
 		raise ValueError("A current repository-preparation plan is required for this checkpoint.")
 	if checkpoint == "engine_installation" and plan.get("status") not in {"ready", "no_op"}:
 		raise ValueError("A ready Docker install plan is required for the Engine installation checkpoint.")
 
 	invalidated = {
-		"connection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
-		"host_inspection": ("host_inspection", "privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
-		"privilege_helper": ("privilege_bootstrap", "privilege_readiness", "docker_inspection", "docker_install_plan"),
+		"connection": (
+			"host_inspection",
+			"privilege_bootstrap",
+			"privilege_readiness",
+			"docker_inspection",
+			"docker_install_plan",
+		),
+		"host_inspection": (
+			"host_inspection",
+			"privilege_bootstrap",
+			"privilege_readiness",
+			"docker_inspection",
+			"docker_install_plan",
+		),
+		"privilege_helper": (
+			"privilege_bootstrap",
+			"privilege_readiness",
+			"docker_inspection",
+			"docker_install_plan",
+		),
 		"privilege_verification": ("privilege_readiness", "docker_inspection", "docker_install_plan"),
 		"docker_inspection": ("docker_inspection", "docker_install_plan"),
 		"preflight": ("docker_install_plan",),
@@ -229,16 +278,23 @@ def docker_setup_restart_updates(node, checkpoint):
 	}
 	if checkpoint == "connection":
 		updates["access_verified"] = 0
-	if checkpoint in {"connection", "host_inspection", "privilege_helper", "privilege_verification", "docker_inspection"}:
-		updates.update({
-			"docker_inspection_status": "Not Inspected",
-			"docker_readiness": "Unknown",
-			"docker_readiness_evaluation": None,
-			"docker_inspected_on": None,
-			"docker_inspection_snapshot": None,
-		})
+	if checkpoint in {
+		"connection",
+		"host_inspection",
+		"privilege_helper",
+		"privilege_verification",
+		"docker_inspection",
+	}:
+		updates.update(
+			{
+				"docker_inspection_status": "Not Inspected",
+				"docker_readiness": "Unknown",
+				"docker_readiness_evaluation": None,
+				"docker_inspected_on": None,
+				"docker_inspection_snapshot": None,
+			}
+		)
 	return updates
-
 
 
 def docker_setup_restart_lock_keys(target, operation):

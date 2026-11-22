@@ -1245,7 +1245,9 @@ def restart_docker_setup_from(node_name, checkpoint):
 	node = frappe.get_doc("Infrastructure Node", node_name)
 	node.check_permission("read")
 	if not (node.ssh_host_alias or (node.ip_address and node.ssh_user)):
-		frappe.throw("Configure an SSH host alias or an IP address and SSH user before restarting Docker setup.")
+		frappe.throw(
+			"Configure an SSH host alias or an IP address and SSH user before restarting Docker setup."
+		)
 	return start_operation(
 		operation_type="host.node.docker.setup.restart",
 		target_doctype="Infrastructure Node",

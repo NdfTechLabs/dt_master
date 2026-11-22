@@ -164,7 +164,6 @@ register_operation(
 )
 
 
-
 def _docker_setup_restart_handler(context, payload):
 	"""Invalidate downstream Docker setup evidence at the selected checkpoint."""
 	import frappe
