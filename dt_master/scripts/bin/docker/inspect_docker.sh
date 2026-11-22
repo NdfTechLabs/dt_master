@@ -40,9 +40,9 @@ execution_identity=$(id -un 2>/dev/null || true)
 [[ -n "$execution_identity" ]] || execution_identity=null
 inspection_access="Unknown"
 
-# Host storage is a pre-install requirement. Measure the filesystem that will
-# contain Docker's default data root even when Docker is not installed yet.
-storage_path="/"
+# Host storage is a pre-install requirement. Resolve the filesystem that
+# will contain Docker's default data root, even before the directory exists.
+storage_path="/var/lib/docker"
 if [[ -n "$docker_path" ]]; then
     docker_installed=true
     client_version=$(docker version --format '{{.Client.Version}}' 2>/dev/null || true)
@@ -81,8 +81,12 @@ else
     add_diag "DOCKER_CLI_MISSING" "Error" "Docker CLI is not installed or is not available in PATH."
 fi
 
-# Use Docker's data-root filesystem when it exists; otherwise use the root
-# filesystem as the pre-install baseline for the default /var/lib/docker path.
+# Use Docker's data-root filesystem when it exists. Before installation,
+# walk up to the nearest existing parent (usually /var/lib or /) so a separate
+# filesystem mounted for Docker's default data root is measured correctly.
+while [[ ! -e "$storage_path" && "$storage_path" != "/" ]]; do
+    storage_path=$(dirname "$storage_path")
+done
 read -r mount_point fs_total fs_used fs_available < <(df -B1 --output=target,size,used,avail "$storage_path" 2>/dev/null | tail -n 1)
 
 for var in server_version api_version minimum_api_version storage_driver data_root mount_point; do
