@@ -10,6 +10,7 @@ from copy import deepcopy
 from time import monotonic
 
 import frappe
+from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import (
 	TrustedHelperExecutionError,
@@ -205,6 +206,38 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			execution_context.heartbeat()
 			execution_context.assert_leases()
 		return result
+	@staticmethod
+	def _management_snapshot(node):
+		try:
+			snapshot = json.loads(getattr(node, "docker_host_management_snapshot", None) or "{}")
+		except (TypeError, ValueError):
+			return {}
+		return snapshot if isinstance(snapshot, dict) else {}
+
+	@classmethod
+	def _require_host_inspection(cls, node):
+		snapshot = cls._management_snapshot(node)
+		inspection = snapshot.get("host_inspection") or {}
+		if (
+			getattr(node, "docker_host_state", None) != "Privilege Setup Required"
+			or inspection.get("inspection_status") != "Successful"
+			or inspection.get("os_support_status") != "Supported"
+			or not inspection.get("operation_id")
+		):
+			raise ValueError(
+				"A successful, supported Host inspection is required before Docker privilege setup."
+			)
+
+	@classmethod
+	def _require_privilege_bootstrap(cls, node):
+		cls._require_host_inspection(node)
+		snapshot = cls._management_snapshot(node)
+		bootstrap = snapshot.get("privilege_bootstrap") or {}
+		if bootstrap.get("status") != "Succeeded" or not bootstrap.get("operation_id"):
+			raise ValueError(
+				"The trusted Docker privilege helper must be installed before privilege verification."
+			)
+
 	@staticmethod
 	def _node_for_request(request):
 		if request.target_doctype != "Infrastructure Node":
@@ -419,7 +452,29 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Check the trusted Docker helper and sudoers boundary without changing node state."""
 		started = monotonic()
 		node = self._node_for_request(request)
+		self._require_privilege_bootstrap(node)
 		readiness = deepcopy(self._privilege_readiness(node))
+		if readiness["status"] == "Ready":
+			observed_at = now_datetime()
+			snapshot = self._management_snapshot(node)
+			snapshot["privilege_readiness"] = {
+				"status": "Ready",
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+			}
+			frappe.db.set_value(
+				"Infrastructure Node",
+				node.name,
+				{
+					"docker_host_state": "Docker Inspection Required",
+					"docker_host_management_snapshot": json.dumps(
+						snapshot, sort_keys=True, separators=(",", ":")
+					),
+					"docker_host_operation": request.operation_id,
+					"docker_host_state_updated_on": observed_at,
+				},
+				update_modified=False,
+			)
 		for item in readiness.get("diagnostics", []):
 			item["message"] = sanitize_diagnostic_message(item["message"])
 		status = readiness["status"]
@@ -620,6 +675,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Install the fixed helper and sudoers policy through the existing SSH runner."""
 		started = monotonic()
 		node = self._node_for_request(request)
+		self._require_host_inspection(node)
 		if not node.ssh_user:
 			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
 
@@ -682,6 +738,27 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					"reason": sudoers_install["reason"]})
 		else:
 			sudoers_status = "skipped"
+
+		if helper_status == "completed" and sudoers_status == "completed":
+			observed_at = now_datetime()
+			snapshot = self._management_snapshot(node)
+			snapshot["privilege_bootstrap"] = {
+				"status": "Succeeded",
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+			}
+			frappe.db.set_value(
+				"Infrastructure Node",
+				node.name,
+				{
+					"docker_host_management_snapshot": json.dumps(
+						snapshot, sort_keys=True, separators=(",", ":")
+					),
+					"docker_host_operation": request.operation_id,
+					"docker_host_state_updated_on": observed_at,
+				},
+				update_modified=False,
+			)
 
 		phase = "readiness_verification"
 		try:
