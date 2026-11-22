@@ -108,14 +108,14 @@ def resolve_operation_disposition(exc: Exception, *, lease_acquired: bool) -> di
 		"error_code": "LEASE_OR_HANDLER_FAILED" if recovery_required else "HANDLER_FAILED",
 		"error_summary": (
 			"Execution stopped after a resource lease or handler failure; reconcile the target before retrying."
-			if recovery_required else
-			"The registered operation handler failed. See the restricted server error log."
+			if recovery_required
+			else "The registered operation handler failed. See the restricted server error log."
 		),
 		"recovery_required": recovery_required,
 		"recovery_reason": (
 			"Resource lease ownership or execution outcome requires reconciliation."
-			if recovery_required else None
+			if recovery_required
+			else None
 		),
 		"result_payload": None,
 	}
-
