@@ -1,5 +1,6 @@
 """Tests for the read-only Docker runtime adapter."""
 
+import json
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,8 +52,17 @@ def helper_install_result(status="succeeded", phase="result_verification", exit_
 
 
 class TestDockerRuntimeAdapter(unittest.TestCase):
-	def setUp(self):
+ 	def setUp(self):
 		self.adapter = DockerRuntimeAdapter()
+		now_patcher = patch(
+			"dt_master.runtime_adapters.docker.now_datetime",
+			return_value="2026-11-22 10:00:00",
+		)
+		now_patcher.start()
+		self.addCleanup(now_patcher.stop)
+		db_patcher = patch("dt_master.runtime_adapters.docker.frappe.db.set_value")
+		db_patcher.start()
+		self.addCleanup(db_patcher.stop)
 		self.node = SimpleNamespace(
 			name="NODE-0001",
 			access_verified=1,
@@ -61,6 +71,19 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			ssh_user="deploy",
 			ssh_port=22,
 			ssh_host_alias=None,
+			docker_host_state="Privilege Setup Required",
+			docker_host_management_snapshot=json.dumps({
+				"schema_version": "1.0.0",
+				"host_inspection": {
+					"operation_id": "HOST-INSPECT-001",
+					"inspection_status": "Successful",
+					"os_support_status": "Supported",
+				},
+				"privilege_bootstrap": {
+					"operation_id": "BOOTSTRAP-001",
+					"status": "Succeeded",
+				},
+			}),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 			get=lambda field: None,
 		)
@@ -499,7 +522,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(code, __import__("json").dumps(snapshot), ""),
+				return_value=(code, json.dumps(snapshot), ""),
 			) as remote,
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
@@ -648,7 +671,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, __import__("json").dumps(snapshot), ""),
+				return_value=(0, json.dumps(snapshot), ""),
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
@@ -672,7 +695,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, __import__("json").dumps(snapshot), ""),
+				return_value=(0, json.dumps(snapshot), ""),
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
@@ -692,7 +715,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, __import__("json").dumps(self._snapshot()), ""),
+				return_value=(0, json.dumps(self._snapshot()), ""),
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
@@ -709,7 +732,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, __import__("json").dumps(self._snapshot()), ""),
+				return_value=(0, json.dumps(self._snapshot()), ""),
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness",
@@ -720,6 +743,32 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("preflight", request("preflight"))
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Degraded")
+
+	def test_bootstrap_privileges_requires_successful_supported_host_inspection(self):
+		self.node.docker_host_management_snapshot = "{}"
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
+			self.assertRaisesRegex(ValueError, "Host inspection"),
+		):
+			self.adapter.invoke("bootstrap_privileges", request("bootstrap_privileges"))
+		remote.assert_not_called()
+
+	def test_privilege_check_requires_completed_helper_bootstrap(self):
+		self.node.docker_host_management_snapshot = json.dumps({
+			"host_inspection": {
+				"operation_id": "HOST-INSPECT-001",
+				"inspection_status": "Successful",
+				"os_support_status": "Supported",
+			}
+		})
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
+			patch.object(self.adapter, "_privilege_readiness") as check,
+			self.assertRaisesRegex(ValueError, "must be installed"),
+		):
+			self.adapter.invoke("privilege_check", request("privilege_check"))
+		check.assert_not_called()
 
 	def test_bootstrap_privileges_runs_existing_installers_then_readiness_probe(self):
 		readiness = {
@@ -755,7 +804,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				side_effect=[
 					(0, "DOCKER_PRIVILEGE_HELPER_INSTALLED", ""),
 					(0, "DOCKER_SUDOERS_POLICY_INSTALLED", ""),
-					(0, __import__("json").dumps(readiness), ""),
+					(0, json.dumps(readiness), ""),
 				],
 			) as remote,
 		):
@@ -803,7 +852,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"dt_master.runtime_adapters.docker.run_remote_script",
 				side_effect=[
 					(1, "", "sudo unavailable"),
-					(0, __import__("json").dumps(readiness), ""),
+					(0, json.dumps(readiness), ""),
 				],
 			) as remote,
 		):
@@ -832,7 +881,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
 				(1, "installer started", "sha256 verification failed"),
-				(0, __import__("json").dumps(readiness), ""),
+				(0, json.dumps(readiness), ""),
 			]) as remote,
 		):
 			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
@@ -960,7 +1009,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.docker.run_remote_script",
-				return_value=(0, __import__("json").dumps(snapshot), ""),
+				return_value=(0, json.dumps(snapshot), ""),
 			),
 			patch(
 				"dt_master.runtime_adapters.docker.evaluate_node_docker_readiness", return_value=evaluation
@@ -968,7 +1017,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		):
 			result = self.adapter.invoke("inspect", request())
 
-		serialized = __import__("json").dumps(result.to_dict())
+		serialized = json.dumps(result.to_dict())
 		self.assertNotIn("remote-password-value", serialized)
 		self.assertNotIn("readiness-token-value", serialized)
 		self.assertIn("[REDACTED]", serialized)
