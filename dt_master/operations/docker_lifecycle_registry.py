@@ -114,6 +114,36 @@ register_operation(
 )
 
 
+def _docker_repository_prepare_handler(context, payload):
+	from dt_master.runtime_adapters.operation_bridge import invoke_runtime_mutation
+
+	return invoke_runtime_mutation(
+		context,
+		{
+			"adapter_id": "docker-compose-v1",
+			"runtime_type": "docker",
+			"method": "prepare_repository",
+			"payload": {},
+		},
+	)
+
+
+register_operation(
+	OperationDefinition(
+		operation_type="host.node.docker.repository.prepare",
+		handler=_docker_repository_prepare_handler,
+		validate_payload=_docker_payload_validator("host.node.docker.repository.prepare"),
+		authorize=authorize_docker_lifecycle_node,
+		queue="long",
+		timeout_seconds=600,
+		max_attempts=1,
+		priority="High",
+		execution_identity="frappe-worker",
+		resource_lock_keys=docker_lifecycle_resource_lock_keys,
+	)
+)
+
+
 register_operation(
 	OperationDefinition(
 		operation_type="host.node.docker.privileges.bootstrap",
