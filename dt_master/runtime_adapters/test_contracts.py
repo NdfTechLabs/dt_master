@@ -162,6 +162,17 @@ class TestRuntimeAdapterContracts(unittest.TestCase):
         validated = validate_request(request)
         self.assertEqual(validated.method, "install_engine")
 
+
+    def test_repository_preparation_is_a_durable_mutating_adapter_method(self):
+        request = mutation_request(
+            method="prepare_repository",
+            target_doctype="Infrastructure Node",
+            target_name="NODE-0001",
+        )
+        validated = validate_request(request)
+        self.assertEqual(validated.method, "prepare_repository")
+
+
     def test_request_payload_must_be_json_compatible(self):
         with self.assertRaisesRegex(ValueError, "JSON-compatible"):
             validate_request(observation_request(payload={"not_json": object()}))
