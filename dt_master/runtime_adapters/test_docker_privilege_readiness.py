@@ -196,7 +196,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		result = subprocess.run(["bash", "-n", str(wrapper)], capture_output=True, text=True)
 		self.assertEqual(result.returncode, 0, result.stderr)
 		content = probe.read_text()
-		self.assertIn("EXPECTED_HELPER_SHA256", content)
+		self.assertIn("load_release_manifest", content)
 		self.assertIn('["sudo", "-n", "stat"', content)
 		self.assertIn('["sudo", "-n", "cat"', content)
 		self.assertIn('["sudo", "-n", "visudo"', content)
