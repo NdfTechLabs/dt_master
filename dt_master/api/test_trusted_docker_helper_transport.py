@@ -101,7 +101,7 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		build_ssh.assert_called_once()
 		popen.assert_called_once()
 		process.stdin.write.assert_called_once_with(
-			b'{"operation":"prepare_repository","schema_version":"1.0.0"}\\n'
+			b'{"operation":"prepare_repository","schema_version":"1.0.0"}\n'
 		)
 
 	def test_invalid_repository_preparation_request_is_rejected_before_transport(self):
