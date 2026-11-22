@@ -3,6 +3,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -118,6 +119,19 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         release.version = "0.3.3"
         with self.assertRaises(frappe.ValidationError):
             release.save(ignore_permissions=True)
+
+
+    def test_assigned_release_cannot_be_retired(self):
+        release = self._new_release()
+        release.insert(ignore_permissions=True)
+        release.status = "Published"
+        release.save(ignore_permissions=True)
+        release.reload()
+        release.status = "Retired"
+        with patch.object(frappe.db, "exists", return_value=True):
+            with self.assertRaises(frappe.ValidationError):
+                release.save(ignore_permissions=True)
+
 
     def test_source_drift_draft_creation_is_idempotent_and_preserves_published_release(self):
         release = self._new_release()
