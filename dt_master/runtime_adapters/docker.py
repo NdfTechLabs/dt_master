@@ -29,7 +29,13 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 	def capabilities(self):
 		return (
-			"bootstrap_privileges", "install_engine", "inspect", "preflight", "updates_check", "verify", "privilege_check"
+			"bootstrap_privileges",
+			"install_engine",
+			"inspect",
+			"preflight",
+			"updates_check",
+			"verify",
+			"privilege_check",
 		)
 
 	@staticmethod
@@ -103,7 +109,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		from dt_master.node_preparation.docker_install_verification import (
 			evaluate_docker_engine_install_postcondition,
 		)
-
 		from dt_master.runtime_adapters.docker_helper_contracts import (
 			validate_install_engine_result,
 		)
@@ -206,6 +211,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			execution_context.heartbeat()
 			execution_context.assert_leases()
 		return result
+
 	@staticmethod
 	def _management_snapshot(node):
 		try:
@@ -244,12 +250,12 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		verification = snapshot.get("privilege_readiness") or {}
 		if (
 			getattr(node, "docker_host_state", None)
-				not in {
-					"Docker Inspection Required",
-					"Repository Preparation Required",
-					"Ready for Install",
-					"Engine Ready",
-				}
+			not in {
+				"Docker Inspection Required",
+				"Repository Preparation Required",
+				"Ready for Install",
+				"Engine Ready",
+			}
 			or verification.get("status") != "Ready"
 			or not verification.get("operation_id")
 		):
@@ -715,20 +721,24 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				timeout_seconds=90,
 				max_output_bytes=16384,
 			)
-			step.update({
-				"status": "completed" if code == 0 else "failed",
-				"exit_code": code,
-				"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
-				"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
-			})
-			if code != 0:
-				failure_details.append({
-					"code": "DOCKER_PRIVILEGE_INSTALLER_FAILED",
-					"phase": script_name,
+			step.update(
+				{
+					"status": "completed" if code == 0 else "failed",
 					"exit_code": code,
-					"stdout": step["stdout"],
-					"stderr": step["stderr"],
-				})
+					"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+					"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+				}
+			)
+			if code != 0:
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_INSTALLER_FAILED",
+						"phase": script_name,
+						"exit_code": code,
+						"stdout": step["stdout"],
+						"stderr": step["stderr"],
+					}
+				)
 			return step["status"]
 
 		helper_install = {"script": "install_docker_privilege_helper.sh", "status": "not_started"}
@@ -738,11 +748,21 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			helper_status = run_installer(helper_install["script"], helper_install)
 		except Exception as exc:
 			helper_status = "failed"
-			helper_install.update({"status": "failed", "exception_type": type(exc).__name__,
-				"reason": sanitize_diagnostic_message(str(exc))[:500]})
-			failure_details.append({"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_EXCEPTION",
-				"phase": phase, "exception_type": type(exc).__name__,
-				"reason": helper_install["reason"]})
+			helper_install.update(
+				{
+					"status": "failed",
+					"exception_type": type(exc).__name__,
+					"reason": sanitize_diagnostic_message(str(exc))[:500],
+				}
+			)
+			failure_details.append(
+				{
+					"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_EXCEPTION",
+					"phase": phase,
+					"exception_type": type(exc).__name__,
+					"reason": helper_install["reason"],
+				}
+			)
 
 		if helper_status == "completed":
 			phase = "sudoers_install"
@@ -751,11 +771,21 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				sudoers_status = run_installer(sudoers_install["script"], sudoers_install)
 			except Exception as exc:
 				sudoers_status = "failed"
-				sudoers_install.update({"status": "failed", "exception_type": type(exc).__name__,
-					"reason": sanitize_diagnostic_message(str(exc))[:500]})
-				failure_details.append({"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_EXCEPTION",
-					"phase": phase, "exception_type": type(exc).__name__,
-					"reason": sudoers_install["reason"]})
+				sudoers_install.update(
+					{
+						"status": "failed",
+						"exception_type": type(exc).__name__,
+						"reason": sanitize_diagnostic_message(str(exc))[:500],
+					}
+				)
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_EXCEPTION",
+						"phase": phase,
+						"exception_type": type(exc).__name__,
+						"reason": sudoers_install["reason"],
+					}
+				)
 		else:
 			sudoers_status = "skipped"
 
@@ -795,33 +825,41 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				max_output_bytes=8192,
 			)
 			if code != 0:
-				failure_details.append({
-					"code": "DOCKER_PRIVILEGE_READINESS_PROBE_FAILED",
-					"phase": phase,
-					"exit_code": code,
-					"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
-					"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
-				})
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_READINESS_PROBE_FAILED",
+						"phase": phase,
+						"exit_code": code,
+						"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+						"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+					}
+				)
 				raise ValueError("Docker privilege readiness probe returned a non-zero exit code")
 			readiness = self._validate_privilege_readiness(json.loads(stdout.strip()))
 		except Exception as exc:
-			failure_details.append({
-				"code": "DOCKER_PRIVILEGE_READINESS_VERIFICATION_FAILED",
-				"phase": phase,
-				"exception_type": type(exc).__name__,
-				"reason": sanitize_diagnostic_message(str(exc))[:500],
-			})
+			failure_details.append(
+				{
+					"code": "DOCKER_PRIVILEGE_READINESS_VERIFICATION_FAILED",
+					"phase": phase,
+					"exception_type": type(exc).__name__,
+					"reason": sanitize_diagnostic_message(str(exc))[:500],
+				}
+			)
 			return self.result_for(
 				request,
 				outcome="partial",
 				observed_state="Incomplete",
 				capabilities=self.capabilities(),
-				diagnostics=tuple({
-					"code": item["code"],
-					"severity": "error",
-					"message": item.get("reason") or item.get("stderr") or
-						"Privileged Docker bootstrap verification failed.",
-				} for item in failure_details[:20]),
+				diagnostics=tuple(
+					{
+						"code": item["code"],
+						"severity": "error",
+						"message": item.get("reason")
+						or item.get("stderr")
+						or "Privileged Docker bootstrap verification failed.",
+					}
+					for item in failure_details[:20]
+				),
 				data={
 					"bootstrap_status": "Incomplete",
 					"helper_install": helper_install,
@@ -843,21 +881,30 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		]
 		for label, step in (("helper", helper_install), ("sudoers", sudoers_install)):
 			if step["status"] == "failed":
-				diagnostics.append({
-					"code": "DOCKER_PRIVILEGE_" + label.upper() + "_INSTALL_FAILED",
-					"severity": "error",
-					"message": step.get("stderr") or step.get("reason") or
-						f"The Docker {label} installer failed (exit code {step.get('exit_code', 'unknown')}).",
-				})
+				diagnostics.append(
+					{
+						"code": "DOCKER_PRIVILEGE_" + label.upper() + "_INSTALL_FAILED",
+						"severity": "error",
+						"message": step.get("stderr")
+						or step.get("reason")
+						or f"The Docker {label} installer failed (exit code {step.get('exit_code', 'unknown')}).",
+					}
+				)
 		if not steps_ready:
-			failure_details.append({
-				"code": "DOCKER_PRIVILEGE_BOOTSTRAP_STEP_FAILED",
-				"phase": "installer_execution",
-			})
+			failure_details.append(
+				{
+					"code": "DOCKER_PRIVILEGE_BOOTSTRAP_STEP_FAILED",
+					"phase": "installer_execution",
+				}
+			)
 		return self.result_for(
 			request,
-			outcome="succeeded" if ready else ("failed" if readiness["status"] == "Not Ready" or not steps_ready else "partial"),
-			observed_state="Ready" if ready else ("Not Ready" if readiness["status"] == "Not Ready" else "Incomplete"),
+			outcome="succeeded"
+			if ready
+			else ("failed" if readiness["status"] == "Not Ready" or not steps_ready else "partial"),
+			observed_state="Ready"
+			if ready
+			else ("Not Ready" if readiness["status"] == "Not Ready" else "Incomplete"),
 			capabilities=self.capabilities(),
 			diagnostics=tuple(diagnostics[:100]),
 			data={
@@ -865,7 +912,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"helper_install": helper_install,
 				"sudoers_install": sudoers_install,
 				"privilege_readiness": readiness,
-				"failure": {"phase": "installer_execution", "details": failure_details[:20]} if failure_details else None,
+				"failure": {"phase": "installer_execution", "details": failure_details[:20]}
+				if failure_details
+				else None,
 			},
 			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 		)
@@ -975,7 +1024,6 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			duration_ms=inspection.duration_ms,
 		)
 
-
 	def _install_engine(self, request, execution_context=None):
 		"""Install Docker through the trusted helper using existing Node readiness."""
 		from dt_master.node_preparation.docker_install import (
@@ -1011,11 +1059,14 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"min_available_storage_bytes",
 			}
 			resource_failures = [
-				item for item in readiness.get("diagnostics", [])
+				item
+				for item in readiness.get("diagnostics", [])
 				if item.get("severity") == "Error" and item.get("requirement") in host_requirements
 			]
 			if resource_failures:
-				raise ValueError("The node does not satisfy its configured Docker host resource requirements.")
+				raise ValueError(
+					"The node does not satisfy its configured Docker host resource requirements."
+				)
 
 			snapshot = inspection.data.get("snapshot") or {}
 			host_inventory = snapshot.get("host_inventory") or {}
@@ -1026,18 +1077,13 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			# A healthy, trusted existing Engine is a successful no-op. Do this
 			# before package metadata freshness checks; installation is unnecessary.
 			package_rows = {
-				row.get("name"): row
-				for row in install_inventory.get("packages", [])
-				if isinstance(row, dict)
+				row.get("name"): row for row in install_inventory.get("packages", []) if isinstance(row, dict)
 			}
 			engine_packages = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
-			engine_already_installed = (
-				install_inventory.get("docker_engine_health") == "healthy"
-				and all(
-					package_rows.get(name, {}).get("dpkg_status") == "installed"
-					and "download.docker.com" in (package_rows.get(name, {}).get("installed_origin") or "")
-					for name in engine_packages
-				)
+			engine_already_installed = install_inventory.get("docker_engine_health") == "healthy" and all(
+				package_rows.get(name, {}).get("dpkg_status") == "installed"
+				and "download.docker.com" in (package_rows.get(name, {}).get("installed_origin") or "")
+				for name in engine_packages
 			)
 			if engine_already_installed:
 				return self.result_for(
@@ -1071,7 +1117,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"WORKLOAD_STATE_UNAVAILABLE",
 			}
 			package_candidate_reasons = {
-				reason for reason in plan_reasons
+				reason
+				for reason in plan_reasons
 				if reason.startswith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")
 			}
 			known_preparation_blockers = preparation_reasons | package_candidate_reasons
@@ -1094,20 +1141,26 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					execution_context.heartbeat()
 					execution_context.assert_leases()
 				prepare_code, prepare_stdout, _prepare_stderr = run_trusted_helper(
-					node, self._ssh_config(node),
+					node,
+					self._ssh_config(node),
 					{"schema_version": "1.0.0", "operation": "prepare_repository"},
-					timeout_seconds=420, max_output_bytes=4096,
+					timeout_seconds=420,
+					max_output_bytes=4096,
 				)
 				try:
 					prepare_result = json.loads(prepare_stdout.strip())
 				except (TypeError, ValueError) as exc:
 					raise ValueError("Docker repository preparation returned an invalid result.") from exc
-				if (prepare_code != 0 or not isinstance(prepare_result, dict)
-					or set(prepare_result) != {"schema_version", "helper_version", "operation", "status", "diagnostics"}
+				if (
+					prepare_code != 0
+					or not isinstance(prepare_result, dict)
+					or set(prepare_result)
+					!= {"schema_version", "helper_version", "operation", "status", "diagnostics"}
 					or prepare_result.get("schema_version") != "1.0.0"
 					or prepare_result.get("operation") != "prepare_repository"
 					or prepare_result.get("status") != "succeeded"
-					or prepare_result.get("diagnostics") != []):
+					or prepare_result.get("diagnostics") != []
+				):
 					failure_detail = {
 						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
 						"message": "Trusted helper repository preparation did not satisfy its success contract.",
@@ -1140,20 +1193,17 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						{
 							"name": row.get("name"),
 							"candidate_version": row.get("candidate_version"),
-						"action": row.get("action"),
+							"action": row.get("action"),
 						}
 						for row in plan.get("packages", [])
 						if isinstance(row, dict)
 					],
 				}
 				reasons = ", ".join(failure_detail["reason_codes"]) or "No planner reason codes supplied"
-				raise ValueError(
-					f"Docker installation plan status is '{plan.get('status')}': {reasons}"
-				)
+				raise ValueError(f"Docker installation plan status is '{plan.get('status')}': {reasons}")
 			package_rows = plan.get("packages") or []
 			if len(package_rows) != 4 or any(
-				row.get("action") != "install" or not row.get("candidate_version")
-				for row in package_rows
+				row.get("action") != "install" or not row.get("candidate_version") for row in package_rows
 			):
 				raise ValueError("The trusted Docker package set is not available for installation.")
 
@@ -1169,14 +1219,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					"policy_version": plan["policy"]["version"],
 					"plan_digest": plan["plan_digest"],
 					"packages": [
-						{"name": row["name"], "version": row["candidate_version"]}
-						for row in package_rows
+						{"name": row["name"], "version": row["candidate_version"]} for row in package_rows
 					],
 				},
 				"expected_state_fingerprint": plan["state_fingerprint"],
-				"operator_impact_approval": bool(
-					workload_impact.get("operator_impact_approval_required")
-				),
+				"operator_impact_approval": bool(workload_impact.get("operator_impact_approval_required")),
 			}
 			if execution_context is not None:
 				execution_context.heartbeat()
@@ -1226,13 +1273,20 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				capabilities=(),
 				diagnostics=(
 					{
-						"code": "DOCKER_INSTALL_OUTCOME_UNCERTAIN" if uncertain else "DOCKER_INSTALL_TRANSPORT_FAILED",
+						"code": "DOCKER_INSTALL_OUTCOME_UNCERTAIN"
+						if uncertain
+						else "DOCKER_INSTALL_TRANSPORT_FAILED",
 						"severity": "error",
 						"message": "Docker installation requires fresh host reconciliation."
-						if uncertain else "Docker installation could not be dispatched.",
+						if uncertain
+						else "Docker installation could not be dispatched.",
 					},
 				),
-				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False, "failure": failure},
+				data={
+					"helper_dispatched": helper_dispatched,
+					"postcondition_verified": False,
+					"failure": failure,
+				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
 		except Exception as exc:
@@ -1251,19 +1305,26 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				capabilities=(),
 				diagnostics=(
 					{
-						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED" if uncertain else (
+						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED"
+						if uncertain
+						else (
 							failure_detail.get("code") if failure_detail else "DOCKER_INSTALL_PRECHECK_FAILED"
 						),
 						"severity": "error",
 						"message": "The helper may have changed the node; fresh inspection is required."
-						if uncertain else (
+						if uncertain
+						else (
 							f"Docker installation plan blocked: {', '.join(failure_detail.get('reason_codes', []))}."
 							if failure_detail and failure_detail.get("reason_codes")
 							else "Docker installation preconditions were not satisfied."
 						),
 					},
 				),
-				data={"helper_dispatched": helper_dispatched, "postcondition_verified": False, "failure": failure},
+				data={
+					"helper_dispatched": helper_dispatched,
+					"postcondition_verified": False,
+					"failure": failure,
+				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
 

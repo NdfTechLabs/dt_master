@@ -74,22 +74,24 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			ssh_port=22,
 			ssh_host_alias=None,
 			docker_host_state="Docker Inspection Required",
-			docker_host_management_snapshot=json.dumps({
-				"schema_version": "1.0.0",
-				"host_inspection": {
-					"operation_id": "HOST-INSPECT-001",
-					"inspection_status": "Successful",
-					"os_support_status": "Supported",
-				},
-				"privilege_bootstrap": {
-					"operation_id": "BOOTSTRAP-001",
-					"status": "Succeeded",
-				},
-				"privilege_readiness": {
-					"operation_id": "PRIVILEGE-CHECK-001",
-					"status": "Ready",
-				},
-			}),
+			docker_host_management_snapshot=json.dumps(
+				{
+					"schema_version": "1.0.0",
+					"host_inspection": {
+						"operation_id": "HOST-INSPECT-001",
+						"inspection_status": "Successful",
+						"os_support_status": "Supported",
+					},
+					"privilege_bootstrap": {
+						"operation_id": "BOOTSTRAP-001",
+						"status": "Succeeded",
+					},
+					"privilege_readiness": {
+						"operation_id": "PRIVILEGE-CHECK-001",
+						"status": "Ready",
+					},
+				}
+			),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 			get=lambda field: None,
 		)
@@ -173,9 +175,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
 		)
-		verified = self.adapter.result_for(
-			request_obj, outcome="succeeded", observed_state="Verified"
-		)
+		verified = self.adapter.result_for(request_obj, outcome="succeeded", observed_state="Verified")
 		helper_result = helper_install_result()
 		with (
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
@@ -184,9 +184,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"dt_master.node_preparation.docker_install.build_docker_engine_install_plan",
 				return_value=plan,
 			),
-			patch(
-				"dt_master.node_preparation.docker_install.validate_docker_engine_install_plan"
-			),
+			patch("dt_master.node_preparation.docker_install.validate_docker_engine_install_plan"),
 			patch(
 				"dt_master.runtime_adapters.docker.run_trusted_helper",
 				return_value=(0, "{}", ""),
@@ -280,9 +278,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			correlation_id="CORR-0001",
 		)
 		with patch.object(self.adapter, "_inspect", return_value=inspection) as inspect:
-			result = self.adapter._verify_install_engine_postcondition(
-				request_obj, helper_result()
-			)
+			result = self.adapter._verify_install_engine_postcondition(request_obj, helper_result())
 		inspect.assert_called_once_with(request_obj, execution_context=None)
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertTrue(result.data["postcondition_verified"])
@@ -326,9 +322,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
 		)
-		result = self.adapter._interpret_install_engine_postcondition(
-			request_obj, helper_result(), observed
-		)
+		result = self.adapter._interpret_install_engine_postcondition(request_obj, helper_result(), observed)
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Recovery Required")
 		self.assertFalse(result.data["postcondition_verified"])
@@ -350,9 +344,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			operation_id="OP-0001",
 			correlation_id="CORR-0001",
 		)
-		result = self.adapter._interpret_install_engine_postcondition(
-			request_obj, helper_result(), observed
-		)
+		result = self.adapter._interpret_install_engine_postcondition(request_obj, helper_result(), observed)
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.observed_state, "Recovery Required")
 
@@ -525,21 +517,23 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def _run(self, method="inspect", code=0, snapshot=None):
 		snapshot = snapshot or self._snapshot()
 		self.node.docker_host_state = "Docker Inspection Required"
-		self.node.docker_host_management_snapshot = json.dumps({
-			"host_inspection": {
-				"operation_id": "HOST-INSPECT-001",
-				"inspection_status": "Successful",
-				"os_support_status": "Supported",
-			},
-			"privilege_bootstrap": {
-				"operation_id": "BOOTSTRAP-001",
-				"status": "Succeeded",
-			},
-			"privilege_readiness": {
-				"operation_id": "PRIVILEGE-CHECK-001",
-				"status": "Ready",
-			},
-		})
+		self.node.docker_host_management_snapshot = json.dumps(
+			{
+				"host_inspection": {
+					"operation_id": "HOST-INSPECT-001",
+					"inspection_status": "Successful",
+					"os_support_status": "Supported",
+				},
+				"privilege_bootstrap": {
+					"operation_id": "BOOTSTRAP-001",
+					"status": "Succeeded",
+				},
+				"privilege_readiness": {
+					"operation_id": "PRIVILEGE-CHECK-001",
+					"status": "Ready",
+				},
+			}
+		)
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch(
@@ -621,17 +615,19 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def test_docker_inspection_requires_successful_privilege_verification(self):
 		self.node.docker_host_state = "Privilege Setup Required"
-		self.node.docker_host_management_snapshot = json.dumps({
-			"host_inspection": {
-				"operation_id": "HOST-INSPECT-001",
-				"inspection_status": "Successful",
-				"os_support_status": "Supported",
-			},
-			"privilege_bootstrap": {
-				"operation_id": "BOOTSTRAP-001",
-				"status": "Succeeded",
-			},
-		})
+		self.node.docker_host_management_snapshot = json.dumps(
+			{
+				"host_inspection": {
+					"operation_id": "HOST-INSPECT-001",
+					"inspection_status": "Successful",
+					"os_support_status": "Supported",
+				},
+				"privilege_bootstrap": {
+					"operation_id": "BOOTSTRAP-001",
+					"status": "Succeeded",
+				},
+			}
+		)
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
@@ -703,9 +699,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		inventory = snapshot["host_inventory"]["docker_install_inventory"]
 		# Isolate the workload-impact approval gate: signing-key evidence must
 		# already satisfy policy so it does not independently require preparation.
-		inventory["repository"]["fingerprints"] = [
-			"9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-		]
+		inventory["repository"]["fingerprints"] = ["9DC858229FC7DD38854AE2D88D81803C0EBFCD88"]
 		inventory["repository"]["primary_keys"] = [
 			{
 				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
@@ -808,13 +802,15 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def test_privilege_check_requires_completed_helper_bootstrap(self):
 		self.node.docker_host_state = "Privilege Setup Required"
-		self.node.docker_host_management_snapshot = json.dumps({
-			"host_inspection": {
-				"operation_id": "HOST-INSPECT-001",
-				"inspection_status": "Successful",
-				"os_support_status": "Supported",
+		self.node.docker_host_management_snapshot = json.dumps(
+			{
+				"host_inspection": {
+					"operation_id": "HOST-INSPECT-001",
+					"inspection_status": "Successful",
+					"os_support_status": "Supported",
+				}
 			}
-		})
+		)
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
 			patch.object(self.adapter, "_privilege_readiness") as check,
@@ -924,21 +920,34 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_bootstrap_privileges_exposes_installer_exit_code_and_stderr(self):
 		self.node.docker_host_state = "Privilege Setup Required"
 		readiness = {
-			"schema_version": "1.0.0", "observed_at": None, "status": "Not Ready",
+			"schema_version": "1.0.0",
+			"observed_at": None,
+			"status": "Not Ready",
 			"execution_identity": "deploy",
-			"helper": {"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": None, "sha256": None},
+			"helper": {
+				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+				"version": None,
+				"sha256": None,
+			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
 			"checks": [{"name": "helper_integrity", "status": "Failed"}],
-			"diagnostics": [{"code": "DOCKER_PRIVILEGE_HELPER_INTEGRITY",
-				"severity": "Error", "message": "Trusted helper digest mismatch."}],
+			"diagnostics": [
+				{
+					"code": "DOCKER_PRIVILEGE_HELPER_INTEGRITY",
+					"severity": "Error",
+					"message": "Trusted helper digest mismatch.",
+				}
+			],
 		}
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
-				(1, "installer started", "sha256 verification failed"),
-				(0, json.dumps(readiness), ""),
-			]) as remote,
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				side_effect=[
+					(1, "installer started", "sha256 verification failed"),
+					(0, json.dumps(readiness), ""),
+				],
+			) as remote,
 		):
 			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
 		self.assertEqual(result.outcome, "failed")
@@ -952,11 +961,14 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.node.docker_host_state = "Privilege Setup Required"
 		with (
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.docker.run_remote_script", side_effect=[
-				(0, "helper installed", ""),
-				(0, "sudoers installed", ""),
-				(2, "", "readiness script: permission denied"),
-			]),
+			patch(
+				"dt_master.runtime_adapters.docker.run_remote_script",
+				side_effect=[
+					(0, "helper installed", ""),
+					(0, "sudoers installed", ""),
+					(2, "", "readiness script: permission denied"),
+				],
+			),
 		):
 			result = self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
 		self.assertEqual(result.outcome, "partial")
