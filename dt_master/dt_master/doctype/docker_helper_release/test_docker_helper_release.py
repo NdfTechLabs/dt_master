@@ -89,21 +89,26 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         self.assertEqual(manifest["release"]["version"], release.version)
         self.assertEqual(len(manifest["components"]), 3)
         self.assertEqual(manifest["lifecycle"]["activation_order"], ["install_policy", "host_inventory", "lifecycle_helper"])
-    def test_publication_rejects_a_stale_draft_source_snapshot(self):
+    def test_publication_refreshes_stale_draft_component_hashes(self):
         release = self._new_release()
         release.insert(ignore_permissions=True)
-        release.components[0].sha256 = "0" * 64
-        release.aggregate_digest = aggregate_release_digest(release.components)
-        release.status = "Published"
+        component_name = release.components[0].name
+        frappe.db.set_value(
+            "Docker Helper Release Component",
+            component_name,
+            "sha256",
+            "0" * 64,
+            update_modified=False,
+        )
 
-        with self.assertRaises(frappe.ValidationError):
-            release.save(ignore_permissions=True)
-
-        release.status = "Draft"
-        release.save(ignore_permissions=True)
+        release.reload()
         release.status = "Published"
         release.save(ignore_permissions=True)
+        release.reload()
+
         self.assertEqual(release.status, "Published")
+        self.assertEqual(release.aggregate_digest, aggregate_release_digest(release.components))
+        self.assertNotEqual(release.components[0].sha256, "0" * 64)
 
     def test_published_release_is_immutable(self):
         release = self._new_release()
