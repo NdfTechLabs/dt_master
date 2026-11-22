@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-EVALUATOR_VERSION = "1.1.0"
+EVALUATOR_VERSION = "1.2.0"
 REQUIREMENTS_VERSION = "1.0.0"
 SEVERITIES = {"Required", "Recommended"}
 
