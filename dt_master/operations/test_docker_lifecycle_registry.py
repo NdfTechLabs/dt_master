@@ -22,7 +22,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 				self.assertIsNotNone(definition.resource_lock_keys)
 				self.assertEqual(definition.validate_payload({}), {})
 
-	def test_read_only_operations_use_dedicated_observation_lock(self):
+	def test_read_only_operations_share_node_docker_lifecycle_lock(self):
 		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
 		for operation_type in (
 			"host.node.docker.privileges.check",
