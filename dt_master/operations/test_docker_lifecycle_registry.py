@@ -35,7 +35,7 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			operation = SimpleNamespace(operation_type=operation_type)
 			self.assertEqual(
 				definition.resource_lock_keys(target, operation),
-				["node-docker-observation:NODE-01"],
+				["node-docker:NODE-01"],
 			)
 
 	def test_privilege_bootstrap_is_registered_as_single_attempt_mutation(self):
@@ -69,6 +69,18 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 		self.assertEqual(definition.validate_payload({}), {})
 		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
 		operation = SimpleNamespace(operation_type="host.node.docker.repository.prepare")
+		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
+
+	def test_setup_restart_is_registered_as_serialized_durable_operation(self):
+		definition = get_operation("host.node.docker.setup.restart")
+		self.assertEqual(definition.queue, "short")
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(
+			definition.validate_payload({"checkpoint": "privilege_helper"}),
+			{"checkpoint": "privilege_helper"},
+		)
+		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
+		operation = SimpleNamespace(operation_type="host.node.docker.setup.restart")
 		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
 
 	def test_other_docker_package_lifecycle_mutations_are_not_registered(self):
