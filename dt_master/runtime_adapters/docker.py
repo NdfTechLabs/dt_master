@@ -1847,46 +1847,16 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			and initial_inspection["deployed"]["manifest_matches"]
 			and initial_inspection["deployed"]["installer_ready"]
 		):
-			# Reuse the established helper + sudoers installation path.
-			install_result = self._bootstrap_privileges(request, execution_context=execution_context)
-			installation = {
-				"outcome": install_result.outcome,
-				"observed_state": install_result.observed_state,
-			}
-			if install_result.outcome == "succeeded":
-				try:
-					remote_inspection = inspect_remote()
-					status = (
-						"Current"
-						if remote_inspection["installed"]["status"] == "matching"
-						else "Reconciliation Required"
-					)
-					if status != "Current":
-						diagnostics = (
-							{
-								"code": "DOCKER_HELPER_RELEASE_POST_INSTALL_MISMATCH",
-								"severity": "error",
-								"message": "The helper installation completed, but installed files did not match the expected release.",
-							},
-						)
-				except Exception:
-					status = "Reconciliation Required"
-					diagnostics = (
-						{
-							"code": "DOCKER_HELPER_RELEASE_POST_INSTALL_INSPECTION_FAILED",
-							"severity": "error",
-							"message": "Installation was dispatched, but the installed helper could not be independently verified.",
-						},
-					)
-			else:
-				status = "Reconciliation Required"
-				diagnostics = tuple(install_result.diagnostics) or (
-					{
-						"code": "DOCKER_HELPER_RELEASE_INSTALL_FAILED",
-						"severity": "error",
-						"message": "The existing Docker helper installation process did not complete successfully.",
-					},
-				)
+			# Assessment remains read-only. The durable worker dispatches the
+			# separate bootstrap operation after this operation releases its lease.
+			status = "Bootstrap Required"
+			diagnostics = (
+				{
+					"code": "DOCKER_HELPER_PRIVILEGE_BOOTSTRAP_REQUIRED",
+					"severity": "info",
+					"message": "The deployed release is verified; privileged helper installation will be dispatched as a separate operation.",
+				},
+			)
 		else:
 			status = "Scripts Deployment Required"
 			diagnostics = (
