@@ -232,6 +232,23 @@ def _prepare_repository() -> dict:
     code, _ = _run(["/usr/bin/apt-get", "update"], timeout=300)
     if code:
         raise HelperError("DOCKER_REPOSITORY_REFRESH_FAILED", "repository_prepare")
+    marker_dir = Path("/var/lib/dt-master")
+    marker_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+    directory = marker_dir.lstat()
+    if not stat.S_ISDIR(directory.st_mode) or directory.st_uid != 0 or directory.st_gid != 0 or stat.S_IMODE(directory.st_mode) != 0o755:
+        raise HelperError("APT_REFRESH_EVIDENCE_DIRECTORY_UNTRUSTED", "repository_prepare")
+    marker = marker_dir / "docker-apt-refresh-success"
+    temporary = marker_dir / ".docker-apt-refresh-success.tmp"
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o644)
+        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+            stream.write("1\\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, marker)
+    except OSError as exc:
+        raise HelperError("APT_REFRESH_EVIDENCE_WRITE_FAILED", "repository_prepare") from exc
     for package in ENGINE_PACKAGES:
         code, output = _run(["/usr/bin/apt-cache", "policy", package])
         if code or "download.docker.com" not in output or "Candidate: (none)" in output:
