@@ -16,8 +16,8 @@ from dt_master.operations.docker_lifecycle import (
 class TestDockerLifecycleContracts(unittest.TestCase):
 	def test_catalogue_contains_expected_observation_and_mutation_operations(self):
 		self.assertEqual(len(READ_ONLY_OPERATIONS), 5)
-		self.assertEqual(len(MUTATING_OPERATIONS), 9)
-		self.assertEqual(len(DOCKER_LIFECYCLE_OPERATIONS), 14)
+		self.assertEqual(len(MUTATING_OPERATIONS), 10)
+		self.assertEqual(len(DOCKER_LIFECYCLE_OPERATIONS), 15)
 
 	def test_read_only_operations_accept_only_empty_payload(self):
 		for operation in READ_ONLY_OPERATIONS:
@@ -33,6 +33,15 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			validate_docker_lifecycle_payload("host.node.docker.compose.install", {"confirm": True}),
 			{"confirm": True},
 		)
+
+
+	def test_repository_preparation_is_a_closed_empty_payload_mutation(self):
+		operation = "host.node.docker.repository.prepare"
+		self.assertIn(operation, MUTATING_OPERATIONS)
+		self.assertEqual(validate_docker_lifecycle_payload(operation, {}), {})
+		with self.assertRaises(ValueError):
+			validate_docker_lifecycle_payload(operation, {"confirm": True})
+
 
 	def test_engine_install_requires_only_explicit_confirmation(self):
 		self.assertEqual(
