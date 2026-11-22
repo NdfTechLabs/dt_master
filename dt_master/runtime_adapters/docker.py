@@ -629,6 +629,37 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 	@staticmethod
+	def _require_repository_preparation_readiness(inspection):
+		"""Require trustworthy host evidence without requiring the target Engine to exist.
+
+		The final Docker readiness evaluator includes desired-state requirements such
+		as docker_engine_required. That requirement is expected to be unmet during a
+		first installation and must not block the repository preparation needed to
+		install Docker. All other readiness errors remain blocking.
+		"""
+		readiness = inspection.get("readiness")
+		if readiness not in {"Ready", "Degraded", "Not Ready"}:
+			raise ValueError("Docker host readiness evidence is unavailable for repository preparation.")
+		evaluation = inspection.get("readiness_evaluation")
+		if not isinstance(evaluation, dict) or not isinstance(evaluation.get("diagnostics"), list):
+			raise ValueError("Docker host readiness evaluation is unavailable for repository preparation.")
+		blocking = []
+		for item in evaluation["diagnostics"]:
+			if not isinstance(item, dict) or item.get("severity") != "Error":
+				continue
+			if (
+				item.get("requirement") == "docker_engine_required"
+				and item.get("observed") == "Not Installed"
+				and item.get("expected") is True
+			):
+				continue
+			blocking.append(item)
+		if blocking:
+			raise ValueError(
+				"Host requirements other than the missing Docker Engine must be satisfied before repository preparation."
+			)
+
+	@staticmethod
 	def _requires_repository_preparation(plan):
 		"""Return true only when every planner blocker is addressable by repository preparation."""
 		plan_reasons = set(plan.get("reason_codes") or [])
@@ -1223,8 +1254,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				raise ValueError(
 					"A complete fresh Docker inspection is required before repository preparation."
 				)
-			if inspection.data.get("readiness") != "Ready":
-				raise ValueError("Docker host readiness must be Ready before repository preparation.")
+			self._require_repository_preparation_readiness(inspection.data)
 			privilege = inspection.data.get("privilege_readiness") or {}
 			if privilege.get("status") != "Ready":
 				raise ValueError("Trusted Docker privilege readiness must be Ready.")
@@ -1272,8 +1302,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			fresh = self._inspect(request, execution_context=execution_context)
 			if fresh.data.get("inspection_status") != "Successful":
 				raise ValueError("Fresh Docker inspection failed after repository preparation.")
-			if fresh.data.get("readiness") != "Ready":
-				raise ValueError("Fresh Docker host readiness is not Ready after repository preparation.")
+			self._require_repository_preparation_readiness(fresh.data)
 			fresh_privilege = fresh.data.get("privilege_readiness") or {}
 			if fresh_privilege.get("status") != "Ready":
 				raise ValueError(
