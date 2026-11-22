@@ -864,6 +864,29 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"deployed": deployed,
 		}
 
+	def test_release_assessment_exposes_sanitized_local_source_validation_reason(self):
+		from dt_master.docker_helper_releases import DockerHelperReleaseError
+
+		release = SimpleNamespace(
+			release_id="dt-docker-helper-0.3.2",
+			version="0.3.2",
+			status="Published",
+			components=[],
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch(
+				"dt_master.docker_helper_releases.serialize_release_manifest",
+				side_effect=DockerHelperReleaseError("Component source file is missing: lifecycle_helper"),
+			),
+		):
+			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			result = self.adapter._release_assess(request("release_assess"))
+
+		self.assertEqual(result.observed_state, "Failed")
+		self.assertIn("Component source file is missing: lifecycle_helper", result.diagnostics[0]["message"])
+
 	def test_release_assessment_marks_matching_installed_release_current(self):
 		manifest, manifest_json, release = self._release_manifest_fixture()
 		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
