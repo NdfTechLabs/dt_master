@@ -104,7 +104,7 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		payload = self.helper_self_test()
 		payload["command"] = "id"
 		with self.assertRaises(ValueError):
-			DockerRuntimeAdapter._validate_trusted_helper_self_test(payload)
+			DockerRuntimeAdapter._validate_trusted_helper_self_test(payload, "0.3.2")
 
 	def test_ready_probe_uses_existing_runner_for_direct_helper_self_test(self):
 		adapter = DockerRuntimeAdapter()
