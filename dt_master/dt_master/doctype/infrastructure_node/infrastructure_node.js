@@ -343,7 +343,9 @@ function docker_setup_state(frm) {
 			action = { key: "preflight", label: "Run Docker Preflight" };
 		}
 	} else if (state === "Repository Preparation Required") {
-		if (planStatus === "preparation_required") {
+		// The planner may label repository-addressable blockers as "blocked"
+		// while the backend lifecycle classifier authorizes this preparation step.
+		if (["preparation_required", "blocked"].includes(planStatus)) {
 			action = { key: "prepare_repository", label: "Prepare Docker Repository" };
 		} else {
 			blockedReason =
@@ -642,7 +644,7 @@ function docker_setup_progress_html(frm, setup) {
 		},
 		{
 			label: "Install preflight",
-			done: ["ready", "preparation_required"].includes(setup.planStatus),
+			done: ["ready", "preparation_required", "blocked", "no_op"].includes(setup.planStatus),
 			current: setup.action?.key === "preflight",
 		},
 		{
