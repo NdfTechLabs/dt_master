@@ -1616,7 +1616,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 	def _release_assess(self, request, execution_context=None):
 		"""Assess the assigned release and install it when matching scripts are deployed."""
-		from dt_master.docker_helper_releases import serialize_release_manifest
+		from dt_master.docker_helper_releases import (
+			DockerHelperReleaseError,
+			create_draft_release_from_source,
+			serialize_release_manifest,
+		)
 
 		started = monotonic()
 		node = self._node_for_request(request)
@@ -1678,6 +1682,59 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
 			expected_manifest_b64 = base64.b64encode(local_manifest_json.encode("utf-8")).decode("ascii")
 		except Exception as exc:
+			source_root = Path(__file__).resolve().parents[1]
+			is_source_drift = (
+				isinstance(exc, DockerHelperReleaseError)
+				and str(exc).startswith("Published release source drift detected")
+			)
+			if is_source_drift:
+				try:
+					draft, created = create_draft_release_from_source(release, source_root)
+					status = "Source Drift"
+					snapshot = {
+						"schema_version": "1.0.0",
+						"assessment_status": status,
+						"operation_id": request.operation_id,
+						"correlation_id": request.correlation_id,
+						"local_source_observed_at": str(observed_at),
+						"observed_at": str(now_datetime()),
+						"assigned_release": {"release_id": release.release_id, "version": release.version},
+						"source_drift": True,
+						"draft_release": {
+							"release_id": draft.release_id,
+							"version": draft.version,
+							"aggregate_digest": draft.aggregate_digest,
+							"created": created,
+						},
+						"expected_manifest": None,
+						"expected_manifest_sha256": None,
+						"initial_inspection": None,
+						"remote_inspection": None,
+						"installation": None,
+					}
+					persist(status, snapshot)
+					return self.result_for(
+						request,
+						outcome="partial",
+						observed_state=status,
+						capabilities=(),
+						diagnostics=(
+							{
+								"code": "DOCKER_HELPER_RELEASE_SOURCE_DRIFT",
+								"severity": "error",
+								"message": (
+									"The assigned Published release no longer matches local source files. "
+									f"Draft {draft.release_id} was {'created' if created else 'reused'}; "
+									"review and publish it, then explicitly assign it before deployment."
+								),
+							},
+						),
+						data=snapshot,
+						duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+					)
+				except Exception as draft_exc:
+					exc = draft_exc
+
 			status = "Failed"
 			snapshot = {
 				"schema_version": "1.0.0",
