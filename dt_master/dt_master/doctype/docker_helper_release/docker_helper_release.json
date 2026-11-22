@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:release_id",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "release_id",
+  "version",
+  "channel",
+  "status",
+  "components_section",
+  "components",
+  "aggregate_digest",
+  "published_on",
+  "retired_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "release_id",
+   "fieldtype": "Data",
+   "label": "Release ID",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Stable immutable identifier for this release."
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "label": "Version",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Channel",
+   "options": "stable\nbeta\nedge",
+   "default": "stable",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPublished\nRetired",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "components_section",
+   "fieldtype": "Section Break",
+   "label": "Release Components",
+   "description": "The component rows define the release. SHA-256 values are calculated from actual local source files when a draft is saved."
+  },
+  {
+   "fieldname": "components",
+   "fieldtype": "Table",
+   "label": "Components",
+   "options": "Docker Helper Release Component",
+   "reqd": 1
+  },
+  {
+   "fieldname": "aggregate_digest",
+   "fieldtype": "Data",
+   "label": "Aggregate SHA-256",
+   "read_only": 1,
+   "description": "SHA-256 of the canonical, sorted component definitions."
+  },
+  {
+   "fieldname": "published_on",
+   "fieldtype": "Datetime",
+   "label": "Published On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "retired_on",
+   "fieldtype": "Datetime",
+   "label": "Retired On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "module": "Dt Master",
+ "name": "Docker Helper Release",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

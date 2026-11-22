@@ -54,6 +54,11 @@
   "docker_host_operation",
   "docker_host_state_updated_on",
   "docker_host_management_snapshot",
+  "docker_helper_release_section",
+  "docker_helper_release",
+  "docker_helper_release_assessment_status",
+  "docker_helper_release_assessed_on",
+  "docker_helper_release_assessment_snapshot",
   "access_section",
   "hosting_model",
   "ip_address",
@@ -253,6 +258,42 @@
    "options": "JSON",
    "read_only": 1,
    "description": "Versioned, bounded server-managed lifecycle evidence and diagnostics. Never contains credentials or raw command output."
+  },
+  {
+   "fieldname": "docker_helper_release_section",
+   "fieldtype": "Section Break",
+   "label": "Docker Helper Release",
+   "description": "A release is assigned independently per Infrastructure Node. Published catalog releases are immutable."
+  },
+  {
+   "fieldname": "docker_helper_release",
+   "fieldtype": "Link",
+   "label": "Assigned Docker Helper Release",
+   "options": "Docker Helper Release",
+   "in_list_view": 0,
+   "description": "The published helper release this node must converge to."
+  },
+  {
+   "fieldname": "docker_helper_release_assessment_status",
+   "fieldtype": "Select",
+   "label": "Release Assessment Status",
+   "options": "Not Assessed\nCurrent\nUpgrade Required\nReconciliation Required\nUnknown Release\nFailed",
+   "default": "Not Assessed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "docker_helper_release_assessed_on",
+   "fieldtype": "Datetime",
+   "label": "Release Assessed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "docker_helper_release_assessment_snapshot",
+   "fieldtype": "Code",
+   "label": "Release Assessment Snapshot",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Bounded server-managed evidence comparing the assigned release with installed helper artifacts."
   },
   {
    "fieldname": "access_section",

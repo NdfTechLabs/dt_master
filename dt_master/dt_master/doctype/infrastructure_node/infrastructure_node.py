@@ -14,6 +14,19 @@ from dt_master.docker_readiness import (
 	validate_docker_readiness_requirements,
 )
 
+
+DOCKER_HELPER_RELEASE_ASSESSMENT_FIELDS = (
+	"docker_helper_release_assessment_status",
+	"docker_helper_release_assessed_on",
+	"docker_helper_release_assessment_snapshot",
+)
+
+DOCKER_HELPER_RELEASE_ASSESSMENT_DEFAULTS = {
+	"docker_helper_release_assessment_status": "Not Assessed",
+	"docker_helper_release_assessed_on": None,
+	"docker_helper_release_assessment_snapshot": None,
+}
+
 DOCKER_INSPECTION_FIELDS = (
 	"docker_inspection_status",
 	"docker_readiness",
@@ -62,6 +75,8 @@ class InfrastructureNode(Document):
 		self._prevent_direct_docker_inspection_updates()
 		self._prevent_direct_host_discovery_updates()
 		self._prevent_direct_docker_host_lifecycle_updates()
+		self._prevent_direct_docker_helper_release_assessment_updates()
+		self._validate_docker_helper_release_assignment()
 		self._validate_docker_readiness_requirements()
 
 	def on_update(self):
@@ -159,6 +174,47 @@ class InfrastructureNode(Document):
 				title=frappe._("Read-only Docker Host Lifecycle"),
 			)
 
+
+	def _prevent_direct_docker_helper_release_assessment_updates(self):
+		"""Keep release assessment evidence server-managed."""
+		if getattr(frappe.flags, "docker_helper_release_assessment_update", False):
+			return
+
+		previous = self.get_doc_before_save()
+		if previous:
+			changed_fields = [
+				field
+				for field in DOCKER_HELPER_RELEASE_ASSESSMENT_FIELDS
+				if self._normalize_inspection_value(field, self.get(field))
+				!= self._normalize_inspection_value(field, previous.get(field))
+			]
+		else:
+			changed_fields = [
+				field
+				for field, default in DOCKER_HELPER_RELEASE_ASSESSMENT_DEFAULTS.items()
+				if self.get(field) not in (None, "", default)
+			]
+
+		if changed_fields:
+			frappe.throw(
+				frappe._("Docker Helper Release assessment fields are server-managed: {0}").format(
+					", ".join(changed_fields)
+				),
+				title=frappe._("Read-only Docker Helper Release Assessment"),
+			)
+
+	def _validate_docker_helper_release_assignment(self):
+		"""Only published catalog releases may be assigned to an Infrastructure Node."""
+		if not self.docker_helper_release:
+			return
+		status = frappe.db.get_value("Docker Helper Release", self.docker_helper_release, "status")
+		if status != "Published":
+			frappe.throw(
+				frappe._("Only a published Docker Helper Release can be assigned to an Infrastructure Node."),
+				title=frappe._("Invalid Docker Helper Release Assignment"),
+			)
+
+
 	def _prevent_direct_host_discovery_updates(self):
 		"""Keep Host discovery evidence server-managed, like Docker inspection evidence."""
 		previous = self.get_doc_before_save()
@@ -216,7 +272,7 @@ class InfrastructureNode(Document):
 			return DOCKER_INSPECTION_DEFAULTS[field]
 		if value in (None, "") and field in ("host_discovery_status", "host_discovery_snapshot"):
 			return HOST_DISCOVERY_DEFAULTS[field]
-		if field in ("docker_inspected_on", "host_discovered_on") and value:
+		if field in ("docker_inspected_on", "host_discovered_on", "docker_helper_release_assessed_on") and value:
 			# Form submissions may carry a datetime as a string while the
 			# database-loaded document exposes a Python datetime object.
 			return get_datetime(value)

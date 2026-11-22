@@ -61,6 +61,20 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			node.validate()
 
+
+	def test_new_node_accepts_default_docker_helper_release_assessment(self):
+		node = self._new_node()
+		self.assertEqual(node.docker_helper_release_assessment_status, "Not Assessed")
+		self.assertFalse(node.docker_helper_release_assessed_on)
+		self.assertFalse(node.docker_helper_release_assessment_snapshot)
+		node.validate()
+
+	def test_new_node_rejects_client_supplied_docker_helper_assessment(self):
+		node = self._new_node()
+		node.docker_helper_release_assessment_status = "Current"
+		with self.assertRaises(frappe.ValidationError):
+			node.validate()
+
 	def test_new_node_rejects_severity_without_requirement(self):
 		node = self._new_node()
 		node.docker_engine_severity = "Required"
