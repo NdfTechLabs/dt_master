@@ -8,6 +8,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from dt_master.docker_helper_releases import (
+    aggregate_release_digest,
     build_release_manifest,
     create_draft_release_from_source,
 )
@@ -88,6 +89,22 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
         self.assertEqual(manifest["release"]["version"], release.version)
         self.assertEqual(len(manifest["components"]), 3)
         self.assertEqual(manifest["lifecycle"]["activation_order"], ["install_policy", "host_inventory", "lifecycle_helper"])
+    def test_publication_rejects_a_stale_draft_source_snapshot(self):
+        release = self._new_release()
+        release.insert(ignore_permissions=True)
+        release.components[0].sha256 = "0" * 64
+        release.aggregate_digest = aggregate_release_digest(release.components)
+        release.status = "Published"
+
+        with self.assertRaises(frappe.ValidationError):
+            release.save(ignore_permissions=True)
+
+        release.status = "Draft"
+        release.save(ignore_permissions=True)
+        release.status = "Published"
+        release.save(ignore_permissions=True)
+        self.assertEqual(release.status, "Published")
+
     def test_published_release_is_immutable(self):
         release = self._new_release()
         release.insert(ignore_permissions=True)
