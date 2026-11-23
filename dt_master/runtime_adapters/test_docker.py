@@ -27,7 +27,7 @@ def request(method="inspect"):
 def helper_install_result(status="succeeded", phase="result_verification", exit_code=0):
 	return {
 		"schema_version": "1.0.0",
-		"helper_version": "0.3.2",
+		"helper_version": "0.3.3",
 		"operation": "install_engine",
 		"operation_id": "OP-0001",
 		"status": status,
@@ -248,7 +248,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		}
 		helper_result = {
 			"schema_version": "1.0.0",
-			"helper_version": "0.3.2",
+			"helper_version": "0.3.3",
 			"operation": "prepare_repository",
 			"status": "succeeded",
 			"diagnostics": [],
@@ -348,7 +348,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_repository_preparation_result_requires_exact_helper_contract(self):
 		valid = {
 			"schema_version": "1.0.0",
-			"helper_version": "0.3.2",
+			"helper_version": "0.3.3",
 			"operation": "prepare_repository",
 			"status": "succeeded",
 			"diagnostics": [],
@@ -799,7 +799,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"responsibility": "Test component",
 			}
 			for component_id, filename, version in (
-				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
+				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.3"),
 				("install_policy", "docker_install_policy.py", "1.1.1"),
 				("host_inventory", "docker_install_inventory.py", "1.0.0"),
 			)
@@ -807,8 +807,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		manifest = {
 			"schema_version": "1.0.0",
 			"release": {
-				"id": "dt-docker-helper-0.3.2",
-				"version": "0.3.2",
+				"id": "dt-docker-helper-0.3.3",
+				"version": "0.3.3",
 				"channel": "stable",
 				"status": "supported",
 			},
@@ -818,8 +818,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		}
 		manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
 		release = SimpleNamespace(
-			release_id="dt-docker-helper-0.3.2",
-			version="0.3.2",
+			release_id="dt-docker-helper-0.3.3",
+			version="0.3.3",
 			status="Published",
 			components=[],
 		)
@@ -829,7 +829,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def _release_inspection_state(status, manifest_matches, installer_ready, *, installed=False):
 		rows = []
 		for component_id, version in (
-			("lifecycle_helper", "0.3.2"),
+			("lifecycle_helper", "0.3.3"),
 			("install_policy", "1.1.1"),
 			("host_inventory", "1.0.0"),
 		):
@@ -868,8 +868,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		from dt_master.docker_helper_releases import DockerHelperReleaseError
 
 		release = SimpleNamespace(
-			release_id="dt-docker-helper-0.3.2",
-			version="0.3.2",
+			release_id="dt-docker-helper-0.3.3",
+			version="0.3.3",
 			status="Published",
 			components=[{"component_id": "lifecycle_helper", "sha256": "a" * 64}],
 		)
@@ -906,8 +906,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		from dt_master.docker_helper_releases import DockerHelperReleaseError
 
 		release = SimpleNamespace(
-			release_id="dt-docker-helper-0.3.2",
-			version="0.3.2",
+			release_id="dt-docker-helper-0.3.3",
+			version="0.3.3",
 			status="Published",
 			components=[],
 		)
@@ -919,7 +919,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				side_effect=DockerHelperReleaseError("Component source file is missing: lifecycle_helper"),
 			),
 		):
-			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			self.node.docker_helper_release = "dt-docker-helper-0.3.3"
 			result = self.adapter._release_assess(request("release_assess"))
 
 		self.assertEqual(result.observed_state, "Failed")
@@ -927,8 +927,8 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 
 	def test_release_assessment_warns_and_stops_for_retired_assignment(self):
 		release = SimpleNamespace(
-			release_id="dt-docker-helper-0.3.2",
-			version="0.3.2",
+			release_id="dt-docker-helper-0.3.3",
+			version="0.3.3",
 			status="Retired",
 		)
 		with (
@@ -936,7 +936,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
 			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
 		):
-			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			self.node.docker_helper_release = "dt-docker-helper-0.3.3"
 			result = self.adapter._release_assess(request("release_assess"))
 		self.assertEqual(result.observed_state, "Release Retired")
 		self.assertEqual(result.outcome, "partial")
@@ -968,7 +968,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			),
 			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
-			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			self.node.docker_helper_release = "dt-docker-helper-0.3.3"
 			result = self.adapter._release_assess(request("release_assess"))
 		self.assertEqual(result.observed_state, "Current")
 		self.assertEqual(result.outcome, "succeeded")
@@ -998,7 +998,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			) as remote_call,
 			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
-			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			self.node.docker_helper_release = "dt-docker-helper-0.3.3"
 			result = self.adapter._release_assess(request("release_assess"))
 		self.assertEqual(result.observed_state, "Bootstrap Required")
 		self.assertEqual(result.outcome, "succeeded")
@@ -1024,7 +1024,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			),
 			patch.object(self.adapter, "_bootstrap_privileges") as install,
 		):
-			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			self.node.docker_helper_release = "dt-docker-helper-0.3.3"
 			result = self.adapter._release_assess(request("release_assess"))
 		self.assertEqual(result.observed_state, "Scripts Deployment Required")
 		self.assertEqual(result.outcome, "succeeded")
@@ -1060,7 +1060,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.3.2",
+				"version": "0.3.3",
 				"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
@@ -1461,7 +1461,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"execution_identity": "deploy",
 			"helper": {
 				"path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
-				"version": "0.3.2",
+				"version": "0.3.3",
 				"sha256": "a" * 64,
 			},
 			"sudoers": {"path": "/etc/sudoers.d/dt-master-docker", "syntax": "Valid"},
