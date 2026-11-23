@@ -218,12 +218,12 @@ class InfrastructureNode(Document):
 
 		from dt_master.docker_helper_releases import (
 			DockerHelperReleaseError,
-			serialize_release_manifest,
+			write_release_manifest,
 		)
 
 		release = frappe.get_doc("Docker Helper Release", self.docker_helper_release)
 		try:
-			manifest = serialize_release_manifest(
+			manifest = write_release_manifest(
 				release,
 				source_root=Path(__file__).resolve().parents[3],
 			)
