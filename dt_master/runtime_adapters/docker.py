@@ -901,6 +901,12 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Install the fixed helper and sudoers policy through the existing SSH runner."""
 		started = monotonic()
 		node = self._node_for_request(request)
+		if node.docker_helper_release and frappe.db.get_value(
+			"Docker Helper Release", node.docker_helper_release, "status"
+		) == "Retired":
+			raise ValueError(
+				"The assigned Docker Helper Release is retired. Assign a Published replacement before bootstrap."
+			)
 		self._require_host_inspection(node)
 		if not node.ssh_user:
 			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
