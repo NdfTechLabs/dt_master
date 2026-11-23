@@ -443,7 +443,7 @@ def run_trusted_helper(
 		raise ValueError("Unsupported trusted Docker helper request")
 
 	operation = request.get("operation")
-	if operation == "self_test":
+	if operation in {"self_test", "prepare_repository"}:
 		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
 			raise ValueError("Unsupported trusted Docker helper request")
 	elif operation == "install_engine":
