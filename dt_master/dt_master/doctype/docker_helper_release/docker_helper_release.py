@@ -105,10 +105,9 @@ class DockerHelperRelease(Document):
 		if _definition(previous) != _definition(self):
 			self._throw("Published Docker Helper Releases are immutable. Create a new release instead.")
 		if previous.status == "Published" and self.status == "Retired":
-			import frappe
-
-			if frappe.db.exists("Infrastructure Node", {"docker_helper_release": self.name}):
-				self._throw("A Docker Helper Release assigned to an Infrastructure Node cannot be retired.")
+			# Retirement is a fleet-wide signal that existing assignments are
+			# obsolete. Nodes keep their assignment until an operator migrates
+			# them explicitly to the active Published release.
 			self.retired_on = now_datetime()
 
 	@staticmethod
