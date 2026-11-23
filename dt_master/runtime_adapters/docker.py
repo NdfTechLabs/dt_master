@@ -290,6 +290,22 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		return node
 
 	@staticmethod
+	def _expected_release_manifest_env(node):
+		"""Build the expected manifest from this node's assigned Published release."""
+		if not getattr(node, "docker_helper_release", None):
+			raise ValueError("Assign a Published Docker Helper Release before privilege setup or verification.")
+		release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
+		if release.status != "Published":
+			raise ValueError("Only the node's assigned Published Docker Helper Release can be installed or verified.")
+		from dt_master.docker_helper_releases import serialize_release_manifest
+
+		source_root = Path(__file__).resolve().parents[1]
+		manifest_json = serialize_release_manifest(release, source_root=source_root)
+		return {
+			"EXPECTED_RELEASE_MANIFEST_B64": base64.b64encode(manifest_json.encode("utf-8")).decode("ascii")
+		}
+
+	@staticmethod
 	def _ssh_config(node):
 		alias = getattr(node, "ssh_host_alias", None) or None
 		if not alias and (not node.ip_address or not node.ssh_user):
@@ -378,7 +394,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				not isinstance(item, dict)
 				or set(item) != {"name", "status"}
 				or item["name"] not in allowed_checks
-				or item["status"] not in {"Passed", "Failed"}
+				or item["status"] not in {"Passed", "Failed", "Skipped"}
 			):
 				raise ValueError("Invalid Docker privilege check row")
 		if not isinstance(payload["diagnostics"], list) or len(payload["diagnostics"]) > 12:
@@ -434,7 +450,10 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				self._ssh_config(node),
 				"docker",
 				"check_docker_privilege_readiness.sh",
-				{"EXPECTED_SSH_USER": node.ssh_user},
+				{
+					"EXPECTED_SSH_USER": node.ssh_user,
+					**self._expected_release_manifest_env(node),
+				},
 				"script_execution_log",
 				{"execution": "check_docker_privilege_readiness.sh", "node": node.name},
 				use_sudo=False,
@@ -912,6 +931,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		self._require_host_inspection(node)
 		if not node.ssh_user:
 			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
+		expected_release_env = self._expected_release_manifest_env(node)
 
 		failure_details = []
 		phase = "helper_install"
@@ -1025,7 +1045,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				self._ssh_config(node),
 				"docker",
 				"check_docker_privilege_readiness.sh",
-				{"EXPECTED_SSH_USER": node.ssh_user},
+				{"EXPECTED_SSH_USER": node.ssh_user, **expected_release_env},
 				"script_execution_log",
 				{"execution": "check_docker_privilege_readiness.sh", "node": node.name},
 				use_sudo=False,
