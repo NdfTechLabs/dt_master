@@ -316,6 +316,71 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	return aggregate_release_digest(components)
 
 
+
+def _release_predecessor_snapshot(release):
+	"""Capture an immutable predecessor identity and its exact component fingerprints."""
+	status = _value(release, "status")
+	if status not in {"Published", "Retired"}:
+		return None
+	release_id = _value(release, "release_id")
+	version = _value(release, "version")
+	if not isinstance(release_id, str) or not isinstance(version, str):
+		raise DockerHelperReleaseError("Predecessor release identity is incomplete")
+	components = []
+	for row in (_value(release, "components") or []):
+		component = {
+			"id": _value(row, "component_id"),
+			"version": _value(row, "version"),
+			"sha256": _value(row, "sha256"),
+		}
+		if (not isinstance(component["id"], str)
+				or not isinstance(component["version"], str)
+				or not isinstance(component["sha256"], str)
+				or not _SHA256.fullmatch(component["sha256"])):
+			raise DockerHelperReleaseError("Predecessor component fingerprint is incomplete")
+		components.append(component)
+	if {item["id"] for item in components} != MANIFEST_COMPONENT_IDS:
+		raise DockerHelperReleaseError("Predecessor component inventory is incomplete")
+	return {"release_id": release_id, "version": version,
+		"components": sorted(components, key=lambda item: item["id"])}
+
+
+def validate_predecessor_records(value):
+	"""Validate structured, release-bound predecessor fingerprints."""
+	if isinstance(value, str):
+		try:
+			value = json.loads(value or "[]")
+		except json.JSONDecodeError as exc:
+			raise DockerHelperReleaseError("Invalid predecessor provenance JSON") from exc
+	if not isinstance(value, list):
+		raise DockerHelperReleaseError("Predecessors must be a JSON array")
+	seen = set()
+	validated = []
+	for predecessor in value:
+		if not isinstance(predecessor, dict) or set(predecessor) != {"release_id", "version", "components"}:
+			raise DockerHelperReleaseError("Invalid predecessor release record")
+		rid, version, rows = predecessor["release_id"], predecessor["version"], predecessor["components"]
+		if (not isinstance(rid, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", rid)
+				or not isinstance(version, str) or not _VERSION.fullmatch(version)
+				or (rid, version) in seen or not isinstance(rows, list)):
+			raise DockerHelperReleaseError("Invalid or duplicate predecessor identity")
+		seen.add((rid, version))
+		components = {}
+		for row in rows:
+			if (not isinstance(row, dict) or set(row) != {"id", "version", "sha256"}
+					or row["id"] not in MANIFEST_COMPONENT_IDS
+					or not isinstance(row["version"], str) or not _VERSION.fullmatch(row["version"])
+					or not isinstance(row["sha256"], str) or not _SHA256.fullmatch(row["sha256"])
+					or row["id"] in components):
+				raise DockerHelperReleaseError("Invalid predecessor component fingerprint")
+			components[row["id"]] = row
+		if set(components) != MANIFEST_COMPONENT_IDS:
+			raise DockerHelperReleaseError("Predecessor component inventory is incomplete")
+		validated.append({"release_id": rid, "version": version,
+			"components": [components[key] for key in sorted(components)]})
+	return validated
+
+
 def _create_draft_release(template, source_root: str | Path, *, release_id: str, version: str):
 	"""Create an idempotent Draft from metadata while hashing current source files."""
 	if not isinstance(release_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", release_id):
@@ -330,13 +395,14 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 		for component in (_value(template, "components") or [])
 	]
 	source_inspection = inspect_release_source(components, source_root)
+	observed_helper_version = source_inspection["components"]["lifecycle_helper"]["version"]
+	if version != observed_helper_version:
+		raise DockerHelperReleaseError(
+			f"Draft release version {version} does not match source helper version {observed_helper_version}"
+		)
 	for component in components:
 		component_id = component["component_id"]
-		component["version"] = (
-			version
-			if component_id == "lifecycle_helper"
-			else source_inspection["components"][component_id]["version"]
-		)
+		component["version"] = source_inspection["components"][component_id]["version"]
 		component["sha256"] = source_inspection["components"][component_id]["sha256"]
 	aggregate_digest = aggregate_release_digest(components)
 	existing = frappe.db.exists("Docker Helper Release", release_id)
@@ -363,6 +429,8 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 		compatibility[field] = {"minimum": actual, "maximum": actual}
 	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	draft.lifecycle = _value(template, "lifecycle")
+	predecessor = _release_predecessor_snapshot(template)
+	draft.predecessors = json.dumps([predecessor] if predecessor else [], sort_keys=True)
 	for component in components:
 		draft.append("components", component)
 	draft.insert(ignore_permissions=True)
@@ -563,6 +631,7 @@ def build_release_manifest(release, *, source_root: str | Path | None = None) ->
 		raise DockerHelperReleaseError("Invalid release channel")
 
 	compatibility, lifecycle = validate_release_metadata(get("compatibility"), get("lifecycle"))
+	predecessors = validate_predecessor_records(get("predecessors"))
 	components = get("components") or []
 	components = canonical_component_records(components)
 	if source_root is not None:
@@ -598,6 +667,7 @@ def build_release_manifest(release, *, source_root: str | Path | None = None) ->
 		"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 		"release": {"id": release_id, "version": version, "channel": channel, "status": "supported"},
 		"compatibility": compatibility,
+		"predecessors": predecessors,
 		"components": manifest_components,
 		"lifecycle": lifecycle,
 	}
