@@ -1,5 +1,6 @@
 """Operator-facing setup actions for the Docker Helper Release catalog."""
 
+import json
 import re
 from pathlib import Path
 
