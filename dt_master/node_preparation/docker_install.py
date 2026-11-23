@@ -71,7 +71,7 @@ def docker_engine_install_state_fingerprint(inventory: dict) -> str:
 		"schema_version": inventory["schema_version"],
 		"host_os": inventory["host_os"],
 		"package_manager": inventory["package_manager"],
-		"packages": inventory["packages"],
+		"packages": sorted(inventory["packages"], key=lambda row: row["name"]),
 		"repository": inventory["repository"],
 	}
 	envelope = {"fingerprint_version": STATE_FINGERPRINT_VERSION, "inventory": state}
