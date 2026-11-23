@@ -387,6 +387,17 @@ def _build_predecessor_transition(release, components):
 	return [predecessor], [predecessor["version"]]
 
 
+def _component_child_values(component):
+	"""Serialize list-valued fields for the Frappe component child DocType."""
+	values = dict(component)
+	accepted = values.get("accepted_predecessor_sha256")
+	if isinstance(accepted, list):
+		# This mandatory Data field must contain the non-empty JSON string "[]"
+		# when a component has no distinct predecessor digest.
+		values["accepted_predecessor_sha256"] = json.dumps(accepted)
+	return values
+
+
 def validate_predecessor_records(value):
 	"""Validate structured, release-bound predecessor fingerprints."""
 	if value in (None, ""):
@@ -495,13 +506,7 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	compatibility["upgrade_from"] = list(dict.fromkeys([*upgrade_from, *predecessor_versions]))
 	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	for component in components:
-		child_values = dict(component)
-		accepted = child_values.get("accepted_predecessor_sha256")
-		if isinstance(accepted, list):
-			# This is a mandatory Data field on the Frappe child DocType.
-			# Persist even an empty list as the non-empty JSON string "[]".
-			child_values["accepted_predecessor_sha256"] = json.dumps(accepted)
-		draft.append("components", child_values)
+		draft.append("components", _component_child_values(component))
 	draft.insert(ignore_permissions=True)
 	return draft, True
 
