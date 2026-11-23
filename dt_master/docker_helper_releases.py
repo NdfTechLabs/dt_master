@@ -242,7 +242,7 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 
 	draft = frappe.new_doc("Docker Helper Release")
 	draft.release_id = release_id
-	draft.schema_version = _value(template, "schema_version") or RELEASE_MANIFEST_SCHEMA_VERSION
+	draft.schema_version = RELEASE_MANIFEST_SCHEMA_VERSION
 	draft.version = version
 	draft.channel = _value(template, "channel") or "stable"
 	draft.status = "Draft"
