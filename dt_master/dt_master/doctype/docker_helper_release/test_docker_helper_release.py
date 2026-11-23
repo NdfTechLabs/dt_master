@@ -188,15 +188,18 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		template = canonical_docker_helper_release_template()
 		self.assertTrue(all("sha256" not in component for component in template["components"]))
 
+		source_version = inspect_release_source(template["components"], source_root)["components"][
+			"lifecycle_helper"
+		]["version"]
 		draft, created = create_initial_draft_release(
 			source_root,
-			version="0.3.3",
+			version=source_version,
 			release_id=f"docker-helper-test-{frappe.generate_hash(length=8)}",
 		)
 
 		self.assertTrue(created)
 		self.assertEqual(draft.status, "Draft")
-		self.assertEqual(draft.version, "0.3.3")
+		self.assertEqual(draft.version, source_version)
 		self.assertEqual(draft.aggregate_digest, aggregate_release_digest(draft.components))
 		for component in draft.components:
 			self.assertEqual(
@@ -220,7 +223,9 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		original_digest = template.aggregate_digest
 		source_root = Path(__file__).resolve().parents[3]
 
-		source_version = inspect_release_source(template.components, source_root)["components"]["lifecycle_helper"]["version"]
+		source_version = inspect_release_source(template.components, source_root)["components"][
+			"lifecycle_helper"
+		]["version"]
 		draft, created = create_draft_release_from_template(
 			template,
 			source_root,
@@ -234,7 +239,7 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 			template.release_id,
 		)
 		self.assertEqual(draft.status, "Draft")
-		self.assertEqual(draft.version, "0.3.3")
+		self.assertEqual(draft.version, source_version)
 		template.reload()
 		self.assertEqual(template.status, "Retired")
 		self.assertEqual(template.aggregate_digest, original_digest)
