@@ -7,6 +7,7 @@ from pathlib import Path
 
 from dt_master.docker_helper_releases import (
 	DockerHelperReleaseError,
+	compare_release_source_snapshot,
 	aggregate_release_digest,
 	build_release_manifest,
 	component_source_digest,
@@ -39,6 +40,24 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			source.write_bytes(b"second source")
 			second = component_source_digest(directory, "scripts/bin/docker/helper.py")
 		self.assertNotEqual(first, second)
+
+	def test_source_snapshot_comparison_reports_expected_and_observed_component_hashes(self):
+		with tempfile.TemporaryDirectory() as directory:
+			source = Path(directory) / "scripts/bin/docker/helper.py"
+			source.parent.mkdir(parents=True)
+			source.write_bytes(b"updated source")
+			components = [component("lifecycle_helper", "scripts/bin/docker/helper.py")]
+			mismatches = compare_release_source_snapshot(components, directory)
+
+		self.assertEqual(
+			mismatches,
+			{
+				"lifecycle_helper": {
+					"expected": "a" * 64,
+					"observed": hashlib.sha256(b"updated source").hexdigest(),
+				}
+			},
+		)
 
 	def test_component_digest_rejects_path_traversal(self):
 		with tempfile.TemporaryDirectory() as directory:
