@@ -8,11 +8,6 @@ readonly HELPER_NAME="docker_lifecycle_helper.py"
 readonly RELEASE_NAME="docker_helper_release.json"
 readonly RELEASE_VALIDATOR="validate_docker_helper_release.py"
 HELPER_SHA256=""
-readonly PREVIOUS_HELPER_SHA256="b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b"
-readonly LEGACY_HELPER_SHA256="1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe"
-readonly OLDER_LEGACY_HELPER_SHA256="8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a"
-readonly OLDEST_LEGACY_HELPER_SHA256="afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9"
-readonly ANCIENT_HELPER_SHA256="06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a2"
 readonly POLICY_NAME="docker_install_policy.py"
 POLICY_SHA256=""
 readonly INVENTORY_NAME="docker_install_inventory.py"
@@ -88,17 +83,20 @@ fi
 # Refuse unknown pre-existing artifacts. Accept the previously deployed N3.4.8
 # validation-only helper and the earlier self-test-only helper during upgrade.
 check_existing() {
-    local name="$1" expected="$2" previous="${3:-}" previous_legacy="${4:-}" older_legacy="${5:-}" oldest_legacy="${6:-}" ancient="${7:-}"
-    local target="${DEST_DIR}/${name}" metadata digest
+    local name="$1" component_id="$2" expected="$3"
+    local target="${DEST_DIR}/${name}" metadata digest candidate matched=false
+    local -a accepted_hashes=()
+    mapfile -t accepted_hashes < <(python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" --accepted-hashes "$component_id") || fail "Could not load accepted hashes for $name"
     if sudo -n test -e "$target"; then
         sudo -n test -f "$target" && ! sudo -n test -L "$target" \
             || fail "Existing helper artifact is not a regular file: $name"
         metadata="$(sudo -n stat -c '%u:%g:%a' "$target")"
         [[ "$metadata" == "0:0:755" ]] || fail "Existing helper artifact has unsafe ownership or mode: $name"
         digest="$(sudo -n sha256sum "$target" | awk '{print $1}')"
-        if [[ "$digest" != "$expected" && "$digest" != "$previous" && "$digest" != "$previous_legacy" && "$digest" != "$older_legacy" && "$digest" != "$oldest_legacy" && "$digest" != "$ancient" ]]; then
-            fail "Refusing to overwrite an unrecognized helper artifact: $name"
-        fi
+        for candidate in "${accepted_hashes[@]}"; do
+            [[ "$digest" == "$candidate" ]] && matched=true && break
+        done
+        [[ "$matched" == true ]] || fail "Refusing to overwrite an unrecognized helper artifact: $name"
     fi
 }
 
@@ -112,11 +110,9 @@ if sudo -n test -e "${DEST_DIR}/${RELEASE_NAME}"; then
         >/dev/null || fail "Existing helper release is not a declared upgrade predecessor."
 fi
 
-check_existing "$HELPER_NAME" "$HELPER_SHA256" "$PREVIOUS_HELPER_SHA256" "$LEGACY_HELPER_SHA256" "$OLDER_LEGACY_HELPER_SHA256" "$OLDEST_LEGACY_HELPER_SHA256" "$ANCIENT_HELPER_SHA256"
-# The currently deployed 0.3.0 helper pinned this exact prior policy digest.
-# Accept it only as an explicit upgrade source; unknown policy files remain protected.
-check_existing "$POLICY_NAME" "$POLICY_SHA256" "3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"
-check_existing "$INVENTORY_NAME" "$INVENTORY_SHA256" "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"
+check_existing "$HELPER_NAME" lifecycle_helper "$HELPER_SHA256"
+check_existing "$POLICY_NAME" install_policy "$POLICY_SHA256"
+check_existing "$INVENTORY_NAME" host_inventory "$INVENTORY_SHA256"
 
 stage_dir="$(sudo -n mktemp -d "${DEST_DIR}/.helper.XXXXXX")" \
     || fail "Could not stage helper artifacts in destination directory."
