@@ -194,45 +194,142 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	return aggregate_release_digest(components)
 
 
-def create_draft_release_from_source(release, source_root: str | Path):
-	"""Create or reuse a Draft containing the current source hashes of a Published release.
-
-	The Published record is never modified. The deterministic draft identifier makes
-	repeated assessments of the same source snapshot idempotent.
-	"""
-	if _value(release, "status") != "Published":
-		raise DockerHelperReleaseError("Source-drift drafts can only be created from a Published release.")
+def _create_draft_release(template, source_root: str | Path, *, release_id: str, version: str):
+	"""Create an idempotent Draft from metadata while hashing current source files."""
+	if not isinstance(release_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", release_id):
+		raise DockerHelperReleaseError("Invalid generated Docker Helper Release identifier")
+	if not isinstance(version, str) or not _VERSION.fullmatch(version):
+		raise DockerHelperReleaseError("Docker Helper Release version must use semantic versioning")
 
 	import frappe
 
 	components = [
-		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
-		for component in (_value(release, "components") or [])
+		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS if field != "sha256"}
+		for component in (_value(template, "components") or [])
 	]
+	for component in components:
+		if component["component_id"] == "lifecycle_helper":
+			component["version"] = version
 	aggregate_digest = refresh_component_digests(components, source_root)
-	draft_id = f"{_value(release, 'release_id')[:80]}-draft-{aggregate_digest[:12]}"
-	existing = frappe.db.exists("Docker Helper Release", draft_id)
+	existing = frappe.db.exists("Docker Helper Release", release_id)
 	if existing:
-		draft = frappe.get_doc("Docker Helper Release", draft_id)
-		if draft.status == "Draft" and draft.aggregate_digest == aggregate_digest:
+		draft = frappe.get_doc("Docker Helper Release", release_id)
+		if (
+			draft.status == "Draft"
+			and draft.version == version
+			and draft.aggregate_digest == aggregate_digest
+		):
 			return draft, False
 		raise DockerHelperReleaseError(
-			"A release with the generated source-drift draft identifier already exists."
+			"A Docker Helper Release with this identifier already exists and cannot be reused."
 		)
 
 	draft = frappe.new_doc("Docker Helper Release")
-	draft.release_id = draft_id
-	draft.schema_version = _value(release, "schema_version")
-	draft.version = _value(release, "version")
-	draft.channel = _value(release, "channel")
+	draft.release_id = release_id
+	draft.schema_version = _value(template, "schema_version") or RELEASE_MANIFEST_SCHEMA_VERSION
+	draft.version = version
+	draft.channel = _value(template, "channel") or "stable"
 	draft.status = "Draft"
-	draft.compatibility = _value(release, "compatibility")
-	draft.lifecycle = _value(release, "lifecycle")
+	draft.compatibility = _value(template, "compatibility")
+	draft.lifecycle = _value(template, "lifecycle")
 	for component in components:
 		draft.append("components", component)
 	draft.insert(ignore_permissions=True)
 	return draft, True
 
+
+def create_draft_release_from_source(release, source_root: str | Path):
+	"""Create or reuse a source-drift Draft from an immutable Published release."""
+	if _value(release, "status") != "Published":
+		raise DockerHelperReleaseError("Source-drift drafts can only be created from a Published release.")
+	digest_components = [
+		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
+		for component in (_value(release, "components") or [])
+	]
+	aggregate_digest = refresh_component_digests(digest_components, source_root)
+	draft_id = f"{_value(release, 'release_id')[:80]}-draft-{aggregate_digest[:12]}"
+	return _create_draft_release(
+		release,
+		source_root,
+		release_id=draft_id,
+		version=_value(release, "version"),
+	)
+
+
+def canonical_docker_helper_release_template():
+	"""Return canonical release metadata; component hashes are intentionally absent."""
+	return {
+		"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
+		"channel": "stable",
+		"compatibility": {
+			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
+			"docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+			"inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"upgrade_from": ["0.3.0", "0.3.1", "0.3.2"],
+		},
+		"lifecycle": {
+			"bootstrap": "Install the release when no recognized helper release is present.",
+			"upgrade": "Replace a recognized older release with this complete release without repeating host preparation.",
+			"reconcile": "Repair only recognized, individually verifiable release artifacts; unknown or untrusted artifacts require operator intervention.",
+			"activation_order": ["install_policy", "host_inventory", "lifecycle_helper"],
+			"verification": "A release is current only when every required component digest, owner, group, mode, version and compatibility requirement passes.",
+		},
+		"components": [
+			{
+				"component_id": "lifecycle_helper",
+				"version": "0.3.2",
+				"source_path": "scripts/bin/docker/docker_lifecycle_helper.py",
+				"install_path": "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py",
+				"required": 1,
+				"file_owner": "root",
+				"file_group": "root",
+				"file_mode": "0755",
+				"responsibility": "Root-owned privileged operation boundary; validates closed requests, verifies installed release dependencies and executes only explicitly supported helper operations.",
+			},
+			{
+				"component_id": "install_policy",
+				"version": "1.1.1",
+				"source_path": "scripts/bin/docker/docker_install_policy.py",
+				"install_path": "/usr/local/lib/dt-master/docker/docker_install_policy.py",
+				"required": 1,
+				"file_owner": "root",
+				"file_group": "root",
+				"file_mode": "0755",
+				"responsibility": "Pure deterministic Docker Engine installation planner and canonical host-state fingerprint implementation.",
+			},
+			{
+				"component_id": "host_inventory",
+				"version": "1.0.0",
+				"source_path": "scripts/bin/docker/docker_install_inventory.py",
+				"install_path": "/usr/local/lib/dt-master/docker/docker_install_inventory.py",
+				"required": 1,
+				"file_owner": "root",
+				"file_group": "root",
+				"file_mode": "0755",
+				"responsibility": "Read-only host, package, repository, signing-key, service and workload inventory consumed by the planner and privileged helper.",
+			},
+		],
+	}
+
+
+def create_initial_draft_release(source_root: str | Path, *, version: str, release_id: str | None = None):
+	"""Create the first Draft from canonical metadata and actual local source files."""
+	release_id = release_id or f"docker-helper-{version}"
+	return _create_draft_release(
+		canonical_docker_helper_release_template(),
+		source_root,
+		release_id=release_id,
+		version=version,
+	)
+
+
+def create_draft_release_from_template(template, source_root: str | Path, *, version: str, release_id: str):
+	"""Create a replacement Draft from a prior release's metadata, never its hashes."""
+	if _value(template, "status") not in {"Published", "Retired", None}:
+		raise DockerHelperReleaseError("Only a Published or Retired release can be used as a template.")
+	return _create_draft_release(template, source_root, release_id=release_id, version=version)
 
 def _parse_json_object(value, label):
 	"""Parse a JSON object stored in a Frappe Code field or accept a mapping."""
