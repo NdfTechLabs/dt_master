@@ -312,7 +312,7 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
-				"accepted_predecessor_sha256": json.dumps(["b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b", "1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe", "8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a", "afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9", "06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a"]),
+				"accepted_predecessor_sha256": json.dumps(["b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b", "1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe", "8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a", "afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9", "06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a2"]),
 				"responsibility": "Root-owned privileged operation boundary; validates closed requests, verifies installed release dependencies and executes only explicitly supported helper operations.",
 			},
 			{
