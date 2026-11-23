@@ -62,6 +62,11 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		payload = self.payload()
 		self.assertEqual(DockerRuntimeAdapter._validate_privilege_readiness(payload), payload)
 
+	def test_accepts_skipped_self_test_when_prerequisites_are_unavailable(self):
+		payload = self.payload()
+		payload["checks"] = [{"name": "helper_self_test", "status": "Skipped"}]
+		self.assertEqual(DockerRuntimeAdapter._validate_privilege_readiness(payload), payload)
+
 	def test_rejects_unrecognized_check(self):
 		payload = self.payload()
 		payload["checks"] = [{"name": "arbitrary_command", "status": "Passed"}]
