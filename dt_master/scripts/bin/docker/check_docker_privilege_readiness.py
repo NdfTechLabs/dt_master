@@ -61,7 +61,7 @@ def load_release_manifest():
 			or not isinstance(manifest["release"], dict)
 			or manifest["release"].get("status") != "supported"
 			or not isinstance(manifest["predecessors"], list)
-			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["release"].get("version", ""))
+			or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["release"].get("version", ""))
 		):
 			return None
 		components = manifest["components"]
