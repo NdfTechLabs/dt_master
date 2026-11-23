@@ -120,7 +120,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			patch.object(frappe, "get_doc", return_value=release) as get_doc,
 			patch.object(release, "save") as save,
 		):
-			node._retire_unassigned_previous_helper_release(previous)
+			node._retire_previous_helper_release(previous)
 		get_doc.assert_called_once_with("Docker Helper Release", "OLD-RELEASE")
 		save.assert_called_once_with(ignore_permissions=True)
 		self.assertEqual(release.status, "Retired")
@@ -135,7 +135,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			patch.object(frappe, "get_doc", return_value=release) as get_doc,
 			patch.object(release, "save") as save,
 		):
-			node._retire_unassigned_previous_helper_release(previous)
+			node._retire_previous_helper_release(previous)
 		get_doc.assert_called_once_with("Docker Helper Release", "SHARED-RELEASE")
 		save.assert_called_once_with(ignore_permissions=True)
 		self.assertEqual(release.status, "Retired")
