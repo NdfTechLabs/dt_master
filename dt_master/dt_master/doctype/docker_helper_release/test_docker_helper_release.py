@@ -16,6 +16,7 @@ from dt_master.docker_helper_releases import (
 	create_draft_release_from_source,
 	create_draft_release_from_template,
 	create_initial_draft_release,
+	inspect_release_source,
 )
 
 
@@ -153,10 +154,28 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		original_digest = release.aggregate_digest
 		source_root = Path(__file__).resolve().parents[3]
 
-		first, created = create_draft_release_from_source(release, source_root)
-		second, created_again = create_draft_release_from_source(release, source_root)
+		source_version = inspect_release_source(release.components, source_root)["components"]["lifecycle_helper"]["version"]
+		first, created = create_draft_release_from_source(release, source_root, version=source_version)
+		second, created_again = create_draft_release_from_source(release, source_root, version=source_version)
 
 		self.assertTrue(created)
+		self.assertEqual(first.release_id, f"docker-helper-{source_version}")
+		self.assertEqual(
+			json.loads(first.predecessors),
+			[
+				{
+					"release_id": release.release_id,
+					"version": release.version,
+					"components": sorted(
+						[
+							{"id": row.component_id, "version": row.version, "sha256": row.sha256}
+							for row in release.components
+						],
+						key=lambda row: row["id"],
+					),
+				}
+			],
+		)
 		self.assertFalse(created_again)
 		self.assertEqual(first.name, second.name)
 		self.assertEqual(first.status, "Draft")
@@ -201,14 +220,19 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		original_digest = template.aggregate_digest
 		source_root = Path(__file__).resolve().parents[3]
 
+		source_version = inspect_release_source(template.components, source_root)["components"]["lifecycle_helper"]["version"]
 		draft, created = create_draft_release_from_template(
 			template,
 			source_root,
-			version="0.3.3",
-			release_id=f"docker-helper-replacement-{frappe.generate_hash(length=8)}",
+			version=source_version,
+			release_id=f"docker-helper-{source_version}-{frappe.generate_hash(length=8)}",
 		)
 
 		self.assertTrue(created)
+		self.assertEqual(
+			json.loads(draft.predecessors)[0]["release_id"],
+			template.release_id,
+		)
 		self.assertEqual(draft.status, "Draft")
 		self.assertEqual(draft.version, "0.3.3")
 		template.reload()
