@@ -321,6 +321,10 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 	for name, state in services.items():
 		if state not in {"active", "inactive", "failed", "activating", "deactivating", "Unknown"}:
 			raise DockerInstallPlanError(f"Invalid {name} service state")
+		if state in {"activating", "deactivating"}:
+			reasons.append("DOCKER_SERVICE_STATE_UNSTABLE")
+	if inventory["docker_engine_health"] == "unhealthy":
+		reasons.append("EXISTING_DOCKER_ENGINE_UNHEALTHY")
 	_require_keys(workloads, {"available", "running_containers", "total_containers"}, "workloads")
 	if type(workloads["available"]) is not bool:
 		raise DockerInstallPlanError("Invalid workload availability")
