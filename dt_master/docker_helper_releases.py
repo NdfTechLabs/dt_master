@@ -520,18 +520,19 @@ def create_draft_release_from_source(release, source_root: str | Path, *, versio
 	"""Create or reuse a source-drift Draft from an immutable Published release."""
 	if _value(release, "status") != "Published":
 		raise DockerHelperReleaseError("Source-drift drafts can only be created from a Published release.")
-	digest_components = [
-		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
-		for component in (_value(release, "components") or [])
-	]
-	aggregate_digest = refresh_component_digests(digest_components, source_root)
-	draft_id = f"{_value(release, 'release_id')[:60]}-draft-{(version or _value(release, 'version')).replace('.', '-')}-{aggregate_digest[:12]}"
-	return _create_draft_release(
+	# Keep the release identity stable and readable. The predecessor's identity
+	# and component fingerprints are recorded separately in the provenance field.
+	draft_version = version or _value(release, "version")
+	draft_id = f"docker-helper-{draft_version}"
+	draft, created = _create_draft_release(
 		release,
 		source_root,
 		release_id=draft_id,
-		version=version or _value(release, "version"),
+		version=draft_version,
 	)
+	if not validate_predecessor_records(draft.predecessors):
+		raise DockerHelperReleaseError("Source-drift Draft is missing its Published predecessor provenance.")
+	return draft, created
 
 
 def canonical_docker_helper_release_template():
