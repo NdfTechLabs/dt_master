@@ -278,7 +278,7 @@ def create_draft_release_from_source(release, source_root: str | Path, *, versio
 		for component in (_value(release, "components") or [])
 	]
 	aggregate_digest = refresh_component_digests(digest_components, source_root)
-	draft_id = f"{_value(release, 'release_id')[:80]}-draft-{aggregate_digest[:12]}"
+	draft_id = f"{_value(release, 'release_id')[:60]}-draft-{(version or _value(release, 'version')).replace('.', '-')}-{aggregate_digest[:12]}"
 	return _create_draft_release(
 		release,
 		source_root,
