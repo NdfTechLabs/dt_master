@@ -178,6 +178,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 			"compatibility": compatibility,
 			"lifecycle": lifecycle,
+			"predecessors": [],
 			"components": components,
 		}
 		with tempfile.TemporaryDirectory() as directory:
@@ -251,6 +252,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 				"compatibility": compatibility,
 				"lifecycle": lifecycle,
+			"predecessors": [],
 				"components": components,
 			}
 			manifest_path = root / "scripts/bin/docker/docker_helper_release.json"
