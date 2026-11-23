@@ -206,7 +206,7 @@ class InfrastructureNode(Document):
 			)
 
 	def _prepare_docker_helper_release_manifest(self):
-		"""Capture this node's assigned release manifest without mutating shared app files."""
+		"""Generate the shared physical manifest when a Published release assignment changes."""
 		previous = self.get_doc_before_save()
 		previous_release = previous.docker_helper_release if previous else None
 		if previous_release == self.docker_helper_release:
@@ -222,12 +222,12 @@ class InfrastructureNode(Document):
 
 		from dt_master.docker_helper_releases import (
 			DockerHelperReleaseError,
-			serialize_release_manifest,
+			write_release_manifest,
 		)
 
 		release = frappe.get_doc("Docker Helper Release", self.docker_helper_release)
 		try:
-			manifest = serialize_release_manifest(
+			manifest = write_release_manifest(
 				release,
 				source_root=Path(__file__).resolve().parents[3],
 			)
