@@ -177,7 +177,7 @@ def aggregate_release_digest(components) -> str:
 
 
 _SOURCE_VERSION_SYMBOLS = {
-	"lifecycle_helper": {"version": "HELPER_VERSION"},
+	"lifecycle_helper": {"version": "HELPER_VERSION", "protocol": "REQUEST_SCHEMA_VERSION"},
 	"install_policy": {"version": "POLICY_VERSION"},
 	"host_inventory": {"version": "INSTALL_INVENTORY_SCHEMA_VERSION"},
 }
@@ -236,7 +236,7 @@ def inspect_release_source(components, source_root: str | Path) -> dict:
 			"sha256": component_source_digest(root, _value(component, "source_path")),
 		}
 		if component_id == "lifecycle_helper":
-			compatibility["helper_protocol"] = values.get("REQUEST_SCHEMA_VERSION")
+			compatibility["helper_protocol"] = values["REQUEST_SCHEMA_VERSION"]
 		elif component_id == "install_policy":
 			policy_values = _literal_module_constants(path, {"PLAN_SCHEMA_VERSION", "POLICY_VERSION"})
 			compatibility["docker_install_plan"] = policy_values["PLAN_SCHEMA_VERSION"]
@@ -250,7 +250,7 @@ def inspect_release_source(components, source_root: str | Path) -> dict:
 	return {"components": observed, "compatibility": compatibility}
 
 
-def compare_release_source_snapshot(components, source_root: str | Path) -> dict:
+def compare_release_source_snapshot(components, source_root: str | Path, compatibility=None) -> dict:
 	"""Compare Published component versions and hashes with actual source declarations."""
 	inspection = inspect_release_source(components, source_root)
 	differences = {}
@@ -260,7 +260,15 @@ def compare_release_source_snapshot(components, source_root: str | Path) -> dict
 		actual = inspection["components"][component_id]
 		if expected != actual:
 			differences[component_id] = {"expected": expected, "observed": actual}
-		compatibility = _value(component, "compatibility")
+	if compatibility is not None:
+		expected_compatibility = _parse_json_object(compatibility, "compatibility")
+		for name, actual in inspection["compatibility"].items():
+			declared = expected_compatibility.get(name)
+			if declared != {"minimum": actual, "maximum": actual}:
+				differences.setdefault("_compatibility", {})[name] = {
+					"expected": declared,
+					"observed": {"minimum": actual, "maximum": actual},
+				}
 	return differences
 
 
