@@ -27,13 +27,31 @@ done
 sudo -n true >/dev/null 2>&1 || fail "Non-interactive sudo is required for initial bootstrap."
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-for name in "$RELEASE_NAME" "$RELEASE_VALIDATOR" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
+: "${EXPECTED_RELEASE_MANIFEST_B64:?The active node-assigned Docker Helper Release manifest is required.}"
+for name in "$RELEASE_VALIDATOR" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
     source_file="${script_dir}/${name}"
     [[ -f "$source_file" && ! -L "$source_file" ]] || fail "Trusted helper artifact is missing or is a symlink: $name"
 done
 
-# Resolve all component versions and digests from the canonical release manifest.
-release_values="$(python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" )" \
+# Materialize the active node-scoped manifest. Never depend on a shared,
+# checked-in manifest because Infrastructure Nodes may run different releases.
+manifest_temp="$(mktemp "${TMPDIR:-/tmp}/dt-master-docker-release.XXXXXX")" \
+    || fail "Could not stage the active Docker Helper Release manifest."
+python3 - "$manifest_temp" <<'PY'
+import base64
+import json
+import os
+import sys
+
+payload = base64.b64decode(os.environ["EXPECTED_RELEASE_MANIFEST_B64"], validate=True)
+json.loads(payload)
+with open(sys.argv[1], "wb") as manifest_file:
+    manifest_file.write(payload + b"\\n")
+PY
+manifest_source="$manifest_temp"
+
+# Resolve all component versions and digests from the active node-assigned manifest.
+release_values="$(python3 "${script_dir}/${RELEASE_VALIDATOR}" "$manifest_source" "${script_dir}")" \
     || fail "Docker Helper Release validation failed."
 mapfile -t release_values <<< "$release_values"
 [[ "${#release_values[@]}" -eq 4 ]] || fail "Docker Helper Release metadata is incomplete."
@@ -87,7 +105,7 @@ check_existing() {
     local target="${DEST_DIR}/${name}" metadata digest candidate matched=false
     local accepted_output
     local -a accepted_hashes=()
-    accepted_output="$(python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" --accepted-hashes "$component_id")" \
+    accepted_output="$(python3 "${script_dir}/${RELEASE_VALIDATOR}" "$manifest_source" "${script_dir}" --accepted-hashes "$component_id")" \
         || fail "Could not load accepted hashes for $name"
     mapfile -t accepted_hashes <<< "$accepted_output"
     if sudo -n test -e "$target"; then
@@ -109,7 +127,7 @@ if sudo -n test -e "${DEST_DIR}/${RELEASE_NAME}"; then
         || fail "Existing release manifest is not a regular file."
     [[ "$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${RELEASE_NAME}")" == "0:0:755" ]] \
         || fail "Existing release manifest has unsafe ownership or mode."
-    python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" "${DEST_DIR}/${RELEASE_NAME}" \
+    python3 "${script_dir}/${RELEASE_VALIDATOR}" "$manifest_source" "${script_dir}" "${DEST_DIR}/${RELEASE_NAME}" \
         >/dev/null || fail "Existing helper release is not a declared upgrade predecessor."
 fi
 
@@ -123,11 +141,16 @@ cleanup() {
     if [[ -n "${stage_dir:-}" ]]; then
         sudo -n rm -rf -- "$stage_dir" >/dev/null 2>&1 || true
     fi
+    if [[ -n "${manifest_temp:-}" ]]; then
+        rm -f -- "$manifest_temp" >/dev/null 2>&1 || true
+    fi
 }
 trap cleanup EXIT
 
 for name in "$RELEASE_NAME" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
-    sudo -n install -o root -g root -m 0755 "${script_dir}/${name}" "${stage_dir}/${name}" \
+    source_file="$manifest_source"
+    [[ "$name" != "$RELEASE_NAME" ]] && source_file="${script_dir}/${name}"
+    sudo -n install -o root -g root -m 0755 "$source_file" "${stage_dir}/${name}" \
         || fail "Could not stage trusted helper artifact: $name"
 done
 
