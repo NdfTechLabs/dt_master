@@ -15,6 +15,7 @@ from dt_master.docker_helper_releases import (
 	component_source_digest,
 	inspect_release_source,
 	write_release_manifest,
+	validate_predecessor_records,
 )
 
 
@@ -34,6 +35,35 @@ def component(component_id, source_path, digest="a" * 64):
 
 
 class TestDockerHelperReleaseFingerprints(unittest.TestCase):
+	def test_predecessor_provenance_preserves_release_bound_component_fingerprints(self):
+		predecessor = {
+			"release_id": "docker-helper-0.3.3",
+			"version": "0.3.3",
+			"components": [
+				{"id": component_id, "version": version, "sha256": digest}
+				for component_id, version, digest in (
+					("lifecycle_helper", "0.3.3", "1" * 64),
+					("install_policy", "1.1.1", "2" * 64),
+					("host_inventory", "1.0.0", "3" * 64),
+				)
+			],
+		}
+		self.assertEqual(validate_predecessor_records([predecessor]), [predecessor])
+
+	def test_predecessor_provenance_rejects_incomplete_component_inventory(self):
+		predecessor = {
+			"release_id": "docker-helper-0.3.3",
+			"version": "0.3.3",
+			"components": [
+				{"id": "lifecycle_helper", "version": "0.3.3", "sha256": "1" * 64}
+			],
+		}
+		with self.assertRaisesRegex(DockerHelperReleaseError, "incomplete"):
+			validate_predecessor_records([predecessor])
+
+	def test_predecessor_provenance_accepts_empty_legacy_value(self):
+		self.assertEqual(validate_predecessor_records(None), [])
+
 	def test_source_drift_release_version_advances_patch_automatically(self):
 		self.assertEqual(_next_patch_release_version("0.3.2"), "0.3.3")
 		self.assertEqual(_next_patch_release_version("1.9.9"), "1.9.10")
