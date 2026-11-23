@@ -508,6 +508,11 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	for component in components:
 		draft.append("components", _component_child_values(component))
 	draft.insert(ignore_permissions=True)
+	draft.reload()
+	# Verify the immutable lineage survived Frappe persistence; do not allow a
+	# replacement Draft to degrade silently into a manifest with predecessors=[].
+	if predecessors and validate_predecessor_records(draft.predecessors) != predecessors:
+		raise DockerHelperReleaseError("Predecessor provenance was not persisted on the Draft release.")
 	return draft, True
 
 
@@ -624,9 +629,12 @@ def create_initial_draft_release(source_root: str | Path, *, version: str, relea
 
 def create_draft_release_from_template(template, source_root: str | Path, *, version: str, release_id: str):
 	"""Create a replacement Draft from a prior release's metadata, never its hashes."""
-	if _value(template, "status") not in {"Published", "Retired", None}:
+	if _value(template, "status") not in {"Published", "Retired"}:
 		raise DockerHelperReleaseError("Only a Published or Retired release can be used as a template.")
-	return _create_draft_release(template, source_root, release_id=release_id, version=version)
+	draft, created = _create_draft_release(template, source_root, release_id=release_id, version=version)
+	if not validate_predecessor_records(draft.predecessors):
+		raise DockerHelperReleaseError("Replacement Draft is missing its predecessor provenance.")
+	return draft, created
 
 
 def _parse_json_object(value, label):
