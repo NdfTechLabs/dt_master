@@ -94,7 +94,11 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 	def test_published_assignment_generates_shared_physical_manifest(self):
 		node = self._new_node()
 		node.docker_helper_release = "PUBLISHED-RELEASE"
-		release = type("Release", (), {"name": "PUBLISHED-RELEASE", "release_id": "PUBLISHED-RELEASE", "version": "0.3.3"})()
+		release = type(
+			"Release",
+			(),
+			{"name": "PUBLISHED-RELEASE", "release_id": "PUBLISHED-RELEASE", "version": "0.3.3"},
+		)()
 		with (
 			patch.object(frappe.db, "get_value", return_value="Published"),
 			patch.object(frappe, "get_doc", return_value=release),

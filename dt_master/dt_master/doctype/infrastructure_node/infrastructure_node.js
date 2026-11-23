@@ -17,7 +17,8 @@ frappe.ui.form.on("Infrastructure Node", {
 					} else if (
 						message &&
 						message.status === "Published" &&
-						frm.doc.docker_helper_release_assessment_status === "Scripts Deployment Required"
+						frm.doc.docker_helper_release_assessment_status ===
+							"Scripts Deployment Required"
 					) {
 						frm.dashboard.set_headline_alert(
 							__(

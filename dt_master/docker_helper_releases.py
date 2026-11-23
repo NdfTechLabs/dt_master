@@ -354,7 +354,7 @@ def serialize_release_manifest(release, *, source_root: str | Path | None = None
 	manifest = build_release_manifest(release, source_root=source_root)
 	return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
- 
+
 def write_release_manifest(release, *, source_root: str | Path) -> str:
 	"""Atomically write the verified Published release projection to the shared app tree.
 

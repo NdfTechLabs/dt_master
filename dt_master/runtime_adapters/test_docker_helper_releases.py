@@ -172,18 +172,20 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				source = root / source_path
 				source.parent.mkdir(parents=True, exist_ok=True)
 				source.write_text(component_id, encoding="utf-8")
-				components.append({
-					"component_id": component_id,
-					"version": version,
-					"source_path": source_path,
-					"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
-					"required": True,
-					"file_owner": "root",
-					"file_group": "root",
-					"file_mode": "0755",
-					"sha256": hashlib.sha256(component_id.encode()).hexdigest(),
-					"responsibility": f"{component_id} responsibility",
-				})
+				components.append(
+					{
+						"component_id": component_id,
+						"version": version,
+						"source_path": source_path,
+						"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
+						"required": True,
+						"file_owner": "root",
+						"file_group": "root",
+						"file_mode": "0755",
+						"sha256": hashlib.sha256(component_id.encode()).hexdigest(),
+						"responsibility": f"{component_id} responsibility",
+					}
+				)
 			release = {
 				"release_id": "dt-docker-helper-0.3.2",
 				"version": "0.3.2",
