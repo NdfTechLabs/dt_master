@@ -514,12 +514,16 @@ function maybe_assess_docker_helper_release(frm) {
 				frm.__docker_helper_release_assessment_started = false;
 				return;
 			}
-			watch_docker_operation(frm, operation.operation_id, "Docker Helper Release assessment");
+			watch_docker_operation(
+				frm, operation.operation_id, "Docker Helper Release assessment"
+			);
 		},
 		error() {
 			frm.__docker_helper_release_assessment_started = false;
 			frappe.show_alert({
-				message: __("Docker Helper Release assessment could not be queued. Check access and the server error log."),
+				message: __(
+					"Docker Helper Release assessment could not be queued. Check access and the server error log."
+				),
 				indicator: "orange",
 			});
 		},
