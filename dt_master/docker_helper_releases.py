@@ -495,7 +495,13 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	compatibility["upgrade_from"] = list(dict.fromkeys([*upgrade_from, *predecessor_versions]))
 	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	for component in components:
-		draft.append("components", component)
+		child_values = dict(component)
+		accepted = child_values.get("accepted_predecessor_sha256")
+		if isinstance(accepted, list):
+			# This is a mandatory Data field on the Frappe child DocType.
+			# Persist even an empty list as the non-empty JSON string "[]".
+			child_values["accepted_predecessor_sha256"] = json.dumps(accepted)
+		draft.append("components", child_values)
 	draft.insert(ignore_permissions=True)
 	return draft, True
 
