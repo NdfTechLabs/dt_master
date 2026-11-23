@@ -138,8 +138,12 @@ if sudo -n test -e "${DEST_DIR}/${RELEASE_NAME}"; then
         || fail "Existing release manifest is not a regular file."
     [[ "$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${RELEASE_NAME}")" == "0:0:755" ]] \
         || fail "Existing release manifest has unsafe ownership or mode."
-    python3 "${script_dir}/${RELEASE_VALIDATOR}" "$manifest_source" "${script_dir}" "${DEST_DIR}/${RELEASE_NAME}" \
-        >/dev/null || fail "Existing helper release is not a declared upgrade predecessor."
+    installed_manifest_sha="$(sudo -n sha256sum "${DEST_DIR}/${RELEASE_NAME}" | awk '{print $1}')"
+    expected_manifest_sha="$(sha256sum "$manifest_source" | awk '{print $1}')"
+    if [[ "$installed_manifest_sha" != "$expected_manifest_sha" ]]; then
+        python3 "${script_dir}/${RELEASE_VALIDATOR}" "$manifest_source" "${script_dir}" "${DEST_DIR}/${RELEASE_NAME}" \
+            >/dev/null || fail "Existing helper release is not a declared upgrade predecessor."
+    fi
 fi
 
 check_existing "$HELPER_NAME" lifecycle_helper "$HELPER_SHA256"
