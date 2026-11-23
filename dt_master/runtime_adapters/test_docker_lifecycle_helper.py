@@ -19,11 +19,26 @@ SPEC.loader.exec_module(helper)
 
 
 def _plan_identity(plan):
+    """Apply fixture defaults, then use the production semantic identity function."""
     policy_path = HELPER_PATH.with_name("docker_install_policy.py")
     policy_spec = importlib.util.spec_from_file_location("docker_install_policy_test_identity", policy_path)
     policy = importlib.util.module_from_spec(policy_spec)
     policy_spec.loader.exec_module(policy)
-    return policy.docker_engine_install_plan_identity(plan)
+
+    identity_plan = {
+        "schema_version": "1.2.0",
+        "state_fingerprint": "b" * 64,
+        "policy": {"id": "docker-engine-install", "version": "1.2.0"},
+        "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+        "package_set": list(helper.ENGINE_PACKAGES),
+        "repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
+        **plan,
+    }
+    identity_plan["packages"] = [
+        {"installed_version": None, **row}
+        for row in identity_plan["packages"]
+    ]
+    return policy.docker_engine_install_plan_identity(identity_plan)
 
 
 def request():
