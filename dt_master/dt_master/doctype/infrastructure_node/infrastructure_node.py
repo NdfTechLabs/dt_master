@@ -1,6 +1,7 @@
 # Copyright (c) 2025, Dhana Technologies and contributors
 # For license information, please see license.txt
 
+import hashlib
 import json
 
 import frappe
@@ -212,6 +213,9 @@ class InfrastructureNode(Document):
 			return
 		if not self.docker_helper_release:
 			self.docker_helper_release_manifest = None
+			self.docker_helper_release_assessment_status = "Not Assessed"
+			self.docker_helper_release_assessed_on = None
+			self.docker_helper_release_assessment_snapshot = None
 			return
 
 		from pathlib import Path
@@ -233,6 +237,23 @@ class InfrastructureNode(Document):
 				title=frappe._("Invalid Docker Helper Release"),
 			)
 		self.docker_helper_release_manifest = manifest
+		self.docker_helper_release_assessment_status = "Scripts Deployment Required"
+		self.docker_helper_release_assessed_on = None
+		self.docker_helper_release_assessment_snapshot = json.dumps(
+			{
+				"schema_version": "1.0.0",
+				"assessment_status": "Scripts Deployment Required",
+				"reason": "release_assignment_changed",
+				"assigned_release": {
+					"release_id": release.release_id,
+					"version": release.version,
+				},
+				"manifest_sha256": hashlib.sha256(manifest.encode("utf-8")).hexdigest(),
+				"operator_action": "Deploy the updated Docker helper scripts and manifest, then start release assessment.",
+			},
+			sort_keys=True,
+			separators=(",", ":"),
+		)
 
 	def _retire_previous_helper_release(self, previous):
 		"""Retire the previous release as a signal to every node still using it."""
