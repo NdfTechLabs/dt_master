@@ -75,7 +75,7 @@ def load_expected_manifest():
 			not isinstance(release_id, str)
 			or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", release_id)
 			or not isinstance(version, str)
-			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version)
+			or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version)
 			or (release_id, version) in seen_predecessors
 			or version not in compatibility["upgrade_from"]
 			or not isinstance(predecessor_components, list)
@@ -89,7 +89,7 @@ def load_expected_manifest():
 				or set(row) != {"id", "version", "sha256"}
 				or row["id"] not in COMPONENT_IDS
 				or not isinstance(row["version"], str)
-				or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", row["version"])
+				or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", row["version"])
 				or not isinstance(row["sha256"], str)
 				or not re.fullmatch(r"[a-f0-9]{64}", row["sha256"])
 				or row["id"] in component_rows
