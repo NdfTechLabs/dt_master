@@ -887,6 +887,29 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Failed")
 		self.assertIn("Component source file is missing: lifecycle_helper", result.diagnostics[0]["message"])
 
+	def test_release_assessment_warns_and_stops_for_retired_assignment(self):
+		release = SimpleNamespace(
+			release_id="dt-docker-helper-0.3.2",
+			version="0.3.2",
+			status="Retired",
+		)
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
+		):
+			self.node.docker_helper_release = "dt-docker-helper-0.3.2"
+			result = self.adapter._release_assess(request("release_assess"))
+		self.assertEqual(result.observed_state, "Release Retired")
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.diagnostics[0]["code"], "DOCKER_HELPER_RELEASE_RETIRED")
+		self.assertIn("assign the active Published release", result.diagnostics[0]["message"])
+		remote.assert_not_called()
+		self.assertEqual(
+			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"],
+			"Release Retired",
+		)
+
 	def test_release_assessment_marks_matching_installed_release_current(self):
 		manifest, manifest_json, release = self._release_manifest_fixture()
 		digest = hashlib.sha256(manifest_json.encode()).hexdigest()
