@@ -18,7 +18,7 @@ ROOT = Path(__file__).parents[1] / "scripts" / "bin" / "docker"
 class TestDockerPrivilegeReadiness(unittest.TestCase):
 	def test_readiness_is_bound_to_the_active_release_manifest(self):
 		probe = (ROOT / "check_docker_privilege_readiness.py").read_text()
-		adapter = (ROOT.parent.parent / "runtime_adapters" / "docker.py").read_text()
+		adapter = (Path(__file__).parents[1] / "runtime_adapters" / "docker.py").read_text()
 		self.assertIn('"predecessors"', probe)
 		self.assertIn("EXPECTED_RELEASE_MANIFEST_B64", probe)
 		self.assertIn("manifest != expected_manifest", probe)
@@ -120,6 +120,11 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 				"dt_master.runtime_adapters.docker.run_trusted_helper",
 				return_value=(0, json.dumps(self.helper_self_test()), ""),
 			) as trusted_helper,
+			patch.object(
+				adapter,
+				"_expected_release_manifest_env",
+				return_value={"EXPECTED_RELEASE_MANIFEST_B64": "eyJ0ZXN0IjoxfQ=="},
+			),
 		):
 			result = adapter._privilege_readiness(node)
 
@@ -149,6 +154,11 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 				return_value=(0, json.dumps(readiness), ""),
 			),
 			patch("dt_master.runtime_adapters.docker.run_trusted_helper") as trusted_helper,
+			patch.object(
+				adapter,
+				"_expected_release_manifest_env",
+				return_value={"EXPECTED_RELEASE_MANIFEST_B64": "eyJ0ZXN0IjoxfQ=="},
+			),
 		):
 			result = adapter._privilege_readiness(node)
 
