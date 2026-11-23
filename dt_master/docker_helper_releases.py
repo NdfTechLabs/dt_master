@@ -22,7 +22,7 @@ _FILE_MODE = re.compile(r"^[0-7]{4}$")
 _SOURCE_PREFIX = "scripts/bin/docker/"
 _INSTALL_PREFIX = "/usr/local/lib/dt-master/docker/"
 
-RELEASE_MANIFEST_SCHEMA_VERSION = "1.0.0"
+RELEASE_MANIFEST_SCHEMA_VERSION = "1.1.0"
 COMPATIBILITY_FIELDS = (
 	"helper_protocol",
 	"privilege_readiness_contract",
@@ -43,6 +43,7 @@ COMPONENT_FINGERPRINT_FIELDS = (
 	"file_group",
 	"file_mode",
 	"sha256",
+	"accepted_predecessor_sha256",
 	"responsibility",
 )
 
@@ -66,6 +67,19 @@ def validate_component_definition(component, *, require_digest=True):
 	group = _value(component, "file_group")
 	mode = _value(component, "file_mode")
 	digest = _value(component, "sha256")
+	predecessors = _value(component, "accepted_predecessor_sha256")
+	if isinstance(predecessors, str):
+		try:
+			predecessors = json.loads(predecessors or "[]")
+		except json.JSONDecodeError as exc:
+			raise DockerHelperReleaseError(f"Invalid accepted predecessor hashes: {component_id}") from exc
+	if (
+		not isinstance(predecessors, list)
+		or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in predecessors)
+		or len(predecessors) != len(set(predecessors))
+		or (isinstance(digest, str) and digest in predecessors)
+	):
+		raise DockerHelperReleaseError(f"Invalid accepted predecessor hashes: {component_id}")
 	responsibility = _value(component, "responsibility")
 
 	if not isinstance(component_id, str) or not _COMPONENT_ID.fullmatch(component_id):
@@ -139,6 +153,8 @@ def canonical_component_records(components):
 		record = {field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
 		validate_component_definition(record)
 		record["required"] = bool(record["required"])
+		if isinstance(record["accepted_predecessor_sha256"], str):
+			record["accepted_predecessor_sha256"] = json.loads(record["accepted_predecessor_sha256"] or "[]")
 		if record["component_id"] in seen:
 			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
 		seen.add(record["component_id"])
@@ -292,6 +308,7 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
+				"accepted_predecessor_sha256": json.dumps(["b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b", "1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe", "8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a", "afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9", "06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a"]),
 				"responsibility": "Root-owned privileged operation boundary; validates closed requests, verifies installed release dependencies and executes only explicitly supported helper operations.",
 			},
 			{
@@ -303,6 +320,7 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
+				"accepted_predecessor_sha256": json.dumps(["3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"]),
 				"responsibility": "Pure deterministic Docker Engine installation planner and canonical host-state fingerprint implementation.",
 			},
 			{
@@ -314,6 +332,7 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
+				"accepted_predecessor_sha256": json.dumps(["99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6", "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"]),
 				"responsibility": "Read-only host, package, repository, signing-key, service and workload inventory consumed by the planner and privileged helper.",
 			},
 		],
@@ -436,6 +455,7 @@ def build_release_manifest(release, *, source_root: str | Path | None = None) ->
 				"path": filename,
 				"version": row["version"],
 				"sha256": row["sha256"],
+				"accepted_predecessor_sha256": row["accepted_predecessor_sha256"],
 				"required": row["required"],
 				"responsibility": row["responsibility"],
 			}
