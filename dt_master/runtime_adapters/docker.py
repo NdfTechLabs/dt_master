@@ -1683,7 +1683,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		try:
 			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
-			if release.status != "Published":
+			if release.status == "Draft":
 				status = "Release Not Published"
 				snapshot = {
 					"schema_version": "1.0.0",
