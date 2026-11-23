@@ -138,7 +138,6 @@ frappe.ui.form.on("Infrastructure Node", {
 	},
 });
 
-
 function show_source_drift_recovery(frm) {
 	const snapshot = parse_json_field(frm.doc.docker_helper_release_assessment_snapshot) || {};
 	if (snapshot.source_drift !== true) return;
@@ -169,24 +168,26 @@ function show_source_drift_recovery(frm) {
 						freeze_message: __("Creating Draft from current Docker helper sources..."),
 						callback(response) {
 							const result = response.message || {};
-						if (!result.draft?.name) return;
-						frappe.show_alert({
-							message: result.created
-								? __("Draft {0} (v{1}) created.", [
-										result.draft.release_id,
-										result.draft.version,
-								  ])
-								: __("Existing Draft {0} is ready for review.", [
-										result.draft.release_id,
-								  ]),
-							indicator: "green",
-						});
-						frappe.set_route("Form", "Docker Helper Release", result.draft.name);
+							if (!result.draft?.name) return;
+							frappe.show_alert({
+								message: result.created
+									? __("Draft {0} (v{1}) created.", [
+											result.draft.release_id,
+											result.draft.version,
+									  ])
+									: __("Existing Draft {0} is ready for review.", [
+											result.draft.release_id,
+									  ]),
+								indicator: "green",
+							});
+							frappe.set_route("Form", "Docker Helper Release", result.draft.name);
 						},
 						error() {
 							frappe.msgprint({
 								title: __("Draft Creation Failed"),
-								message: __("The source-drift Draft could not be created. Check the server error log."),
+								message: __(
+									"The source-drift Draft could not be created. Check the server error log."
+								),
 								indicator: "red",
 							});
 						},

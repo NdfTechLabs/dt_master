@@ -157,7 +157,6 @@ def get_retired_node_release_recovery(node_name):
 	}
 
 
-
 def _next_patch_release_version(current_version):
 	"""Generate the next patch version for an automatically created source-drift Draft."""
 	match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?", current_version or "")

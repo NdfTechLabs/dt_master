@@ -1691,7 +1691,11 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					"operation_id": request.operation_id,
 					"correlation_id": request.correlation_id,
 					"observed_at": str(observed_at),
-					"assigned_release": {"release_id": release.release_id, "version": release.version, "status": release.status},
+					"assigned_release": {
+						"release_id": release.release_id,
+						"version": release.version,
+						"status": release.status,
+					},
 					"expected_manifest": None,
 					"expected_manifest_sha256": None,
 					"initial_inspection": None,
@@ -1704,7 +1708,13 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					outcome="partial",
 					observed_state=status,
 					capabilities=(),
-					diagnostics=({"code": "DOCKER_HELPER_RELEASE_NOT_PUBLISHED", "severity": "warning", "message": "Only a Published Docker Helper Release can be assessed or deployed. Review and publish this release, then assign it explicitly."},),
+					diagnostics=(
+						{
+							"code": "DOCKER_HELPER_RELEASE_NOT_PUBLISHED",
+							"severity": "warning",
+							"message": "Only a Published Docker Helper Release can be assessed or deployed. Review and publish this release, then assign it explicitly.",
+						},
+					),
 					data=snapshot,
 					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 				)

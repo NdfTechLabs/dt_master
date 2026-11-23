@@ -873,9 +873,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			status="Published",
 			components=[{"component_id": "lifecycle_helper", "sha256": "a" * 64}],
 		)
-		mismatches = {
-			"lifecycle_helper": {"expected": "a" * 64, "observed": "b" * 64}
-		}
+		mismatches = {"lifecycle_helper": {"expected": "a" * 64, "observed": "b" * 64}}
 		with (
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
@@ -889,9 +887,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				"dt_master.docker_helper_releases.compare_release_source_snapshot",
 				return_value=mismatches,
 			),
-			patch(
-				"dt_master.docker_helper_releases.create_draft_release_from_source"
-			) as create_draft,
+			patch("dt_master.docker_helper_releases.create_draft_release_from_source") as create_draft,
 		):
 			self.node.docker_helper_release = release.release_id
 			result = self.adapter._release_assess(request("release_assess"))
