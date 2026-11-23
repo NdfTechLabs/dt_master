@@ -1379,7 +1379,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.db.get_value", return_value="Retired"),
 			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
-			self.assertRaisesRegex(ValueError, "release is retired"),
+			self.assertRaisesRegex(ValueError, "Release is retired"),
 		):
 			self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
 		remote.assert_not_called()
