@@ -123,7 +123,7 @@ def inspect_components(directory, expected_rows, require_root):
 		rows.append(
 			{
 				"id": component_id,
-				"version": version,
+				"version": version if version is not None else "unknown",
 				"expected_sha256": expected["sha256"],
 				"observed_sha256": digest,
 				"owner": owner,
