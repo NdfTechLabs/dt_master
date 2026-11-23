@@ -1217,14 +1217,21 @@ def run_docker_observation(node_name, observation):
 
 @frappe.whitelist(methods=["POST"])
 def assess_docker_helper_release(node_name):
-	"""Queue the Docker Helper release assessment and automatic installation workflow."""
+	"""Queue a read-only Docker Helper Release assessment."""
 	frappe.only_for("System Manager")
 	node = frappe.get_doc("Infrastructure Node", node_name)
 	node.check_permission("read")
 	if not node.access_verified:
 		frappe.throw("Node SSH access must be verified before Docker Helper Release assessment.")
 	operation_type = "host.node.docker.helper_release.assess"
-	active_states = ["Pending Dispatch", "Queued", "Running", "Retry Waiting", "Cancellation Requested", "Recovery Required"]
+	active_states = [
+		"Pending Dispatch",
+		"Queued",
+		"Running",
+		"Retry Waiting",
+		"Cancellation Requested",
+		"Recovery Required",
+	]
 	active = frappe.get_all(
 		"Infrastructure Operation",
 		filters={
