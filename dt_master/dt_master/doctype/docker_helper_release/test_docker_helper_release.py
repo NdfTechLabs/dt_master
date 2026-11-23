@@ -26,7 +26,7 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		release.version = "0.3.2"
 		release.channel = "stable"
 		release.status = "Draft"
-		release.schema_version = "1.0.0"
+		release.schema_version = "1.1.0"
 		release.compatibility = json.dumps(
 			{
 				"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
