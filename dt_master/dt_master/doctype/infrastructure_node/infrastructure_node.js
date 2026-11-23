@@ -4,30 +4,18 @@ frappe.ui.form.on("Infrastructure Node", {
 			filters: { status: "Published" },
 		}));
 		if (frm.doc.docker_helper_release) {
-			frappe.db
-				.get_value("Docker Helper Release", frm.doc.docker_helper_release, "status")
-				.then(({ message }) => {
-					if (message && message.status === "Retired") {
-						frm.dashboard.set_headline_alert(
-							__(
-								"This node is assigned to a retired Docker Helper Release. Select the active Published release and save the node before starting reconciliation."
-							),
-							"orange"
-						);
-					} else if (
-						message &&
-						message.status === "Published" &&
-						frm.doc.docker_helper_release_assessment_status ===
-							"Scripts Deployment Required"
-					) {
-						frm.dashboard.set_headline_alert(
-							__(
-								"Deploy the updated Docker helper scripts and docker_helper_release.json to this node, then restart release assessment."
-							),
-							"orange"
-						);
-					}
-				});
+			load_retired_release_recovery(frm);
+			if (
+				frm.doc.docker_helper_release_assessment_status ===
+				"Scripts Deployment Required"
+			) {
+				frm.dashboard.set_headline_alert(
+					__(
+						"Deploy the updated Docker helper scripts and docker_helper_release.json to this node, then restart release assessment."
+					),
+					"orange"
+				);
+			}
 		}
 		if (frm.is_new()) return;
 
@@ -147,6 +135,106 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 	},
 });
+
+
+function load_retired_release_recovery(frm) {
+	frappe.call({
+		method: "dt_master.api.docker_helper_releases.get_retired_node_release_recovery",
+		args: { node_name: frm.doc.name },
+		callback(response) {
+			const recovery = response.message || {};
+			if (recovery.action !== "update_retired") return;
+
+			const retired = recovery.retired_release || {};
+			const published = recovery.published_releases || [];
+			if (published.length) {
+				const recommended = published[0];
+				frm.dashboard.set_headline_alert(
+					__(
+						"This node is still using retired release {0}. Published release {1} is available. Update the node to restore supported helper management.",
+						[retired.release_id || retired.name, recommended.release_id || recommended.name]
+					),
+					"orange"
+				);
+				if (frappe.user_roles.includes("System Manager")) {
+					frm.add_custom_button(__("Update Docker Helper Release"), () => {
+						show_retired_release_update_dialog(frm, recovery);
+					}, __("Docker Helper Release"));
+				}
+			} else {
+				frm.dashboard.set_headline_alert(
+					__(
+						"This node is still using retired release {0}, and no Published replacement exists. Publish a replacement release before updating this node.",
+						[retired.release_id || retired.name]
+					),
+					"red"
+				);
+			}
+		},
+	});
+}
+
+function show_retired_release_update_dialog(frm, recovery) {
+	const releases = recovery.published_releases || [];
+	if (!releases.length) {
+		frappe.msgprint(__("No Published Docker Helper Release is currently available."));
+		return;
+	}
+	const options = releases.map((release) => ({
+		label: `${release.release_id || release.name} (v${release.version})`,
+		value: release.name,
+	}));
+	const dialog = new frappe.ui.Dialog({
+		title: __("Update Docker Helper Release"),
+		fields: [
+			{
+				fieldname: "release",
+				fieldtype: "Select",
+				label: __("Published replacement release"),
+				options: options.map((item) => item.label).join("\\n"),
+				default: options[0].label,
+				reqd: 1,
+			},
+			{
+				fieldname: "notice",
+				fieldtype: "HTML",
+				options:
+					'<div class="text-muted small">' +
+					__("The node will be reassigned, saved, and its Docker helper release assessment will be restarted. The update is not complete until remote verification succeeds.") +
+					"</div>",
+			},
+		],
+		primary_action_label: __("Assign and Start Update"),
+		primary_action() {
+			const selected = options.find(
+				(item) => item.label === dialog.get_value("release")
+			);
+			if (!selected) return;
+			dialog.hide();
+			frappe.confirm(
+				__("Assign {0} to this node and start the helper release installation?", [selected.label]),
+				async () => {
+					try {
+						await frm.set_value("docker_helper_release", selected.value);
+						await frm.save();
+						frappe.show_alert({
+							message: __("Replacement release assigned. Starting remote release assessment..."),
+							indicator: "blue",
+						});
+						run_docker_helper_release_assessment(frm);
+					} catch (error) {
+						frappe.msgprint({
+							title: __("Release Update Not Started"),
+							message: __("The replacement release could not be saved. No remote installation was started."),
+							indicator: "red",
+						});
+					}
+				}
+			);
+		},
+	});
+	dialog.show();
+}
 
 function start_unassigned_node_release_setup(frm) {
 	frappe.call({
