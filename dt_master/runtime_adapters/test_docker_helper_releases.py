@@ -74,7 +74,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			source = Path(directory) / "scripts/bin/docker/helper.py"
 			source.parent.mkdir(parents=True)
 			source.write_text(
-				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.0.0"\\n',
+				'HELPER_VERSION = "2.0.0"\nREQUEST_SCHEMA_VERSION = "1.0.0"\n',
 				encoding="utf-8",
 			)
 			row = component("lifecycle_helper", "scripts/bin/docker/helper.py")
