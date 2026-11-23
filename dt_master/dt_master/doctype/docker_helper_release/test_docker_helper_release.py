@@ -208,7 +208,7 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 			)
 		self.assertEqual(
 			next(row.version for row in draft.components if row.component_id == "lifecycle_helper"),
-			"0.3.3",
+			source_version,
 		)
 
 	def test_retired_release_can_be_used_as_template_without_reactivation(self):
