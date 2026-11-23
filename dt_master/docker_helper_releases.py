@@ -430,7 +430,10 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	draft.lifecycle = _value(template, "lifecycle")
 	predecessor = _release_predecessor_snapshot(template)
-	draft.predecessors = json.dumps([predecessor] if predecessor else [], sort_keys=True)
+	predecessors = [predecessor] if predecessor else []
+	draft.predecessors = json.dumps(predecessors, sort_keys=True)
+	compatibility["upgrade_from"] = [item["version"] for item in predecessors]
+	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	for component in components:
 		draft.append("components", component)
 	draft.insert(ignore_permissions=True)
