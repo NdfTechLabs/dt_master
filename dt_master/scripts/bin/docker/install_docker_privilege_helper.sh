@@ -29,6 +29,15 @@ sudo -n true >/dev/null 2>&1 || fail "Non-interactive sudo is required for initi
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 manifest_temp=""
 stage_dir=""
+cleanup() {
+    if [[ -n "${stage_dir:-}" ]]; then
+        sudo -n rm -rf -- "$stage_dir" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${manifest_temp:-}" ]]; then
+        rm -f -- "$manifest_temp" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
 : "${EXPECTED_RELEASE_MANIFEST_B64:?The active node-assigned Docker Helper Release manifest is required.}"
 for name in "$RELEASE_VALIDATOR" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
     source_file="${script_dir}/${name}"
@@ -139,16 +148,6 @@ check_existing "$INVENTORY_NAME" host_inventory "$INVENTORY_SHA256"
 
 stage_dir="$(sudo -n mktemp -d "${DEST_DIR}/.helper.XXXXXX")" \
     || fail "Could not stage helper artifacts in destination directory."
-cleanup() {
-    if [[ -n "${stage_dir:-}" ]]; then
-        sudo -n rm -rf -- "$stage_dir" >/dev/null 2>&1 || true
-    fi
-    if [[ -n "${manifest_temp:-}" ]]; then
-        rm -f -- "$manifest_temp" >/dev/null 2>&1 || true
-    fi
-}
-trap cleanup EXIT
-
 for name in "$RELEASE_NAME" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
     source_file="$manifest_source"
     if [[ "$name" != "$RELEASE_NAME" ]]; then source_file="${script_dir}/${name}"; fi
