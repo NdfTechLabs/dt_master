@@ -1223,8 +1223,24 @@ def assess_docker_helper_release(node_name):
 	node.check_permission("read")
 	if not node.access_verified:
 		frappe.throw("Node SSH access must be verified before Docker Helper Release assessment.")
+	operation_type = "host.node.docker.helper_release.assess"
+	active_states = ["Pending Dispatch", "Queued", "Running", "Retry Waiting", "Cancellation Requested", "Recovery Required"]
+	active = frappe.get_all(
+		"Infrastructure Operation",
+		filters={
+			"operation_type": operation_type,
+			"target_doctype": "Infrastructure Node",
+			"target_name": node.name,
+			"execution_state": ["in", active_states],
+		},
+		fields=["operation_id", "correlation_id", "business_state", "execution_state"],
+		order_by="creation desc",
+		limit=1,
+	)
+	if active:
+		return {**active[0], "reused": True}
 	return start_operation(
-		operation_type="host.node.docker.helper_release.assess",
+		operation_type=operation_type,
 		target_doctype="Infrastructure Node",
 		target_name=node.name,
 		payload={},
