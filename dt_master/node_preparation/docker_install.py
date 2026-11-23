@@ -62,9 +62,18 @@ def docker_engine_install_state_fingerprint(inventory: dict) -> str:
 		raise DockerInstallPlanError("Docker Engine inventory must be an object")
 	_safe(inventory)
 	required = {
-		"schema_version", "observed_at", "host_os", "package_manager", "packages",
-		"repository", "apt_metadata", "package_manager_state", "storage",
-		"services", "workloads", "docker_engine_health",
+		"schema_version",
+		"observed_at",
+		"host_os",
+		"package_manager",
+		"packages",
+		"repository",
+		"apt_metadata",
+		"package_manager_state",
+		"storage",
+		"services",
+		"workloads",
+		"docker_engine_health",
 	}
 	_require_keys(inventory, required, "inventory")
 	state = {
@@ -87,9 +96,12 @@ def docker_engine_install_plan_identity(plan: dict) -> dict:
 		"target": plan["target"],
 		"package_set": plan["package_set"],
 		"packages": [
-			{"name": row["name"], "action": row["action"],
-			 "installed_version": row["installed_version"],
-			 "candidate_version": row["candidate_version"]}
+			{
+				"name": row["name"],
+				"action": row["action"],
+				"installed_version": row["installed_version"],
+				"candidate_version": row["candidate_version"],
+			}
 			for row in plan["packages"]
 		],
 		"repository": plan["repository"],
@@ -98,9 +110,7 @@ def docker_engine_install_plan_identity(plan: dict) -> dict:
 
 def docker_engine_install_plan_digest(plan: dict) -> str:
 	"""Hash deterministic transaction identity, never live observations."""
-	return hashlib.sha256(
-		_canonical(docker_engine_install_plan_identity(plan)).encode("utf-8")
-	).hexdigest()
+	return hashlib.sha256(_canonical(docker_engine_install_plan_identity(plan)).encode("utf-8")).hexdigest()
 
 
 def _safe(value: Any, path: str = "inventory") -> None:

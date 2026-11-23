@@ -7,11 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 HELPER_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "bin"
-    / "docker"
-    / "docker_lifecycle_helper.py"
+	Path(__file__).resolve().parents[1] / "scripts" / "bin" / "docker" / "docker_lifecycle_helper.py"
 )
 SPEC = importlib.util.spec_from_file_location("docker_lifecycle_helper_under_test", HELPER_PATH)
 helper = importlib.util.module_from_spec(SPEC)
@@ -19,645 +15,668 @@ SPEC.loader.exec_module(helper)
 
 
 def _plan_identity(plan):
-    """Apply fixture defaults, then use the production semantic identity function."""
-    policy_path = HELPER_PATH.with_name("docker_install_policy.py")
-    policy_spec = importlib.util.spec_from_file_location("docker_install_policy_test_identity", policy_path)
-    policy = importlib.util.module_from_spec(policy_spec)
-    policy_spec.loader.exec_module(policy)
+	"""Apply fixture defaults, then use the production semantic identity function."""
+	policy_path = HELPER_PATH.with_name("docker_install_policy.py")
+	policy_spec = importlib.util.spec_from_file_location("docker_install_policy_test_identity", policy_path)
+	policy = importlib.util.module_from_spec(policy_spec)
+	policy_spec.loader.exec_module(policy)
 
-    identity_plan = {
-        "schema_version": "1.2.0",
-        "state_fingerprint": "b" * 64,
-        "policy": {"id": "docker-engine-install", "version": "1.2.0"},
-        "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-        "package_set": list(helper.ENGINE_PACKAGES),
-        "repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
-        **plan,
-    }
-    identity_plan["packages"] = [
-        {"installed_version": None, **row}
-        for row in identity_plan["packages"]
-    ]
-    return policy.docker_engine_install_plan_identity(identity_plan)
+	identity_plan = {
+		"schema_version": "1.2.0",
+		"state_fingerprint": "b" * 64,
+		"policy": {"id": "docker-engine-install", "version": "1.2.0"},
+		"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+		"package_set": list(helper.ENGINE_PACKAGES),
+		"repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
+		**plan,
+	}
+	identity_plan["packages"] = [{"installed_version": None, **row} for row in identity_plan["packages"]]
+	return policy.docker_engine_install_plan_identity(identity_plan)
 
 
 def request():
-    return {
-        "schema_version": "1.0.0",
-        "operation": "install_engine",
-        "operation_id": "OP-0001",
-        "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-        "plan": {
-            "schema_version": "1.2.0",
-            "policy_version": "1.2.0",
-            "plan_digest": "a" * 64,
-            "packages": [
-                {"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"}
-                for name in helper.ENGINE_PACKAGES
-            ],
-        },
-        "expected_state_fingerprint": "b" * 64,
-        "operator_impact_approval": False,
-    }
+	return {
+		"schema_version": "1.0.0",
+		"operation": "install_engine",
+		"operation_id": "OP-0001",
+		"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+		"plan": {
+			"schema_version": "1.2.0",
+			"policy_version": "1.2.0",
+			"plan_digest": "a" * 64,
+			"packages": [
+				{"name": name, "version": "5:29.0.0-1~ubuntu.24.04~noble"} for name in helper.ENGINE_PACKAGES
+			],
+		},
+		"expected_state_fingerprint": "b" * 64,
+		"operator_impact_approval": False,
+	}
 
 
 def inventory():
-    return {
-        "packages": [
-            {"name": name, "installed_version": None}
-            for name in helper.ENGINE_PACKAGES
-        ]
-    }
+	return {"packages": [{"name": name, "installed_version": None} for name in helper.ENGINE_PACKAGES]}
 
 
 class TestDockerLifecycleHelper(unittest.TestCase):
-    def test_plan_decision_comparison_ignores_live_observations(self):
-        policy_path = HELPER_PATH.with_name("docker_install_policy.py")
-        policy_spec = importlib.util.spec_from_file_location("docker_install_policy_identity_test", policy_path)
-        policy = importlib.util.module_from_spec(policy_spec)
-        policy_spec.loader.exec_module(policy)
-        first = {
-            "schema_version": "1.2.0",
-            "state_fingerprint": "a" * 64,
-            "policy": {"id": "docker-engine-install", "version": "1.2.0"},
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "package_set": list(helper.ENGINE_PACKAGES),
-            "packages": [
-                {"name": name, "action": "install", "installed_version": None,
-                 "candidate_version": "5:29.0.0-1~ubuntu.24.04~noble"}
-                for name in helper.ENGINE_PACKAGES
-            ],
-            "repository": {"source_id": "download.docker.com", "keyring_path": "/etc/apt/keyrings/docker.asc"},
-            "status": "ready",
-            "apt_metadata": {"status": "Fresh", "age_seconds": 10},
-            "storage": {"root_available_bytes": 10**10},
-            "services": {"docker": "inactive", "containerd": "inactive"},
-            "workload_impact": {"operator_impact_approval_required": False},
-        }
-        second = {
-            **first,
-            "status": "blocked",
-            "apt_metadata": {"status": "Aging", "age_seconds": 20},
-            "storage": {"root_available_bytes": 1},
-            "services": {"docker": "active", "containerd": "failed"},
-            "workload_impact": {"operator_impact_approval_required": True},
-        }
-        self.assertTrue(helper._same_plan_decisions(first, second, policy))
-        second["packages"] = [dict(row) for row in first["packages"]]
-        second["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
-        self.assertFalse(helper._same_plan_decisions(first, second, policy))
+	def test_plan_decision_comparison_ignores_live_observations(self):
+		policy_path = HELPER_PATH.with_name("docker_install_policy.py")
+		policy_spec = importlib.util.spec_from_file_location(
+			"docker_install_policy_identity_test", policy_path
+		)
+		policy = importlib.util.module_from_spec(policy_spec)
+		policy_spec.loader.exec_module(policy)
+		first = {
+			"schema_version": "1.2.0",
+			"state_fingerprint": "a" * 64,
+			"policy": {"id": "docker-engine-install", "version": "1.2.0"},
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"package_set": list(helper.ENGINE_PACKAGES),
+			"packages": [
+				{
+					"name": name,
+					"action": "install",
+					"installed_version": None,
+					"candidate_version": "5:29.0.0-1~ubuntu.24.04~noble",
+				}
+				for name in helper.ENGINE_PACKAGES
+			],
+			"repository": {
+				"source_id": "download.docker.com",
+				"keyring_path": "/etc/apt/keyrings/docker.asc",
+			},
+			"status": "ready",
+			"apt_metadata": {"status": "Fresh", "age_seconds": 10},
+			"storage": {"root_available_bytes": 10**10},
+			"services": {"docker": "inactive", "containerd": "inactive"},
+			"workload_impact": {"operator_impact_approval_required": False},
+		}
+		second = {
+			**first,
+			"status": "blocked",
+			"apt_metadata": {"status": "Aging", "age_seconds": 20},
+			"storage": {"root_available_bytes": 1},
+			"services": {"docker": "active", "containerd": "failed"},
+			"workload_impact": {"operator_impact_approval_required": True},
+		}
+		self.assertTrue(helper._same_plan_decisions(first, second, policy))
+		second["packages"] = [dict(row) for row in first["packages"]]
+		second["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
+		self.assertFalse(helper._same_plan_decisions(first, second, policy))
 
-    def test_root_side_policy_artifacts_match_authoritative_sources(self):
-        root = Path(__file__).resolve().parents[1]
-        self.assertEqual(
-            (root / "node_preparation" / "docker_install.py").read_bytes(),
-            (root / "scripts" / "bin" / "docker" / "docker_install_policy.py").read_bytes(),
-        )
-        self.assertEqual(
-            (root / "scripts" / "bin" / "docker" / "inspect_docker_host.py").read_bytes(),
-            (root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
-        )
+	def test_root_side_policy_artifacts_match_authoritative_sources(self):
+		root = Path(__file__).resolve().parents[1]
+		self.assertEqual(
+			(root / "node_preparation" / "docker_install.py").read_bytes(),
+			(root / "scripts" / "bin" / "docker" / "docker_install_policy.py").read_bytes(),
+		)
+		self.assertEqual(
+			(root / "scripts" / "bin" / "docker" / "inspect_docker_host.py").read_bytes(),
+			(root / "scripts" / "bin" / "docker" / "docker_install_inventory.py").read_bytes(),
+		)
 
-    def test_signing_key_inventory_rejects_expired_primary_and_revoked_subkey(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_key_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        primary = "A" * 40
-        subkey = "B" * 40
-        valid = "\n".join(
-            [
-                "pub:-:4096:1:KEYID:0:0:::::",
-                f"fpr:::::::::{primary}:",
-                "uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
-                "sub:-:4096:1:SUBKEY:0:0:::::",
-                f"fpr:::::::::{subkey}:",
-            ]
-        )
-        fingerprints, keys = inventory_module._parse_gpg_key_inventory(valid)
-        self.assertEqual(fingerprints, [primary, subkey])
-        self.assertEqual(keys[0]["fingerprint"], primary)
-        self.assertEqual(keys[0]["subkey_fingerprints"], [subkey])
+	def test_signing_key_inventory_rejects_expired_primary_and_revoked_subkey(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_key_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		primary = "A" * 40
+		subkey = "B" * 40
+		valid = "\n".join(
+			[
+				"pub:-:4096:1:KEYID:0:0:::::",
+				f"fpr:::::::::{primary}:",
+				"uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
+				"sub:-:4096:1:SUBKEY:0:0:::::",
+				f"fpr:::::::::{subkey}:",
+			]
+		)
+		fingerprints, keys = inventory_module._parse_gpg_key_inventory(valid)
+		self.assertEqual(fingerprints, [primary, subkey])
+		self.assertEqual(keys[0]["fingerprint"], primary)
+		self.assertEqual(keys[0]["subkey_fingerprints"], [subkey])
 
-        expired = f"pub:e:4096:1:KEYID:0:0:::::\nfpr:::::::::{primary}:"
-        _fingerprints, expired_keys = inventory_module._parse_gpg_key_inventory(expired)
-        self.assertEqual(expired_keys, [])
+		expired = f"pub:e:4096:1:KEYID:0:0:::::\nfpr:::::::::{primary}:"
+		_fingerprints, expired_keys = inventory_module._parse_gpg_key_inventory(expired)
+		self.assertEqual(expired_keys, [])
 
-        revoked_subkey = "\n".join(
-            [
-                "pub:-:4096:1:KEYID:0:0:::::",
-                f"fpr:::::::::{primary}:",
-                "uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
-                "sub:r:4096:1:SUBKEY:0:0:::::",
-                f"fpr:::::::::{subkey}:",
-            ]
-        )
-        _fingerprints, revoked_keys = inventory_module._parse_gpg_key_inventory(revoked_subkey)
-        self.assertIsNone(revoked_keys[0]["fingerprint"])
+		revoked_subkey = "\n".join(
+			[
+				"pub:-:4096:1:KEYID:0:0:::::",
+				f"fpr:::::::::{primary}:",
+				"uid:::::::::Docker Release (CE deb) <docker@docker.com>:",
+				"sub:r:4096:1:SUBKEY:0:0:::::",
+				f"fpr:::::::::{subkey}:",
+			]
+		)
+		_fingerprints, revoked_keys = inventory_module._parse_gpg_key_inventory(revoked_subkey)
+		self.assertIsNone(revoked_keys[0]["fingerprint"])
 
-    def test_root_inventory_runs_workload_queries_as_ssh_identity(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_under_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        with (
-            patch.dict(helper.os.environ, {"DT_DOCKER_WORKLOAD_USER": "deploy"}),
-            patch.object(inventory_module.shutil, "which", return_value="/usr/sbin/runuser"),
-            patch.object(inventory_module, "_run", return_value=(0, "")) as run,
-        ):
-            inventory_module._docker_query(["docker", "ps", "--quiet"])
-        run.assert_called_once_with(
-            ["runuser", "-u", "deploy", "--", "docker", "ps", "--quiet"],
-            timeout=8,
-        )
+	def test_root_inventory_runs_workload_queries_as_ssh_identity(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_under_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		with (
+			patch.dict(helper.os.environ, {"DT_DOCKER_WORKLOAD_USER": "deploy"}),
+			patch.object(inventory_module.shutil, "which", return_value="/usr/sbin/runuser"),
+			patch.object(inventory_module, "_run", return_value=(0, "")) as run,
+		):
+			inventory_module._docker_query(["docker", "ps", "--quiet"])
+		run.assert_called_once_with(
+			["runuser", "-u", "deploy", "--", "docker", "ps", "--quiet"],
+			timeout=8,
+		)
 
-    def test_inventory_fails_closed_when_package_lock_inspection_errors(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_lock_error_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        with (
-            patch.object(inventory_module.shutil, "which", return_value="/usr/bin/fuser"),
-            patch.object(inventory_module, "_run", side_effect=[(0, ""), (2, "permission denied")]),
-        ):
-            state = inventory_module._package_manager_state()
-        self.assertTrue(state["locked"])
+	def test_inventory_fails_closed_when_package_lock_inspection_errors(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_lock_error_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		with (
+			patch.object(inventory_module.shutil, "which", return_value="/usr/bin/fuser"),
+			patch.object(inventory_module, "_run", side_effect=[(0, ""), (2, "permission denied")]),
+		):
+			state = inventory_module._package_manager_state()
+		self.assertTrue(state["locked"])
 
-    def test_clean_host_without_docker_cli_has_zero_docker_workloads(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_clean_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        with patch.object(inventory_module.shutil, "which", return_value=None):
-            workloads = inventory_module._workload_summary()
-        self.assertEqual(
-            workloads,
-            {"available": True, "running_containers": 0, "total_containers": 0},
-        )
+	def test_clean_host_without_docker_cli_has_zero_docker_workloads(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_clean_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		with patch.object(inventory_module.shutil, "which", return_value=None):
+			workloads = inventory_module._workload_summary()
+		self.assertEqual(
+			workloads,
+			{"available": True, "running_containers": 0, "total_containers": 0},
+		)
 
-    def test_inventory_does_not_assume_zero_workloads_when_service_is_active(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_service_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        with (
-            patch.object(inventory_module, "_package_manager", return_value="dpkg"),
-            patch.object(inventory_module, "_os_release", return_value={}),
-            patch.object(inventory_module, "_service_state", return_value={"docker": "active", "containerd": "inactive"}),
-            patch.object(inventory_module, "_workload_summary", return_value={"available": True, "running_containers": 0, "total_containers": 0}),
-            patch.object(inventory_module, "_installed_packages", return_value=[]),
-            patch.object(inventory_module, "_install_inventory", return_value={}),
-            patch.object(inventory_module.shutil, "which", return_value=None),
-        ):
-            snapshot = inventory_module.collect()
-        self.assertEqual(
-            snapshot["workloads"],
-            {"available": False, "running_containers": None, "total_containers": None},
-        )
+	def test_inventory_does_not_assume_zero_workloads_when_service_is_active(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_service_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		with (
+			patch.object(inventory_module, "_package_manager", return_value="dpkg"),
+			patch.object(inventory_module, "_os_release", return_value={}),
+			patch.object(
+				inventory_module,
+				"_service_state",
+				return_value={"docker": "active", "containerd": "inactive"},
+			),
+			patch.object(
+				inventory_module,
+				"_workload_summary",
+				return_value={"available": True, "running_containers": 0, "total_containers": 0},
+			),
+			patch.object(inventory_module, "_installed_packages", return_value=[]),
+			patch.object(inventory_module, "_install_inventory", return_value={}),
+			patch.object(inventory_module.shutil, "which", return_value=None),
+		):
+			snapshot = inventory_module.collect()
+		self.assertEqual(
+			snapshot["workloads"],
+			{"available": False, "running_containers": None, "total_containers": None},
+		)
 
-    def test_inventory_fails_closed_when_package_lock_inspector_is_missing(self):
-        inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
-        inventory_spec = importlib.util.spec_from_file_location("docker_install_inventory_lock_test", inventory_path)
-        inventory_module = importlib.util.module_from_spec(inventory_spec)
-        inventory_spec.loader.exec_module(inventory_module)
-        with (
-            patch.object(inventory_module.shutil, "which", return_value=None),
-            patch.object(inventory_module, "_run", return_value=(0, "")),
-        ):
-            state = inventory_module._package_manager_state()
-        self.assertTrue(state["locked"])
+	def test_inventory_fails_closed_when_package_lock_inspector_is_missing(self):
+		inventory_path = HELPER_PATH.with_name("docker_install_inventory.py")
+		inventory_spec = importlib.util.spec_from_file_location(
+			"docker_install_inventory_lock_test", inventory_path
+		)
+		inventory_module = importlib.util.module_from_spec(inventory_spec)
+		inventory_spec.loader.exec_module(inventory_module)
+		with (
+			patch.object(inventory_module.shutil, "which", return_value=None),
+			patch.object(inventory_module, "_run", return_value=(0, "")),
+		):
+			state = inventory_module._package_manager_state()
+		self.assertTrue(state["locked"])
 
-    def test_workload_observation_uses_validated_sudo_identity(self):
-        account = SimpleNamespace(pw_uid=1001)
-        with (
-            patch.object(helper.pwd, "getpwnam", return_value=account),
-            patch.dict(helper.os.environ, {}, clear=True),
-        ):
-            helper._configure_workload_identity("deploy")
-            self.assertEqual(helper.os.environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
+	def test_workload_observation_uses_validated_sudo_identity(self):
+		account = SimpleNamespace(pw_uid=1001)
+		with (
+			patch.object(helper.pwd, "getpwnam", return_value=account),
+			patch.dict(helper.os.environ, {}, clear=True),
+		):
+			helper._configure_workload_identity("deploy")
+			self.assertEqual(helper.os.environ["DT_DOCKER_WORKLOAD_USER"], "deploy")
 
-    def test_workload_observation_rejects_root_or_unknown_identity(self):
-        with patch.object(helper.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=0)):
-            with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_INVALID"):
-                helper._configure_workload_identity("root")
-        with patch.object(helper.pwd, "getpwnam", side_effect=KeyError):
-            with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_UNKNOWN"):
-                helper._configure_workload_identity("missing")
+	def test_workload_observation_rejects_root_or_unknown_identity(self):
+		with patch.object(helper.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=0)):
+			with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_INVALID"):
+				helper._configure_workload_identity("root")
+		with patch.object(helper.pwd, "getpwnam", side_effect=KeyError):
+			with self.assertRaisesRegex(helper.HelperError, "SUDO_IDENTITY_UNKNOWN"):
+				helper._configure_workload_identity("missing")
 
-    def test_self_test_request_is_preserved(self):
-        self.assertEqual(
-            helper._request(b'{"schema_version":"1.0.0","operation":"self_test"}')["operation"],
-            "self_test",
-        )
+	def test_self_test_request_is_preserved(self):
+		self.assertEqual(
+			helper._request(b'{"schema_version":"1.0.0","operation":"self_test"}')["operation"],
+			"self_test",
+		)
 
-    def test_prepare_repository_request_is_closed_and_accepted(self):
-        self.assertEqual(
-            helper._request(b'{"schema_version":"1.0.0","operation":"prepare_repository"}')["operation"],
-            "prepare_repository",
-        )
-        with self.assertRaises(helper.HelperError):
-            helper._request(b'{"schema_version":"1.0.0","operation":"run_shell"}')
+	def test_prepare_repository_request_is_closed_and_accepted(self):
+		self.assertEqual(
+			helper._request(b'{"schema_version":"1.0.0","operation":"prepare_repository"}')["operation"],
+			"prepare_repository",
+		)
+		with self.assertRaises(helper.HelperError):
+			helper._request(b'{"schema_version":"1.0.0","operation":"run_shell"}')
 
-    def test_install_request_accepts_frappe_node_names_with_spaces(self):
-        import json
-        value = request()
-        value["target"]["name"] = "NDF Tech Labs Contabo"
-        self.assertEqual(helper._request(json.dumps(value).encode())["target"]["name"], "NDF Tech Labs Contabo")
+	def test_install_request_accepts_frappe_node_names_with_spaces(self):
+		import json
 
-    def test_install_request_rejects_invalid_node_names(self):
-        import json
-        for name in ("", "NODE\n0001", "N" * 141):
-            value = request()
-            value["target"]["name"] = name
-            with self.subTest(name=repr(name)), self.assertRaises(helper.HelperError):
-                helper._request(json.dumps(value).encode())
+		value = request()
+		value["target"]["name"] = "NDF Tech Labs Contabo"
+		self.assertEqual(
+			helper._request(json.dumps(value).encode())["target"]["name"], "NDF Tech Labs Contabo"
+		)
 
-    def test_install_request_rejects_unknown_fields_and_duplicate_keys(self):
-        value = request()
-        value["command"] = "apt install docker"
-        import json
-        with self.assertRaises(helper.HelperError):
-            helper._request(json.dumps(value).encode())
-        with self.assertRaises(helper.HelperError):
-            helper._request(
-                b'{"schema_version":"1.0.0","operation":"self_test","operation":"install_engine"}'
-            )
+	def test_install_request_rejects_invalid_node_names(self):
+		import json
 
-    def test_install_request_rejects_bad_package_order_and_boolean_coercion(self):
-        import json
-        value = request()
-        value["plan"]["packages"].reverse()
-        with self.assertRaises(helper.HelperError):
-            helper._request(json.dumps(value).encode())
-        value = request()
-        value["operator_impact_approval"] = 1
-        with self.assertRaises(helper.HelperError):
-            helper._request(json.dumps(value).encode())
+		for name in ("", "NODE\n0001", "N" * 141):
+			value = request()
+			value["target"]["name"] = name
+			with self.subTest(name=repr(name)), self.assertRaises(helper.HelperError):
+				helper._request(json.dumps(value).encode())
 
-    def test_request_size_limit_is_enforced(self):
-        with self.assertRaises(helper.HelperError):
-            helper._request(b" " * (helper.MAX_REQUEST_BYTES + 1))
+	def test_install_request_rejects_unknown_fields_and_duplicate_keys(self):
+		value = request()
+		value["command"] = "apt install docker"
+		import json
 
-    def test_apt_simulation_uses_fixed_exact_versions_and_allowlist(self):
-        output = "\n".join(
-            f"Inst {name} (5:29.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
-            for name in helper.ENGINE_PACKAGES
-        )
-        with patch.object(helper, "_run", return_value=(0, output)) as run:
-            helper._simulate_exact_install(
-                ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
-            )
-        argv = run.call_args.args[0]
-        self.assertEqual(argv[0], "/usr/bin/apt-get")
-        self.assertIn("--no-upgrade", argv)
-        self.assertIn("--no-remove", argv)
-        self.assertEqual(
-            argv[-4:],
-            [
-                f"{name}=5:29.0.0-1~ubuntu.24.04~noble"
-                for name in helper.ENGINE_PACKAGES
-            ],
-        )
+		with self.assertRaises(helper.HelperError):
+			helper._request(json.dumps(value).encode())
+		with self.assertRaises(helper.HelperError):
+			helper._request(
+				b'{"schema_version":"1.0.0","operation":"self_test","operation":"install_engine"}'
+			)
 
-    def test_apt_simulation_rejects_removals_and_unapproved_installs(self):
-        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
-        with patch.object(
-            helper, "_run", return_value=(0, "Remv docker.io [24.0]\n")
-        ):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
-                helper._simulate_exact_install(versions)
-        output = "\n".join(
-            [f"Inst {name} ({versions[0]} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
-            + ["Inst libc6 (2.39 Ubuntu:24.04 [amd64])"]
-        )
-        with patch.object(helper, "_run", return_value=(0, output)):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
-                helper._simulate_exact_install(versions)
+	def test_install_request_rejects_bad_package_order_and_boolean_coercion(self):
+		import json
 
-    def test_apt_simulation_rejects_duplicate_architecture_rows(self):
-        version = "5:29.0.0-1~ubuntu.24.04~noble"
-        output = "\n".join(
-            [f"Inst {name} ({version} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
-            + [f"Inst docker-ce:arm64 ({version} Docker:stable [arm64])"]
-        )
-        with patch.object(helper, "_run", return_value=(0, output)):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
-                helper._simulate_exact_install([version] * 4)
+		value = request()
+		value["plan"]["packages"].reverse()
+		with self.assertRaises(helper.HelperError):
+			helper._request(json.dumps(value).encode())
+		value = request()
+		value["operator_impact_approval"] = 1
+		with self.assertRaises(helper.HelperError):
+			helper._request(json.dumps(value).encode())
 
-    def test_apt_simulation_rejects_missing_or_changed_package_versions(self):
-        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
-        with patch.object(helper, "_run", return_value=(0, "Inst docker-ce (5:29.0.0-1~ubuntu.24.04~noble)")):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
-                helper._simulate_exact_install(versions)
-        output = "\n".join(
-            f"Inst {name} (5:28.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
-            for name in helper.ENGINE_PACKAGES
-        )
-        with patch.object(helper, "_run", return_value=(0, output)):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_VERSION_MISMATCH"):
-                helper._simulate_exact_install(versions)
+	def test_request_size_limit_is_enforced(self):
+		with self.assertRaises(helper.HelperError):
+			helper._request(b" " * (helper.MAX_REQUEST_BYTES + 1))
 
-    def test_apt_simulation_rejects_upgrade_even_for_an_allowed_package(self):
-        versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
-        output = "\n".join(
-            f"Inst {name} [5:28.0.0-1~ubuntu.24.04~noble] ({version} Docker:stable [amd64])"
-            for name, version in zip(helper.ENGINE_PACKAGES, versions, strict=True)
-        )
-        with patch.object(helper, "_run", return_value=(0, output)):
-            with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_UPGRADE_DETECTED"):
-                helper._simulate_exact_install(versions)
+	def test_apt_simulation_uses_fixed_exact_versions_and_allowlist(self):
+		output = "\n".join(
+			f"Inst {name} (5:29.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
+			for name in helper.ENGINE_PACKAGES
+		)
+		with patch.object(helper, "_run", return_value=(0, output)) as run:
+			helper._simulate_exact_install(["5:29.0.0-1~ubuntu.24.04~noble"] * 4)
+		argv = run.call_args.args[0]
+		self.assertEqual(argv[0], "/usr/bin/apt-get")
+		self.assertIn("--no-upgrade", argv)
+		self.assertIn("--no-remove", argv)
+		self.assertEqual(
+			argv[-4:],
+			[f"{name}=5:29.0.0-1~ubuntu.24.04~noble" for name in helper.ENGINE_PACKAGES],
+		)
 
-    def test_aging_apt_counter_does_not_invalidate_same_plan_decisions(self):
-        value = request()
-        plan = {
-            "plan_digest": "a" * 64,
-            "schema_version": "1.2.0",
-            "state_fingerprint": "b" * 64,
-            "policy": {"id": "docker-engine-install", "version": "1.2.0"},
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "status": "ready",
-            "mode": "plan_only",
-            "mutation_authorized": False,
-            "package_set": list(helper.ENGINE_PACKAGES),
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-            "prerequisites": [],
-            "reason_codes": [],
-            "repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
-            "apt_metadata": {"status": "fresh", "age_seconds": 100},
-            "package_manager": {"locked": False, "dpkg_audit_clean": True},
-            "storage": {"root_available_bytes": 10000000000, "apt_cache_available_bytes": 10000000000, "data_root_policy": "preserve"},
-            "services": {"docker": "inactive", "containerd": "inactive"},
-            "workload_impact": {
-                "available": True,
-                "running_containers": 0,
-                "total_containers": 0,
-                "operator_impact_approval_required": False,
-            },
-            "daemon_impact": "Starting Docker may interrupt existing containers; no daemon action is performed by this plan.",
-            "expires_after_seconds": 900,
-        }
-        fresh_plan = dict(plan)
-        fresh_plan["plan_digest"] = "c" * 64
-        fresh_plan["apt_metadata"] = {"status": "fresh", "age_seconds": 101}
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=Mock(side_effect=[plan, fresh_plan]),
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
-        ):
-            result = helper._install(value)
-        simulate.assert_called_once()
-        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+	def test_apt_simulation_rejects_removals_and_unapproved_installs(self):
+		versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+		with patch.object(helper, "_run", return_value=(0, "Remv docker.io [24.0]\n")):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
+				helper._simulate_exact_install(versions)
+		output = "\n".join(
+			[f"Inst {name} ({versions[0]} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
+			+ ["Inst libc6 (2.39 Ubuntu:24.04 [amd64])"]
+		)
+		with patch.object(helper, "_run", return_value=(0, output)):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_OUT_OF_POLICY"):
+				helper._simulate_exact_install(versions)
 
-    def test_state_change_after_simulation_blocks_install(self):
-        value = request()
-        plan = {
-            "plan_digest": "a" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": False},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: plan,
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "c" * 64]),
-        )
-        fake_inventory = SimpleNamespace(
-            collect=lambda: {"docker_install_inventory": inventory()}
-        )
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-        ):
-            with self.assertRaisesRegex(helper.HelperError, "STATE_CHANGED_AFTER_SIMULATION"):
-                helper._install(value)
-        simulate.assert_called_once()
+	def test_apt_simulation_rejects_duplicate_architecture_rows(self):
+		version = "5:29.0.0-1~ubuntu.24.04~noble"
+		output = "\n".join(
+			[f"Inst {name} ({version} Docker:stable [amd64])" for name in helper.ENGINE_PACKAGES]
+			+ [f"Inst docker-ce:arm64 ({version} Docker:stable [arm64])"]
+		)
+		with patch.object(helper, "_run", return_value=(0, output)):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
+				helper._simulate_exact_install([version] * 4)
 
-    def test_closed_mutation_gate_returns_pre_mutation_failure(self):
-        value = request()
-        plan = {
-            "plan_digest": "a" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": False},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: plan,
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
-        ):
-            result = helper._install(value)
-        simulate.assert_called_once()
-        self.assertEqual(result["status"], "failed_before_mutation")
-        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
-        self.assertEqual(result["daemon_action"], "not_requested")
-        self.assertEqual(result["before_state_fingerprint"], "b" * 64)
-        self.assertEqual(result["after_state_fingerprint"], "b" * 64)
+	def test_apt_simulation_rejects_missing_or_changed_package_versions(self):
+		versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+		with patch.object(helper, "_run", return_value=(0, "Inst docker-ce (5:29.0.0-1~ubuntu.24.04~noble)")):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_PACKAGE_SET_MISMATCH"):
+				helper._simulate_exact_install(versions)
+		output = "\n".join(
+			f"Inst {name} (5:28.0.0-1~ubuntu.24.04~noble Docker:stable [amd64])"
+			for name in helper.ENGINE_PACKAGES
+		)
+		with patch.object(helper, "_run", return_value=(0, output)):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_VERSION_MISMATCH"):
+				helper._simulate_exact_install(versions)
 
-    def test_running_workload_requires_explicit_operator_approval(self):
-        value = request()
-        plan = {
-            "plan_digest": "a" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": True},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: plan,
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-        ):
-            with self.assertRaisesRegex(helper.HelperError, "WORKLOAD_IMPACT_APPROVAL_MISMATCH"):
-                helper._install(value)
-        simulate.assert_not_called()
+	def test_apt_simulation_rejects_upgrade_even_for_an_allowed_package(self):
+		versions = ["5:29.0.0-1~ubuntu.24.04~noble"] * 4
+		output = "\n".join(
+			f"Inst {name} [5:28.0.0-1~ubuntu.24.04~noble] ({version} Docker:stable [amd64])"
+			for name, version in zip(helper.ENGINE_PACKAGES, versions, strict=True)
+		)
+		with patch.object(helper, "_run", return_value=(0, output)):
+			with self.assertRaisesRegex(helper.HelperError, "APT_SIMULATION_UPGRADE_DETECTED"):
+				helper._simulate_exact_install(versions)
 
-    def test_explicit_workload_approval_passes_the_helper_gate(self):
-        value = request()
-        value["operator_impact_approval"] = True
-        plan = {
-            "plan_digest": "a" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": True},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: plan,
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-            patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
-        ):
-            result = helper._install(value)
-        simulate.assert_called_once()
-        self.assertEqual(result["status"], "failed_before_mutation")
-        self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+	def test_aging_apt_counter_does_not_invalidate_same_plan_decisions(self):
+		value = request()
+		plan = {
+			"plan_digest": "a" * 64,
+			"schema_version": "1.2.0",
+			"state_fingerprint": "b" * 64,
+			"policy": {"id": "docker-engine-install", "version": "1.2.0"},
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"status": "ready",
+			"mode": "plan_only",
+			"mutation_authorized": False,
+			"package_set": list(helper.ENGINE_PACKAGES),
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+			"prerequisites": [],
+			"reason_codes": [],
+			"repository": {"source_id": "docker-download", "keyring_path": "/etc/apt/keyrings/docker.asc"},
+			"apt_metadata": {"status": "fresh", "age_seconds": 100},
+			"package_manager": {"locked": False, "dpkg_audit_clean": True},
+			"storage": {
+				"root_available_bytes": 10000000000,
+				"apt_cache_available_bytes": 10000000000,
+				"data_root_policy": "preserve",
+			},
+			"services": {"docker": "inactive", "containerd": "inactive"},
+			"workload_impact": {
+				"available": True,
+				"running_containers": 0,
+				"total_containers": 0,
+				"operator_impact_approval_required": False,
+			},
+			"daemon_impact": "Starting Docker may interrupt existing containers; no daemon action is performed by this plan.",
+			"expires_after_seconds": 900,
+		}
+		fresh_plan = dict(plan)
+		fresh_plan["plan_digest"] = "c" * 64
+		fresh_plan["apt_metadata"] = {"status": "fresh", "age_seconds": 101}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=Mock(side_effect=[plan, fresh_plan]),
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+			patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+		):
+			result = helper._install(value)
+		simulate.assert_called_once()
+		self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
 
-    def test_plan_digest_mismatch_is_rejected_before_apt_simulation(self):
-        value = request()
-        plan = {
-            "plan_digest": "c" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": False},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: plan,
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-        ):
-            with self.assertRaisesRegex(helper.HelperError, "PLAN_DIGEST_MISMATCH"):
-                helper._install(value)
-        simulate.assert_not_called()
+	def test_state_change_after_simulation_blocks_install(self):
+		value = request()
+		plan = {
+			"plan_digest": "a" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": False},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: plan,
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "c" * 64]),
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+		):
+			with self.assertRaisesRegex(helper.HelperError, "STATE_CHANGED_AFTER_SIMULATION"):
+				helper._install(value)
+		simulate.assert_called_once()
 
-    def test_stale_fingerprint_is_rejected_before_apt_simulation(self):
-        value = request()
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=lambda _name, _inventory: {},
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=lambda _inventory: "c" * 64,
-        )
-        fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-        ):
-            with self.assertRaisesRegex(helper.HelperError, "STATE_FINGERPRINT_MISMATCH"):
-                helper._install(value)
-        simulate.assert_not_called()
+	def test_closed_mutation_gate_returns_pre_mutation_failure(self):
+		value = request()
+		plan = {
+			"plan_digest": "a" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": False},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: plan,
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+			patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+		):
+			result = helper._install(value)
+		simulate.assert_called_once()
+		self.assertEqual(result["status"], "failed_before_mutation")
+		self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
+		self.assertEqual(result["daemon_action"], "not_requested")
+		self.assertEqual(result["before_state_fingerprint"], "b" * 64)
+		self.assertEqual(result["after_state_fingerprint"], "b" * 64)
 
-    def test_exact_version_install_mutation_is_enabled(self):
-        self.assertTrue(helper.INSTALL_MUTATION_ENABLED)
+	def test_running_workload_requires_explicit_operator_approval(self):
+		value = request()
+		plan = {
+			"plan_digest": "a" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": True},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: plan,
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+		):
+			with self.assertRaisesRegex(helper.HelperError, "WORKLOAD_IMPACT_APPROVAL_MISMATCH"):
+				helper._install(value)
+		simulate.assert_not_called()
 
-    def test_enabled_install_executes_fixed_package_command_and_verifies_versions(self):
-        value = request()
-        version = value["plan"]["packages"][0]["version"]
-        plan = {
-            "plan_digest": "a" * 64,
-            "status": "ready",
-            "mutation_authorized": False,
-            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
-            "workload_impact": {"operator_impact_approval_required": False},
-            "packages": [
-                {"name": name, "action": "install", "candidate_version": row["version"]}
-                for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
-            ],
-        }
-        before = {"packages": [{"name": name, "installed_version": None} for name in helper.ENGINE_PACKAGES]}
-        after = {
-            "packages": [{"name": name, "installed_version": version} for name in helper.ENGINE_PACKAGES]
-        }
-        fake_policy = SimpleNamespace(
-            build_docker_engine_install_plan=Mock(side_effect=[plan, dict(plan)]),
-            validate_docker_engine_install_plan=lambda _plan: None,
-            docker_engine_install_plan_identity=_plan_identity,
-            docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "b" * 64, "c" * 64]),
-        )
-        fake_inventory = SimpleNamespace(
-            collect=Mock(side_effect=[
-                {"docker_install_inventory": before},
-                {"docker_install_inventory": before},
-                {"docker_install_inventory": after},
-            ])
-        )
-        with (
-            patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
-            patch.object(helper, "_simulate_exact_install") as simulate,
-            patch.object(helper, "_run", return_value=(0, "")) as run,
-        ):
-            result = helper._install(value)
+	def test_explicit_workload_approval_passes_the_helper_gate(self):
+		value = request()
+		value["operator_impact_approval"] = True
+		plan = {
+			"plan_digest": "a" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": True},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: plan,
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+			patch.object(helper, "INSTALL_MUTATION_ENABLED", False),
+		):
+			result = helper._install(value)
+		simulate.assert_called_once()
+		self.assertEqual(result["status"], "failed_before_mutation")
+		self.assertEqual(result["diagnostics"], ["INSTALL_EXECUTION_DISABLED"])
 
-        simulate.assert_called_once()
-        argv = run.call_args.args[0]
-        self.assertEqual(argv[0], "/usr/bin/apt-get")
-        self.assertIn("--yes", argv)
-        self.assertIn("--no-upgrade", argv)
-        self.assertIn("--no-remove", argv)
-        self.assertEqual(
-            argv[-4:],
-            [f"{name}={version}" for name in helper.ENGINE_PACKAGES],
-        )
-        self.assertEqual(result["status"], "succeeded")
-        self.assertEqual(result["after_state_fingerprint"], "c" * 64)
-        self.assertTrue(all(row["status"] == "installed" for row in result["packages"]))
+	def test_plan_digest_mismatch_is_rejected_before_apt_simulation(self):
+		value = request()
+		plan = {
+			"plan_digest": "c" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": False},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: plan,
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+		):
+			with self.assertRaisesRegex(helper.HelperError, "PLAN_DIGEST_MISMATCH"):
+				helper._install(value)
+		simulate.assert_not_called()
 
-    def test_result_is_correlated_and_reports_unattempted_packages(self):
-        value = request()
-        result = helper._result(
-            value,
-            status="failed_before_mutation",
-            phase="state_validation",
-            before="b" * 64,
-            after="b" * 64,
-            installed={},
-            exit_code=0,
-            daemon_action="not_requested",
-            diagnostics=["INSTALL_EXECUTION_DISABLED"],
-        )
-        self.assertEqual(result["operation_id"], "OP-0001")
-        self.assertEqual(len(result["packages"]), 4)
-        self.assertTrue(all(row["status"] == "not_attempted" for row in result["packages"]))
-        self.assertTrue(all(row["installed_version"] is None for row in result["packages"]))
+	def test_stale_fingerprint_is_rejected_before_apt_simulation(self):
+		value = request()
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=lambda _name, _inventory: {},
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=lambda _inventory: "c" * 64,
+		)
+		fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+		):
+			with self.assertRaisesRegex(helper.HelperError, "STATE_FINGERPRINT_MISMATCH"):
+				helper._install(value)
+		simulate.assert_not_called()
+
+	def test_exact_version_install_mutation_is_enabled(self):
+		self.assertTrue(helper.INSTALL_MUTATION_ENABLED)
+
+	def test_enabled_install_executes_fixed_package_command_and_verifies_versions(self):
+		value = request()
+		version = value["plan"]["packages"][0]["version"]
+		plan = {
+			"plan_digest": "a" * 64,
+			"status": "ready",
+			"mutation_authorized": False,
+			"target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+			"workload_impact": {"operator_impact_approval_required": False},
+			"packages": [
+				{"name": name, "action": "install", "candidate_version": row["version"]}
+				for name, row in zip(helper.ENGINE_PACKAGES, value["plan"]["packages"], strict=True)
+			],
+		}
+		before = {"packages": [{"name": name, "installed_version": None} for name in helper.ENGINE_PACKAGES]}
+		after = {
+			"packages": [{"name": name, "installed_version": version} for name in helper.ENGINE_PACKAGES]
+		}
+		fake_policy = SimpleNamespace(
+			build_docker_engine_install_plan=Mock(side_effect=[plan, dict(plan)]),
+			validate_docker_engine_install_plan=lambda _plan: None,
+			docker_engine_install_plan_identity=_plan_identity,
+			docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "b" * 64, "c" * 64]),
+		)
+		fake_inventory = SimpleNamespace(
+			collect=Mock(
+				side_effect=[
+					{"docker_install_inventory": before},
+					{"docker_install_inventory": before},
+					{"docker_install_inventory": after},
+				]
+			)
+		)
+		with (
+			patch.object(helper, "_load_policy", return_value=(fake_inventory, fake_policy)),
+			patch.object(helper, "_simulate_exact_install") as simulate,
+			patch.object(helper, "_run", return_value=(0, "")) as run,
+		):
+			result = helper._install(value)
+
+		simulate.assert_called_once()
+		argv = run.call_args.args[0]
+		self.assertEqual(argv[0], "/usr/bin/apt-get")
+		self.assertIn("--yes", argv)
+		self.assertIn("--no-upgrade", argv)
+		self.assertIn("--no-remove", argv)
+		self.assertEqual(
+			argv[-4:],
+			[f"{name}={version}" for name in helper.ENGINE_PACKAGES],
+		)
+		self.assertEqual(result["status"], "succeeded")
+		self.assertEqual(result["after_state_fingerprint"], "c" * 64)
+		self.assertTrue(all(row["status"] == "installed" for row in result["packages"]))
+
+	def test_result_is_correlated_and_reports_unattempted_packages(self):
+		value = request()
+		result = helper._result(
+			value,
+			status="failed_before_mutation",
+			phase="state_validation",
+			before="b" * 64,
+			after="b" * 64,
+			installed={},
+			exit_code=0,
+			daemon_action="not_requested",
+			diagnostics=["INSTALL_EXECUTION_DISABLED"],
+		)
+		self.assertEqual(result["operation_id"], "OP-0001")
+		self.assertEqual(len(result["packages"]), 4)
+		self.assertTrue(all(row["status"] == "not_attempted" for row in result["packages"]))
+		self.assertTrue(all(row["installed_version"] is None for row in result["packages"]))
 
 
 if __name__ == "__main__":
-    unittest.main()
+	unittest.main()
