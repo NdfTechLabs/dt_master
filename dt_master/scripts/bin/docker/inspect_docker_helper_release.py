@@ -102,6 +102,7 @@ def inspect_components(directory, expected_rows, require_root):
 	for component_id in sorted(COMPONENT_IDS):
 		expected = expected_rows[component_id]
 		artifact = directory / expected["path"]
+		version = None
 		try:
 			info = artifact.lstat()
 			if not stat.S_ISREG(info.st_mode) or artifact.is_symlink():
