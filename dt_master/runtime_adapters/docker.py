@@ -1626,7 +1626,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Assess the assigned release and stop when source or deployment drift is detected."""
 		from dt_master.docker_helper_releases import (
 			DockerHelperReleaseError,
-			create_draft_release_from_source,
+			compare_release_source_snapshot,
 			serialize_release_manifest,
 		)
 
@@ -1755,7 +1755,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			)
 			if is_source_drift:
 				try:
-					draft, created = create_draft_release_from_source(release, source_root)
+					mismatches = compare_release_source_snapshot(release.components, source_root)
 					status = "Source Drift"
 					snapshot = {
 						"schema_version": "1.0.0",
@@ -1766,12 +1766,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						"observed_at": str(now_datetime()),
 						"assigned_release": {"release_id": release.release_id, "version": release.version},
 						"source_drift": True,
-						"draft_release": {
-							"release_id": draft.release_id,
-							"version": draft.version,
-							"aggregate_digest": draft.aggregate_digest,
-							"created": created,
-						},
+						"source_drift_components": mismatches,
+						"draft_release": None,
 						"expected_manifest": None,
 						"expected_manifest_sha256": None,
 						"initial_inspection": None,
@@ -1779,6 +1775,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 						"installation": None,
 					}
 					persist(status, snapshot)
+					component_names = ", ".join(sorted(mismatches))
 					return self.result_for(
 						request,
 						outcome="partial",
@@ -1789,17 +1786,16 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 								"code": "DOCKER_HELPER_RELEASE_SOURCE_DRIFT",
 								"severity": "error",
 								"message": (
-									"The assigned Published release no longer matches local source files. "
-									f"Draft {draft.release_id} was {'created' if created else 'reused'}; "
-									"review and publish it, then explicitly assign it before deployment."
+									"The assigned Published release differs from local source files "
+									f"for: {component_names}. Create a Draft explicitly to capture the current sources."
 								),
 							},
 						),
 						data=snapshot,
 						duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 					)
-				except Exception as draft_exc:
-					exc = draft_exc
+				except Exception as drift_exc:
+					exc = drift_exc
 
 			status = "Failed"
 			snapshot = {
