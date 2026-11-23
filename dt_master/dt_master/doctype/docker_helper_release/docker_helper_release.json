@@ -12,6 +12,7 @@
   "schema_version",
   "compatibility_section",
   "compatibility",
+  "predecessors",
   "lifecycle",
   "components_section",
   "components",
@@ -77,6 +78,14 @@
    "options": "JSON",
    "reqd": 1,
    "description": "Closed compatibility declaration: helper_protocol, privilege_readiness_contract, docker_install_plan, docker_install_policy, inventory_schema and upgrade_from."
+  },
+  {
+   "fieldname": "predecessors",
+   "fieldtype": "Code",
+   "label": "Predecessor Provenance",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Immutable release identities and exact component fingerprints captured from verified Published or Retired predecessors during draft creation."
   },
   {
    "fieldname": "lifecycle",
