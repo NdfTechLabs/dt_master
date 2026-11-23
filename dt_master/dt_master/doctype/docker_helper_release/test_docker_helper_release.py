@@ -11,7 +11,11 @@ from frappe.tests import IntegrationTestCase
 from dt_master.docker_helper_releases import (
 	aggregate_release_digest,
 	build_release_manifest,
+	canonical_docker_helper_release_template,
+	component_source_digest,
 	create_draft_release_from_source,
+	create_draft_release_from_template,
+	create_initial_draft_release,
 )
 
 
@@ -159,6 +163,63 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		release.reload()
 		self.assertEqual(release.status, "Published")
 		self.assertEqual(release.aggregate_digest, original_digest)
+
+
+	def test_initial_draft_uses_canonical_metadata_and_hashes_actual_files(self):
+		source_root = Path(__file__).resolve().parents[3]
+		template = canonical_docker_helper_release_template()
+		self.assertTrue(all("sha256" not in component for component in template["components"]))
+
+		draft, created = create_initial_draft_release(
+			source_root,
+			version="0.3.3",
+			release_id=f"docker-helper-test-{frappe.generate_hash(length=8)}",
+		)
+
+		self.assertTrue(created)
+		self.assertEqual(draft.status, "Draft")
+		self.assertEqual(draft.version, "0.3.3")
+		self.assertEqual(draft.aggregate_digest, aggregate_release_digest(draft.components))
+		for component in draft.components:
+			self.assertEqual(
+				component.sha256,
+				component_source_digest(source_root, component.source_path),
+			)
+		self.assertEqual(
+			next(row.version for row in draft.components if row.component_id == "lifecycle_helper"),
+			"0.3.3",
+		)
+
+	def test_retired_release_can_be_used_as_template_without_reactivation(self):
+		template = self._new_release()
+		template.insert(ignore_permissions=True)
+		template.status = "Published"
+		template.save(ignore_permissions=True)
+		template.reload()
+		template.status = "Retired"
+		template.save(ignore_permissions=True)
+		template.reload()
+		original_digest = template.aggregate_digest
+		source_root = Path(__file__).resolve().parents[3]
+
+		draft, created = create_draft_release_from_template(
+			template,
+			source_root,
+			version="0.3.3",
+			release_id=f"docker-helper-replacement-{frappe.generate_hash(length=8)}",
+		)
+
+		self.assertTrue(created)
+		self.assertEqual(draft.status, "Draft")
+		self.assertEqual(draft.version, "0.3.3")
+		template.reload()
+		self.assertEqual(template.status, "Retired")
+		self.assertEqual(template.aggregate_digest, original_digest)
+		for component in draft.components:
+			self.assertEqual(
+				component.sha256,
+				component_source_digest(source_root, component.source_path),
+			)
 
 	def test_published_release_can_only_be_retired_without_definition_changes(self):
 		release = self._new_release()
