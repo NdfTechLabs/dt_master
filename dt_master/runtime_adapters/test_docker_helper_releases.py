@@ -12,6 +12,7 @@ from dt_master.docker_helper_releases import (
 	aggregate_release_digest,
 	build_release_manifest,
 	compare_release_source_snapshot,
+	inspect_release_source,
 	component_source_digest,
 	write_release_manifest,
 )
@@ -52,19 +53,31 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			source = Path(directory) / "scripts/bin/docker/helper.py"
 			source.parent.mkdir(parents=True)
-			source.write_bytes(b"updated source")
+			source.write_text(
+				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.0.0"\\n', encoding="utf-8"
+			)
 			components = [component("lifecycle_helper", "scripts/bin/docker/helper.py")]
 			mismatches = compare_release_source_snapshot(components, directory)
 
+		self.assertEqual(mismatches["lifecycle_helper"]["expected"]["version"], "1.0.0")
+		self.assertEqual(mismatches["lifecycle_helper"]["observed"]["version"], "2.0.0")
 		self.assertEqual(
-			mismatches,
-			{
-				"lifecycle_helper": {
-					"expected": "a" * 64,
-					"observed": hashlib.sha256(b"updated source").hexdigest(),
-				}
-			},
+			mismatches["lifecycle_helper"]["observed"]["sha256"],
+			hashlib.sha256(source.read_bytes()).hexdigest(),
 		)
+
+	def test_source_inspection_extracts_actual_protocol_and_component_versions(self):
+		with tempfile.TemporaryDirectory() as directory:
+			source = Path(directory) / "scripts/bin/docker/helper.py"
+			source.parent.mkdir(parents=True)
+			source.write_text(
+				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.4.0"\\n', encoding="utf-8"
+			)
+			inspection = inspect_release_source(
+				[component("lifecycle_helper", "scripts/bin/docker/helper.py")], directory
+			)
+		self.assertEqual(inspection["components"]["lifecycle_helper"]["version"], "2.0.0")
+		self.assertEqual(inspection["compatibility"]["helper_protocol"], "1.4.0")
 
 	def test_component_digest_rejects_path_traversal(self):
 		with tempfile.TemporaryDirectory() as directory:
