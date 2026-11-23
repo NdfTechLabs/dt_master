@@ -77,6 +77,9 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			component("host_inventory", "scripts/bin/docker/docker_install_inventory.py"),
 		]
 		current[0]["accepted_predecessor_sha256"] = ["4" * 64]
+		# install_policy is unchanged: its predecessor digest equals its
+		# current digest and must not be listed as an accepted predecessor.
+		current[1]["sha256"] = "2" * 64
 		predecessors, upgrade_from = _build_predecessor_transition(previous, current)
 		self.assertEqual(upgrade_from, ["0.3.3"])
 		self.assertEqual(predecessors[0]["release_id"], "docker-helper-0.3.3")
@@ -85,7 +88,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			{"lifecycle_helper": "1" * 64, "install_policy": "2" * 64, "host_inventory": "3" * 64},
 		)
 		self.assertEqual(current[0]["accepted_predecessor_sha256"], ["4" * 64, "1" * 64])
-		self.assertEqual(current[1]["accepted_predecessor_sha256"], ["2" * 64])
+		self.assertEqual(current[1]["accepted_predecessor_sha256"], [])
 		self.assertEqual(current[2]["accepted_predecessor_sha256"], ["3" * 64])
 
 	def test_predecessor_provenance_rejects_incomplete_component_inventory(self):
