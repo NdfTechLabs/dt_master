@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 POLICY_ID = "docker-engine-install"
-POLICY_VERSION = "1.1.1"
+POLICY_VERSION = "1.2.0"
 SIGNING_KEY_POLICY_VERSION = "1.0.0"
 DOCKER_DEB_SIGNING_KEY_FINGERPRINT = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 DOCKER_DEB_SIGNING_KEY_IDENTITY = "Docker Release (CE deb) <docker@docker.com>"
@@ -24,7 +24,7 @@ DOCKER_SIGNING_KEY_ROTATION_POLICY = (
 	"Primary-key rotation requires a reviewed policy-version change; signing-subkey rollover "
 	"under the pinned primary key is permitted after GnuPG validates the key structure."
 )
-PLAN_SCHEMA_VERSION = "1.1.0"
+PLAN_SCHEMA_VERSION = "1.2.0"
 SUPPORTED_HOSTS = frozenset(
 	{
 		("ubuntu", "22.04", "amd64"),
@@ -53,45 +53,54 @@ def _canonical(value: Any) -> str:
 	return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
-STATE_FINGERPRINT_VERSION = "1.0.0"
+STATE_FINGERPRINT_VERSION = "1.1.0"
 
 
 def docker_engine_install_state_fingerprint(inventory: dict) -> str:
-	"""Return a stable SHA-256 binding for the host state used by N3.4 install approval.
-
-	Observation timestamps and the continuously aging APT age counter are omitted.
-	Their security meaning is represented by the validated APT freshness status;
-	all package, repository/key, host, storage, service, workload and health evidence
-	remains bound. Callers must validate the inventory with the planner before use.
-	"""
+	"""Fingerprint stable package-transaction inputs; exclude live preconditions."""
 	if not isinstance(inventory, dict):
 		raise DockerInstallPlanError("Docker Engine inventory must be an object")
 	_safe(inventory)
 	required = {
-		"schema_version",
-		"observed_at",
-		"host_os",
-		"package_manager",
-		"packages",
-		"repository",
-		"apt_metadata",
-		"package_manager_state",
-		"storage",
-		"services",
-		"workloads",
-		"docker_engine_health",
+		"schema_version", "observed_at", "host_os", "package_manager", "packages",
+		"repository", "apt_metadata", "package_manager_state", "storage",
+		"services", "workloads", "docker_engine_health",
 	}
 	_require_keys(inventory, required, "inventory")
-	apt = inventory.get("apt_metadata")
-	if not isinstance(apt, dict) or set(apt) != {"status", "age_seconds"}:
-		raise DockerInstallPlanError("Invalid APT metadata for state fingerprint")
-	state = {key: value for key, value in inventory.items() if key != "observed_at"}
-	state["apt_metadata"] = {"status": apt["status"]}
-	envelope = {
-		"fingerprint_version": STATE_FINGERPRINT_VERSION,
-		"inventory": state,
+	state = {
+		"schema_version": inventory["schema_version"],
+		"host_os": inventory["host_os"],
+		"package_manager": inventory["package_manager"],
+		"packages": inventory["packages"],
+		"repository": inventory["repository"],
 	}
+	envelope = {"fingerprint_version": STATE_FINGERPRINT_VERSION, "inventory": state}
 	return hashlib.sha256(_canonical(envelope).encode("utf-8")).hexdigest()
+
+
+def docker_engine_install_plan_identity(plan: dict) -> dict:
+	"""Return stable semantic identity for the exact package transaction."""
+	return {
+		"schema_version": plan["schema_version"],
+		"state_fingerprint": plan["state_fingerprint"],
+		"policy": plan["policy"],
+		"target": plan["target"],
+		"package_set": plan["package_set"],
+		"packages": [
+			{"name": row["name"], "action": row["action"],
+			 "installed_version": row["installed_version"],
+			 "candidate_version": row["candidate_version"]}
+			for row in plan["packages"]
+		],
+		"repository": plan["repository"],
+	}
+
+
+def docker_engine_install_plan_digest(plan: dict) -> str:
+	"""Hash deterministic transaction identity, never live observations."""
+	return hashlib.sha256(
+		_canonical(docker_engine_install_plan_identity(plan)).encode("utf-8")
+	).hexdigest()
 
 
 def _safe(value: Any, path: str = "inventory") -> None:
@@ -471,9 +480,7 @@ def build_docker_engine_install_plan(node_name: str, inventory: dict) -> dict:
 		"daemon_impact": "Starting Docker may interrupt existing containers; no daemon action is performed by this plan.",
 		"expires_after_seconds": 900,
 	}
-	digest_payload = dict(plan)
-	digest_payload["apt_metadata"] = {"status": apt["status"]}
-	plan["plan_digest"] = hashlib.sha256(_canonical(digest_payload).encode("utf-8")).hexdigest()
+	plan["plan_digest"] = docker_engine_install_plan_digest(plan)
 	validate_docker_engine_install_plan(plan)
 	return plan
 
@@ -522,10 +529,5 @@ def validate_docker_engine_install_plan(plan: dict) -> None:
 		raise DockerInstallPlanError("Plan package set differs from accepted policy")
 	if not isinstance(plan["plan_digest"], str) or not re.fullmatch(r"[a-f0-9]{64}", plan["plan_digest"]):
 		raise DockerInstallPlanError("Invalid plan digest")
-	unsigned = dict(plan)
-	digest = unsigned.pop("plan_digest")
-	apt_metadata = unsigned.get("apt_metadata")
-	if isinstance(apt_metadata, dict):
-		unsigned["apt_metadata"] = {"status": apt_metadata.get("status")}
-	if hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest() != digest:
+	if docker_engine_install_plan_digest(plan) != plan["plan_digest"]:
 		raise DockerInstallPlanError("Plan digest mismatch")
