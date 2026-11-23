@@ -10,6 +10,7 @@ from dt_master.docker_helper_releases import (
 	RELEASE_MANIFEST_SCHEMA_VERSION,
 	DockerHelperReleaseError,
 	_build_predecessor_transition,
+	_component_child_values,
 	aggregate_release_digest,
 	build_release_manifest,
 	compare_release_source_snapshot,
@@ -90,6 +91,14 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		self.assertEqual(current[0]["accepted_predecessor_sha256"], ["4" * 64, "1" * 64])
 		self.assertEqual(current[1]["accepted_predecessor_sha256"], [])
 		self.assertEqual(current[2]["accepted_predecessor_sha256"], ["3" * 64])
+
+	def test_component_child_values_serialize_empty_predecessor_list(self):
+		row = component("install_policy", "scripts/bin/docker/docker_install_policy.py")
+		row["accepted_predecessor_sha256"] = []
+		child_values = _component_child_values(row)
+		self.assertEqual(child_values["accepted_predecessor_sha256"], "[]")
+		self.assertIsInstance(child_values["accepted_predecessor_sha256"], str)
+		self.assertEqual(row["accepted_predecessor_sha256"], [])
 
 	def test_predecessor_provenance_rejects_incomplete_component_inventory(self):
 		predecessor = {
