@@ -119,3 +119,35 @@ def create_draft_for_unassigned_node(node_name, version):
 		"draft": {"name": draft.name, "release_id": draft.release_id, "version": draft.version},
 		"created": created,
 	}
+
+
+@frappe.whitelist()
+def get_retired_node_release_recovery(node_name):
+	"""Return Published replacement choices when a node remains assigned to a Retired release."""
+	if "System Manager" not in frappe.get_roles():
+		frappe.throw("Only System Managers can update Docker Helper Releases.", frappe.PermissionError)
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("write")
+	if not node.docker_helper_release:
+		return {"action": "not_retired"}
+
+	retired = frappe.db.get_value(
+		"Docker Helper Release",
+		node.docker_helper_release,
+		["name", "release_id", "version", "status"],
+		as_dict=True,
+	)
+	if not retired or retired.status != "Retired":
+		return {"action": "not_retired"}
+
+	published = frappe.get_all(
+		"Docker Helper Release",
+		filters={"status": "Published"},
+		fields=["name", "release_id", "version", "modified"],
+		order_by="modified desc",
+	)
+	return {
+		"action": "update_retired",
+		"retired_release": retired,
+		"published_releases": published,
+	}
