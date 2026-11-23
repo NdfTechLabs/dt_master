@@ -21,6 +21,8 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 		if (frm.is_new()) return;
 
+		maybe_assess_docker_helper_release(frm);
+
 		if (frappe.user_roles.includes("System Manager") && !frm.doc.docker_helper_release) {
 			frm.add_custom_button(__("Set Up Docker Helper Release"), () => {
 				start_unassigned_node_release_setup(frm);
@@ -489,6 +491,36 @@ function test_node_connection(frm) {
 					"The SSH connection test could not be queued. Check the server error log."
 				),
 				indicator: "red",
+			});
+		},
+	});
+}
+
+
+function maybe_assess_docker_helper_release(frm) {
+	if (frm.__docker_helper_release_assessment_started) return;
+	if (!frappe.user_roles.includes("System Manager")) return;
+	if (!frm.doc.docker_helper_release || !frm.doc.access_verified) return;
+
+	// Preserve this flag across frm.reload_doc() so completion refreshes do not
+	// immediately queue another assessment.
+	frm.__docker_helper_release_assessment_started = true;
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.assess_docker_helper_release",
+		args: { node_name: frm.doc.name },
+		callback(response) {
+			const operation = response.message || {};
+			if (!operation.operation_id) {
+				frm.__docker_helper_release_assessment_started = false;
+				return;
+			}
+			watch_docker_operation(frm, operation.operation_id, "Docker Helper Release assessment");
+		},
+		error() {
+			frm.__docker_helper_release_assessment_started = false;
+			frappe.show_alert({
+				message: __("Docker Helper Release assessment could not be queued. Check access and the server error log."),
+				indicator: "orange",
 			});
 		},
 	});
