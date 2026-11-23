@@ -349,6 +349,40 @@ def _release_predecessor_snapshot(release):
 	}
 
 
+def _build_predecessor_transition(release, components):
+	"""Bind the Draft to its actual predecessor and allow its installed artifacts."""
+	predecessor = _release_predecessor_snapshot(release)
+	if predecessor is None:
+		return [], []
+
+	previous_components = {row["id"]: row for row in predecessor["components"]}
+	current_ids = {_value(row, "component_id") for row in components}
+	if current_ids != set(previous_components):
+		raise DockerHelperReleaseError("Predecessor component inventory does not match the Draft.")
+
+	for component in components:
+		component_id = _value(component, "component_id")
+		accepted = _value(component, "accepted_predecessor_sha256") or []
+		if isinstance(accepted, str):
+			try:
+				accepted = json.loads(accepted or "[]")
+			except json.JSONDecodeError as exc:
+				raise DockerHelperReleaseError(
+					f"Invalid accepted predecessor hashes: {component_id}"
+				) from exc
+			if not isinstance(accepted, list):
+				raise DockerHelperReleaseError(f"Invalid accepted predecessor hashes: {component_id}")
+		previous_digest = previous_components[component_id]["sha256"]
+		if previous_digest not in accepted:
+			accepted.append(previous_digest)
+		if isinstance(component, dict):
+			component["accepted_predecessor_sha256"] = accepted
+		else:
+			component.accepted_predecessor_sha256 = json.dumps(accepted)
+
+	return [predecessor], [predecessor["version"]]
+
+
 def validate_predecessor_records(value):
 	"""Validate structured, release-bound predecessor fingerprints."""
 	if value in (None, ""):
@@ -448,12 +482,13 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	compatibility = _parse_json_object(_value(template, "compatibility"), "compatibility")
 	for field, actual in source_inspection["compatibility"].items():
 		compatibility[field] = {"minimum": actual, "maximum": actual}
-	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	draft.lifecycle = _value(template, "lifecycle")
-	predecessor = _release_predecessor_snapshot(template)
-	predecessors = [predecessor] if predecessor else []
+	predecessors, predecessor_versions = _build_predecessor_transition(template, components)
 	draft.predecessors = json.dumps(predecessors, sort_keys=True)
-	compatibility["upgrade_from"] = [item["version"] for item in predecessors]
+	upgrade_from = compatibility.get("upgrade_from") or []
+	if not isinstance(upgrade_from, list):
+		raise DockerHelperReleaseError("Invalid upgrade predecessor list")
+	compatibility["upgrade_from"] = list(dict.fromkeys([*upgrade_from, *predecessor_versions]))
 	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	for component in components:
 		draft.append("components", component)
