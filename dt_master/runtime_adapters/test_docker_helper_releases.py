@@ -80,11 +80,9 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			row = component("lifecycle_helper", "scripts/bin/docker/helper.py")
 			row.pop("sha256")
 			inspection = inspect_release_source([row], directory)
+			observed_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
 		self.assertEqual(inspection["components"]["lifecycle_helper"]["version"], "2.0.0")
-		self.assertEqual(
-			inspection["components"]["lifecycle_helper"]["sha256"],
-			hashlib.sha256(source.read_bytes()).hexdigest(),
-		)
+		self.assertEqual(inspection["components"]["lifecycle_helper"]["sha256"], observed_sha256)
 
 	def test_source_inspection_extracts_actual_protocol_and_component_versions(self):
 		with tempfile.TemporaryDirectory() as directory:
