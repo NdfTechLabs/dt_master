@@ -85,7 +85,7 @@ class InfrastructureNode(Document):
 		"""Reevaluate readiness whenever this Node's requirements change."""
 		previous = self.get_doc_before_save()
 		if previous:
-			self._retire_unassigned_previous_helper_release(previous)
+			self._retire_previous_helper_release(previous)
 		if previous and self._docker_requirements_changed(previous, self):
 			self._reevaluate_docker_readiness()
 
@@ -205,7 +205,7 @@ class InfrastructureNode(Document):
 			)
 
 	def _prepare_docker_helper_release_manifest(self):
-		"""Build a node-specific manifest when its Published release assignment changes."""
+		"""Generate the shared physical manifest when a Published release assignment changes."""
 		previous = self.get_doc_before_save()
 		previous_release = previous.docker_helper_release if previous else None
 		if previous_release == self.docker_helper_release:
@@ -234,7 +234,7 @@ class InfrastructureNode(Document):
 			)
 		self.docker_helper_release_manifest = manifest
 
-	def _retire_unassigned_previous_helper_release(self, previous):
+	def _retire_previous_helper_release(self, previous):
 		"""Retire the previous release as a signal to every node still using it."""
 		old_release = previous.docker_helper_release
 		if not old_release or old_release == self.docker_helper_release:
