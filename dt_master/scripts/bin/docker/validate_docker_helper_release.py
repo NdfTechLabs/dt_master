@@ -94,9 +94,9 @@ def load_manifest(path):
             or not isinstance(item["version"], str)
         ):
             raise ValueError("invalid component metadata: " + str(item.get("id")))
-        if all_hashes.intersection(predecessors + [item["sha256"]]):
+        if all_hashes.intersection([*predecessors, item["sha256"]]):
             raise ValueError("duplicate component digest")
-        all_hashes.update(predecessors + [item["sha256"]])
+        all_hashes.update([*predecessors, item["sha256"]])
         values[item["id"]] = item
     if values["lifecycle_helper"]["version"] != release["version"]:
         raise ValueError("helper/release version mismatch")
