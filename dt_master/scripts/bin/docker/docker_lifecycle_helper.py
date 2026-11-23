@@ -19,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-HELPER_VERSION = "0.3.7"
+HELPER_VERSION = "0.3.8"
 REQUEST_SCHEMA_VERSION = "1.0.0"
 RESULT_SCHEMA_VERSION = "1.0.0"
 MAX_REQUEST_BYTES = 16 * 1024
