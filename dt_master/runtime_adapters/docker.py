@@ -1683,6 +1683,31 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 
 		try:
 			release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
+			if release.status != "Published":
+				status = "Release Not Published"
+				snapshot = {
+					"schema_version": "1.0.0",
+					"assessment_status": status,
+					"operation_id": request.operation_id,
+					"correlation_id": request.correlation_id,
+					"observed_at": str(observed_at),
+					"assigned_release": {"release_id": release.release_id, "version": release.version, "status": release.status},
+					"expected_manifest": None,
+					"expected_manifest_sha256": None,
+					"initial_inspection": None,
+					"remote_inspection": None,
+					"installation": None,
+				}
+				persist(status, snapshot)
+				return self.result_for(
+					request,
+					outcome="partial",
+					observed_state=status,
+					capabilities=(),
+					diagnostics=({"code": "DOCKER_HELPER_RELEASE_NOT_PUBLISHED", "severity": "warning", "message": "Only a Published Docker Helper Release can be assessed or deployed. Review and publish this release, then assign it explicitly."},),
+					data=snapshot,
+					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+				)
 			if release.status == "Retired":
 				status = "Release Retired"
 				snapshot = {
