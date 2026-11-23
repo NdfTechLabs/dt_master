@@ -346,7 +346,10 @@ function docker_setup_state(frm) {
 
 	let action = null;
 	let blockedReason = null;
-	if (!connected || state === "Not Evaluated" || state === "Connection Required") {
+	if (releaseAssigned && releaseStatus === "Release Retired") {
+		blockedReason =
+			"The assigned Docker Helper Release is retired. Select the active Published release in the Docker Helper Release field, save the node, then start a new release assessment. No deployment or installation will run until that explicit reassignment.";
+	} else if (!connected || state === "Not Evaluated" || state === "Connection Required") {
 		if (sshConfigured) {
 			action = { key: "test_connection", label: "Test Node Connection" };
 		} else {
