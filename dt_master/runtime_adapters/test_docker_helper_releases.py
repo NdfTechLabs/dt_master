@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from dt_master.api.docker_helper_releases import _next_patch_release_version
 from dt_master.docker_helper_releases import (
 	DockerHelperReleaseError,
 	compare_release_source_snapshot,
@@ -31,6 +32,11 @@ def component(component_id, source_path, digest="a" * 64):
 
 
 class TestDockerHelperReleaseFingerprints(unittest.TestCase):
+	def test_source_drift_release_version_advances_patch_automatically(self):
+		self.assertEqual(_next_patch_release_version("0.3.2"), "0.3.3")
+		self.assertEqual(_next_patch_release_version("1.9.9"), "1.9.10")
+		self.assertEqual(_next_patch_release_version("1.2.3-rc.1"), "1.2.4")
+
 	def test_component_digest_uses_actual_source_bytes(self):
 		with tempfile.TemporaryDirectory() as directory:
 			source = Path(directory) / "scripts/bin/docker/helper.py"
