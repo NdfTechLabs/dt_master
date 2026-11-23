@@ -91,7 +91,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		):
 			node.validate()
 
-	def test_published_assignment_generates_shared_physical_manifest(self):
+	def test_published_assignment_stores_node_scoped_manifest_without_shared_write(self):
 		node = self._new_node()
 		node.docker_helper_release = "PUBLISHED-RELEASE"
 		release = type(
@@ -103,7 +103,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			patch.object(frappe.db, "get_value", return_value="Published"),
 			patch.object(frappe, "get_doc", return_value=release),
 			patch(
-				"dt_master.docker_helper_releases.write_release_manifest",
+				"dt_master.docker_helper_releases.serialize_release_manifest",
 				return_value='{"release":{"id":"PUBLISHED-RELEASE"}}',
 			),
 		):
