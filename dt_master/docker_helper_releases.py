@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from pathlib import Path, PurePosixPath
 
 _COMPONENT_ID = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -351,3 +353,54 @@ def serialize_release_manifest(release, *, source_root: str | Path | None = None
 	"""Return deterministic UTF-8 JSON after optionally verifying local source files."""
 	manifest = build_release_manifest(release, source_root=source_root)
 	return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+ 
+def write_release_manifest(release, *, source_root: str | Path) -> str:
+	"""Atomically write the verified Published release projection to the shared app tree.
+
+	Repeated assignments of the same release are idempotent: identical bytes do
+	not rewrite the physical manifest or change its modification time.
+	"""
+	root = Path(source_root).resolve(strict=True)
+	manifest_path = root / "scripts" / "bin" / "docker" / "docker_helper_release.json"
+	parent = manifest_path.parent
+	if not parent.is_dir() or parent.is_symlink():
+		raise DockerHelperReleaseError("Docker helper manifest directory is missing or unsafe")
+	if manifest_path.is_symlink():
+		raise DockerHelperReleaseError("Docker helper manifest must not be a symlink")
+
+	payload = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\\n"
+	if manifest_path.exists():
+		if not manifest_path.is_file():
+			raise DockerHelperReleaseError("Docker helper manifest path is not a regular file")
+		if manifest_path.read_bytes() == payload:
+			return payload.decode("utf-8").rstrip("\\n")
+
+		# Preserve the existing file mode while replacing its contents atomically.
+		mode = manifest_path.stat().st_mode & 0o777
+	else:
+		mode = 0o644
+
+	fd, temporary_name = tempfile.mkstemp(prefix=".docker_helper_release.", dir=parent)
+	try:
+		with os.fdopen(fd, "wb") as temporary:
+			temporary.write(payload)
+			temporary.flush()
+			os.fsync(temporary.fileno())
+		os.chmod(temporary_name, mode)
+		os.replace(temporary_name, manifest_path)
+		directory_fd = os.open(parent, os.O_RDONLY)
+		try:
+			os.fsync(directory_fd)
+		finally:
+			os.close(directory_fd)
+	finally:
+		if os.path.exists(temporary_name):
+			os.unlink(temporary_name)
+
+	# Recheck source after the write so a concurrent source change cannot leave
+	# a manifest that falsely represents a mixed or stale source snapshot.
+	verified = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\\n"
+	if verified != payload or manifest_path.read_bytes() != payload:
+		raise DockerHelperReleaseError("Docker helper source changed during manifest generation")
+	return payload.decode("utf-8").rstrip("\\n")
