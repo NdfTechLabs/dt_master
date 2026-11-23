@@ -107,8 +107,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		compatibility = {
 			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
-			"docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
-			"docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+			"docker_install_plan": {"minimum": "1.2.0", "maximum": "1.2.0"},
+			"docker_install_policy": {"minimum": "1.2.0", "maximum": "1.2.0"},
 			"inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			"upgrade_from": ["0.3.0", "0.3.1", "0.3.2"],
 		}
@@ -121,8 +121,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		}
 		components = []
 		for component_id, filename, version in (
-			("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
-			("install_policy", "docker_install_policy.py", "1.1.1"),
+			("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.3"),
+			("install_policy", "docker_install_policy.py", "1.2.0"),
 			("host_inventory", "docker_install_inventory.py", "1.0.0"),
 		):
 			components.append(
@@ -140,8 +140,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				}
 			)
 		release = {
-			"release_id": "dt-docker-helper-0.3.2",
-			"version": "0.3.2",
+			"release_id": "dt-docker-helper-0.3.3",
+			"version": "0.3.3",
 			"channel": "stable",
 			"status": "Published",
 			"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
@@ -174,8 +174,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		compatibility = {
 			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
-			"docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
-			"docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+			"docker_install_plan": {"minimum": "1.2.0", "maximum": "1.2.0"},
+			"docker_install_policy": {"minimum": "1.2.0", "maximum": "1.2.0"},
 			"inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			"upgrade_from": ["0.3.0"],
 		}
@@ -190,8 +190,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			root = Path(directory)
 			for component_id, filename, version in (
-				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
-				("install_policy", "docker_install_policy.py", "1.1.1"),
+				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.3"),
+				("install_policy", "docker_install_policy.py", "1.2.0"),
 				("host_inventory", "docker_install_inventory.py", "1.0.0"),
 			):
 				source_path = f"scripts/bin/docker/{filename}"
@@ -213,8 +213,8 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 					}
 				)
 			release = {
-				"release_id": "dt-docker-helper-0.3.2",
-				"version": "0.3.2",
+				"release_id": "dt-docker-helper-0.3.3",
+				"version": "0.3.3",
 				"channel": "stable",
 				"status": "Published",
 				"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
