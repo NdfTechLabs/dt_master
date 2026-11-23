@@ -187,15 +187,21 @@ def capture_component_source_snapshot(components, source_root: str | Path) -> di
 	return snapshot
 
 
-def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
-	"""Verify local source files against immutable hashes in the release record."""
+def compare_release_source_snapshot(components, source_root: str | Path) -> dict[str, dict[str, str]]:
+	"""Return component-level differences between immutable release hashes and local sources."""
 	expected = {_value(component, "component_id"): _value(component, "sha256") for component in components}
 	observed = capture_component_source_snapshot(components, source_root)
-	mismatches = {
+	return {
 		component_id: {"expected": expected[component_id], "observed": digest}
 		for component_id, digest in observed.items()
 		if expected.get(component_id) != digest
 	}
+
+
+def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
+	"""Verify local source files against immutable hashes in the release record."""
+	observed = capture_component_source_snapshot(components, source_root)
+	mismatches = compare_release_source_snapshot(components, source_root)
 	if mismatches:
 		details = ", ".join(sorted(mismatches))
 		raise DockerHelperReleaseError("Published release source drift detected for component(s): " + details)
@@ -258,7 +264,7 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	return draft, True
 
 
-def create_draft_release_from_source(release, source_root: str | Path):
+def create_draft_release_from_source(release, source_root: str | Path, *, version: str | None = None):
 	"""Create or reuse a source-drift Draft from an immutable Published release."""
 	if _value(release, "status") != "Published":
 		raise DockerHelperReleaseError("Source-drift drafts can only be created from a Published release.")
@@ -272,7 +278,7 @@ def create_draft_release_from_source(release, source_root: str | Path):
 		release,
 		source_root,
 		release_id=draft_id,
-		version=_value(release, "version"),
+		version=version or _value(release, "version"),
 	)
 
 
