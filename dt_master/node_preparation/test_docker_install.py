@@ -126,6 +126,21 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertEqual(first_plan["plan_digest"], live_changed_plan["plan_digest"])
 		self.assertNotEqual(first_plan["status"], live_changed_plan["status"])
 
+	def test_unstable_service_state_is_a_live_blocker_not_plan_identity(self):
+		first = inventory()
+		second = copy.deepcopy(first)
+		second["services"] = {"docker": "activating", "containerd": "inactive"}
+		first_plan = build_docker_engine_install_plan("NODE-1", first)
+		second_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertIn("DOCKER_SERVICE_STATE_UNSTABLE", second_plan["reason_codes"])
+		self.assertNotEqual(second_plan["status"], "ready")
+		self.assertEqual(first_plan["plan_digest"], second_plan["plan_digest"])
+
+	def test_unhealthy_engine_is_a_live_blocker(self):
+		plan = build_docker_engine_install_plan("NODE-1", inventory(docker_engine_health="unhealthy"))
+		self.assertIn("EXISTING_DOCKER_ENGINE_UNHEALTHY", plan["reason_codes"])
+		self.assertNotEqual(plan["status"], "ready")
+
 	def test_unsupported_platform_is_blocked(self):
 		plan = build_docker_engine_install_plan(
 			"NODE-1",
