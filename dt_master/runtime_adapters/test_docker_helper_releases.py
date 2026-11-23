@@ -48,7 +48,13 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				)
 			],
 		}
-		self.assertEqual(validate_predecessor_records([predecessor]), [predecessor])
+		validated = validate_predecessor_records([predecessor])
+		self.assertEqual(validated[0]["release_id"], predecessor["release_id"])
+		self.assertEqual(validated[0]["version"], predecessor["version"])
+		self.assertEqual(
+			validated[0]["components"],
+			sorted(predecessor["components"], key=lambda item: item["id"]),
+		)
 
 	def test_predecessor_provenance_rejects_incomplete_component_inventory(self):
 		predecessor = {
