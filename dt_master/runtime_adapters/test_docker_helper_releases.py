@@ -54,7 +54,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			source = Path(directory) / "scripts/bin/docker/helper.py"
 			source.parent.mkdir(parents=True)
 			source.write_text(
-				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.0.0"\\n', encoding="utf-8"
+				'HELPER_VERSION = "2.0.0"\nREQUEST_SCHEMA_VERSION = "1.0.0"\\n', encoding="utf-8"
 			)
 			components = [component("lifecycle_helper", "scripts/bin/docker/helper.py")]
 			mismatches = compare_release_source_snapshot(components, directory)
@@ -71,7 +71,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			source = Path(directory) / "scripts/bin/docker/helper.py"
 			source.parent.mkdir(parents=True)
 			source.write_text(
-				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.4.0"\\n', encoding="utf-8"
+				'HELPER_VERSION = "2.0.0"\nREQUEST_SCHEMA_VERSION = "1.4.0"\\n', encoding="utf-8"
 			)
 			inspection = inspect_release_source(
 				[component("lifecycle_helper", "scripts/bin/docker/helper.py")], directory
