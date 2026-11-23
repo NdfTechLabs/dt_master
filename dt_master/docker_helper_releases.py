@@ -272,6 +272,20 @@ def compare_release_source_snapshot(components, source_root: str | Path, compati
 	return differences
 
 
+def capture_component_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
+	"""Capture SHA-256 digests for every component in a release snapshot."""
+	observed = {}
+	for component in components:
+		validate_component_definition(component)
+		component_id = _value(component, "component_id")
+		if component_id in observed:
+			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
+		observed[component_id] = component_source_digest(
+			source_root, _value(component, "source_path")
+		)
+	return observed
+
+
 def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
 	"""Verify local source files against immutable hashes in the release record."""
 	expected = {_value(component, "component_id"): _value(component, "sha256") for component in components}
