@@ -3,6 +3,20 @@ frappe.ui.form.on("Infrastructure Node", {
 		frm.set_query("docker_helper_release", () => ({
 			filters: { status: "Published" },
 		}));
+		if (frm.doc.docker_helper_release) {
+			frappe.db
+				.get_value("Docker Helper Release", frm.doc.docker_helper_release, "status")
+				.then(({ message }) => {
+					if (message && message.status === "Retired") {
+						frm.dashboard.set_headline_alert(
+							__(
+								"This node is assigned to a retired Docker Helper Release. Select the active Published release and save the node before starting reconciliation."
+							),
+							"orange"
+						);
+					}
+				});
+		}
 		if (frm.is_new()) return;
 
 		const { status, state } = frm.doc;
