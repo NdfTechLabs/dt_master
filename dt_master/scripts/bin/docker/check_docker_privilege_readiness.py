@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import pwd
+import re
+import base64
 import stat
 import subprocess
 import sys
@@ -36,6 +38,12 @@ def run(argv, *, input_text=None, timeout=5):
 
 def load_release_manifest():
 	try:
+		expected_encoded = os.environ.get("EXPECTED_RELEASE_MANIFEST_B64", "")
+		if not expected_encoded:
+			return None
+		expected_manifest = json.loads(base64.b64decode(expected_encoded, validate=True).decode("utf-8"))
+		if not isinstance(expected_manifest, dict):
+			return None
 		metadata = RELEASE_MANIFEST.lstat()
 		if (
 			not stat.S_ISREG(metadata.st_mode)
@@ -47,9 +55,13 @@ def load_release_manifest():
 		manifest = json.loads(RELEASE_MANIFEST.read_text(encoding="utf-8"))
 		if (
 			not isinstance(manifest, dict)
-			or set(manifest) != {"schema_version", "release", "compatibility", "components", "lifecycle"}
+			or set(manifest) != {"schema_version", "release", "compatibility", "predecessors", "components", "lifecycle"}
+			or manifest != expected_manifest
 			or manifest["schema_version"] != "1.1.0"
+			or not isinstance(manifest["release"], dict)
 			or manifest["release"].get("status") != "supported"
+			or not isinstance(manifest["predecessors"], list)
+			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", manifest["release"].get("version", ""))
 		):
 			return None
 		components = manifest["components"]
@@ -74,6 +86,11 @@ def load_release_manifest():
 			"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"
 		}:
 			return None
+		if next(
+			(component["version"] for component in components if component.get("id") == "lifecycle_helper"),
+			None,
+		) != manifest["release"]["version"]:
+			return None
 		return manifest["release"]["version"], expected
 	except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
 		return None
@@ -87,9 +104,18 @@ def main():
 	release_ok = release is not None
 	expected_version, expected_digests = release if release_ok else (None, {})
 
-	def record(name, ok, detail):
-		checks.append({"name": name, "status": "Passed" if ok else "Failed"})
-		if not ok:
+	def record(name, ok, detail, *, skipped=False):
+		status = "Skipped" if skipped else ("Passed" if ok else "Failed")
+		checks.append({"name": name, "status": status})
+		if skipped:
+			diagnostics.append(
+				{
+					"code": "DOCKER_PRIVILEGE_" + name.upper() + "_SKIPPED",
+					"severity": "Warning",
+					"message": detail,
+				}
+			)
+		elif not ok:
 			diagnostics.append(
 				{"code": "DOCKER_PRIVILEGE_" + name.upper(), "severity": "Error", "message": detail}
 			)
@@ -218,6 +244,7 @@ def main():
 				helper_result = json.loads(response.stdout)
 			except json.JSONDecodeError:
 				helper_result = None
+	self_test_attempted = helper_ok and policy_artifact_ok and inventory_artifact_ok and policy_ok and allowed
 	self_test_ok = (
 		isinstance(helper_result, dict)
 		and set(helper_result)
@@ -232,13 +259,17 @@ def main():
 	record(
 		"helper_self_test",
 		self_test_ok,
-		"The privileged helper self-test did not return the expected root identity response.",
+		"The privileged helper self-test did not return the expected root identity response."
+		if self_test_attempted
+		else "The privileged helper self-test was not run because prerequisite integrity or authorization checks failed.",
+		skipped=not self_test_attempted,
 	)
 
 	failed = [item for item in checks if item["status"] == "Failed"]
+	skipped = [item for item in checks if item["status"] == "Skipped"]
 	status = (
 		"Ready"
-		if not failed
+		if not failed and not skipped
 		else (
 			"Not Ready"
 			if any(
