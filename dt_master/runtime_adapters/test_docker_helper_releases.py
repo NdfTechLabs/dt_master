@@ -69,6 +69,23 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		self.assertEqual(mismatches["lifecycle_helper"]["observed"]["version"], "2.0.0")
 		self.assertEqual(mismatches["lifecycle_helper"]["observed"]["sha256"], observed_sha256)
 
+	def test_source_inspection_allows_missing_digest_for_draft_regeneration(self):
+		with tempfile.TemporaryDirectory() as directory:
+			source = Path(directory) / "scripts/bin/docker/helper.py"
+			source.parent.mkdir(parents=True)
+			source.write_text(
+				'HELPER_VERSION = "2.0.0"\\nREQUEST_SCHEMA_VERSION = "1.0.0"\\n',
+				encoding="utf-8",
+			)
+			row = component("lifecycle_helper", "scripts/bin/docker/helper.py")
+			row.pop("sha256")
+			inspection = inspect_release_source([row], directory)
+		self.assertEqual(inspection["components"]["lifecycle_helper"]["version"], "2.0.0")
+		self.assertEqual(
+			inspection["components"]["lifecycle_helper"]["sha256"],
+			hashlib.sha256(source.read_bytes()).hexdigest(),
+		)
+
 	def test_source_inspection_extracts_actual_protocol_and_component_versions(self):
 		with tempfile.TemporaryDirectory() as directory:
 			source = Path(directory) / "scripts/bin/docker/helper.py"
