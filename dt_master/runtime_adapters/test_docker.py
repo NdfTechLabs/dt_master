@@ -864,6 +864,48 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			"deployed": deployed,
 		}
 
+	def test_release_assessment_reports_source_drift_without_creating_a_draft(self):
+		from dt_master.docker_helper_releases import DockerHelperReleaseError
+
+		release = SimpleNamespace(
+			release_id="dt-docker-helper-0.3.2",
+			version="0.3.2",
+			status="Published",
+			components=[{"component_id": "lifecycle_helper", "sha256": "a" * 64}],
+		)
+		mismatches = {
+			"lifecycle_helper": {"expected": "a" * 64, "observed": "b" * 64}
+		}
+		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch(
+				"dt_master.docker_helper_releases.serialize_release_manifest",
+				side_effect=DockerHelperReleaseError(
+					"Published release source drift detected for component(s): lifecycle_helper"
+				),
+			),
+			patch(
+				"dt_master.runtime_adapters.docker.compare_release_source_snapshot",
+				return_value=mismatches,
+			),
+			patch(
+				"dt_master.docker_helper_releases.create_draft_release_from_source"
+			) as create_draft,
+		):
+			self.node.docker_helper_release = release.release_id
+			result = self.adapter._release_assess(request("release_assess"))
+
+		self.assertEqual(result.observed_state, "Source Drift")
+		self.assertEqual(result.outcome, "partial")
+		self.assertEqual(result.data["source_drift_components"], mismatches)
+		self.assertIsNone(result.data["draft_release"])
+		create_draft.assert_not_called()
+		self.assertEqual(
+			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"],
+			"Source Drift",
+		)
+
 	def test_release_assessment_exposes_sanitized_local_source_validation_reason(self):
 		from dt_master.docker_helper_releases import DockerHelperReleaseError
 
