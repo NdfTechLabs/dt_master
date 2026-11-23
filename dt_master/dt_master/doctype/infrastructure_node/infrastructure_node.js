@@ -5,6 +5,9 @@ frappe.ui.form.on("Infrastructure Node", {
 		}));
 		if (frm.doc.docker_helper_release) {
 			load_retired_release_recovery(frm);
+			if (frm.doc.docker_helper_release_assessment_status === "Source Drift") {
+				show_source_drift_recovery(frm);
+			}
 			if (
 				frm.doc.docker_helper_release_assessment_status === "Scripts Deployment Required"
 			) {
@@ -134,6 +137,66 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 	},
 });
+
+
+function show_source_drift_recovery(frm) {
+	const snapshot = parse_json_field(frm.doc.docker_helper_release_assessment_snapshot) || {};
+	if (snapshot.source_drift !== true) return;
+	const components = Object.keys(snapshot.source_drift_components || {});
+	frm.dashboard.set_headline_alert(
+		__(
+			"Local Docker helper source has drifted from the assigned Published release ({0}). Changed components: {1}. Create a Draft to capture the current source; the existing release remains unchanged.",
+			[
+				snapshot.assigned_release?.release_id || frm.doc.docker_helper_release,
+				components.join(", ") || __("Review source differences"),
+			]
+		),
+		"orange"
+	);
+	if (!frappe.user_roles.includes("System Manager")) return;
+	frm.add_custom_button(
+		__("Create Draft from Source Drift"),
+		() => {
+			frappe.confirm(
+				__(
+					"Create a new Draft from the current local Docker helper source files? The version will be generated automatically. The assigned Published release will not be modified and no remote deployment will occur."
+				),
+				() => {
+					frappe.call({
+						method: "dt_master.api.docker_helper_releases.create_draft_for_source_drift",
+						args: { node_name: frm.doc.name },
+						freeze: true,
+						freeze_message: __("Creating Draft from current Docker helper sources..."),
+						callback(response) {
+							const result = response.message || {};
+						if (!result.draft?.name) return;
+						frappe.show_alert({
+							message: result.created
+								? __("Draft {0} (v{1}) created.", [
+										result.draft.release_id,
+										result.draft.version,
+								  ])
+								: __("Existing Draft {0} is ready for review.", [
+										result.draft.release_id,
+								  ]),
+							indicator: "green",
+						});
+						frappe.set_route("Form", "Docker Helper Release", result.draft.name);
+						},
+						error() {
+							frappe.msgprint({
+								title: __("Draft Creation Failed"),
+								message: __("The source-drift Draft could not be created. Check the server error log."),
+								indicator: "red",
+							});
+						},
+					});
+				}
+			);
+		},
+		__("Docker Helper Release")
+	);
+}
 
 function load_retired_release_recovery(frm) {
 	frappe.call({
