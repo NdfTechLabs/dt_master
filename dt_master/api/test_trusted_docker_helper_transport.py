@@ -86,6 +86,25 @@ class TestTrustedDockerHelperTransport(unittest.TestCase):
 		process.stdin.write.assert_called_once()
 		process.stdin.close.assert_called_once()
 
+	def test_prepare_repository_request_is_dispatched_through_fixed_transport(self):
+		request = {"schema_version": "1.0.0", "operation": "prepare_repository"}
+		with (
+			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]) as build_ssh,
+			patch("dt_master.api.script_contract.subprocess.Popen") as popen,
+		):
+			process = popen.return_value
+			process.poll.return_value = 0
+			process.returncode = 0
+			code, stdout, stderr = run_trusted_helper(
+				None, {}, request, timeout_seconds=420, max_output_bytes=4096
+			)
+
+		self.assertEqual((code, stdout, stderr), (0, "", ""))
+		build_ssh.assert_called_once()
+		popen.assert_called_once()
+		process.stdin.write.assert_called_once()
+		process.stdin.close.assert_called_once()
+
 	def test_install_transport_heartbeats_while_remote_helper_runs(self):
 		with (
 			patch("dt_master.api.script_contract.build_ssh_argv", return_value=["ssh"]),
