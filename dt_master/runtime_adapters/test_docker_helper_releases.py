@@ -7,6 +7,7 @@ from pathlib import Path
 
 from dt_master.api.docker_helper_releases import _next_patch_release_version
 from dt_master.docker_helper_releases import (
+	RELEASE_MANIFEST_SCHEMA_VERSION,
 	DockerHelperReleaseError,
 	compare_release_source_snapshot,
 	aggregate_release_digest,
@@ -143,7 +144,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			"version": "0.3.2",
 			"channel": "stable",
 			"status": "Published",
-			"schema_version": "1.0.0",
+			"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 			"compatibility": compatibility,
 			"lifecycle": lifecycle,
 			"components": components,
