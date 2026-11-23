@@ -58,7 +58,10 @@ frappe.ui.form.on("Infrastructure Node", {
 				);
 			}
 		});
-		if (frappe.user_roles.includes("System Manager") && frm.doc.access_verified) {
+		const sshConfigured = Boolean(
+			frm.doc.ssh_host_alias || (frm.doc.ip_address && frm.doc.ssh_user)
+		);
+		if (frappe.user_roles.includes("System Manager") && sshConfigured) {
 			frm.add_custom_button(
 				__("Test Node Connection"),
 				() => test_node_connection(frm),
@@ -79,6 +82,19 @@ frappe.ui.form.on("Infrastructure Node", {
 					),
 				__("Docker")
 			);
+			if (frm.doc.access_verified) {
+				frm.add_custom_button(
+					__("Install Docker Engine"),
+					() =>
+						frappe.confirm(
+							__(
+								"Install Docker Engine on this node? DT Master will check the existing Docker readiness requirements, use the trusted installer, and verify the result. Existing running containers may be affected."
+							),
+							() => run_docker_engine_install(frm)
+						),
+					__("Docker")
+				);
+			}
 			const dockerObservations = [
 				{
 					key: "privileges",
@@ -233,6 +249,32 @@ function run_docker_privilege_bootstrap(frm) {
 				message: __(
 					"The bootstrap operation could not be queued. Check the server error log."
 				),
+				indicator: "red",
+			});
+		},
+	});
+}
+
+function run_docker_engine_install(frm) {
+	frappe.call({
+		method: "dt_master.api.infrastructure_node.install_docker_engine",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Queueing Docker Engine installation..."),
+		callback(response) {
+			const operation = response.message || {};
+			frappe.show_alert({
+				message: __(
+					"Docker Engine installation queued. Operation: {0}. Follow progress and verification in Task Manager.",
+					[operation.operation_id || __("unknown")]
+				),
+				indicator: "blue",
+			});
+		},
+		error() {
+			frappe.msgprint({
+				title: __("Docker Engine Installation Not Started"),
+				message: __("The installation could not be queued. Check the server error log."),
 				indicator: "red",
 			});
 		},

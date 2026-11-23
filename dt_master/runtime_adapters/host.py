@@ -65,9 +65,26 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Host inspection currently requires an Infrastructure Node target")
 		node = frappe.get_doc(request.target_doctype, request.target_name)
 		node.check_permission("read")
-		if not node.access_verified:
+		if request.method != "connection_check" and not node.access_verified:
 			raise ValueError("Infrastructure Node SSH access has not been verified")
+		if request.method == "inspect":
+			if not HostRuntimeAdapter._has_successful_connection_evidence(node):
+				raise ValueError("A successful SSH connection check is required before Host inspection")
+			if getattr(node, "docker_host_state", None) != "Host Inspection Required":
+				raise ValueError("Host inspection is not the next eligible Docker host lifecycle action")
 		return node
+
+	@staticmethod
+	def _has_successful_connection_evidence(node):
+		try:
+			evidence = json.loads(node.docker_host_management_snapshot or "{}")
+		except (TypeError, ValueError):
+			return False
+		return (
+			isinstance(evidence, dict)
+			and evidence.get("connection_status") == "Connected"
+			and bool(evidence.get("operation_id"))
+		)
 
 	@staticmethod
 	def _ssh_config(node):
@@ -96,24 +113,71 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		node = self._node_for_request(request)
 		started = monotonic()
 		code, stdout, _stderr = run_remote_script(
-			node, self._ssh_config(node), "node", "test_node_connection.sh", {},
-			"node_connection_check", {"node": node.name, "target": request.target_name},
-			use_sudo=False, timeout_seconds=20, max_output_bytes=1024,
+			node,
+			self._ssh_config(node),
+			"node",
+			"test_node_connection.sh",
+			{},
+			"node_connection_check",
+			{"node": node.name, "target": request.target_name},
+			use_sudo=False,
+			timeout_seconds=20,
+			max_output_bytes=1024,
 		)
 		elapsed = min(86400000, int((monotonic() - started) * 1000))
-		if code != 0 or stdout.strip() != "DT_MASTER_SSH_OK":
+		connected = code == 0 and stdout.strip() == "DT_MASTER_SSH_OK"
+		self._persist_connection_evidence(node, request, connected, elapsed)
+		if not connected:
 			return self.result_for(
-				request, outcome="failed", observed_state="Unreachable",
+				request,
+				outcome="failed",
+				observed_state="Unreachable",
 				capabilities=self.capabilities(),
-				diagnostics=({"code": "NODE_SSH_CONNECTION_FAILED", "severity": "error",
-					"message": "The configured SSH connection did not return the expected remote test response."},),
-				data={"connection_status": "Failed", "latency_ms": elapsed}, duration_ms=elapsed,
+				diagnostics=(
+					{
+						"code": "NODE_SSH_CONNECTION_FAILED",
+						"severity": "error",
+						"message": "The configured SSH connection did not return the expected remote test response.",
+					},
+				),
+				data={"connection_status": "Failed", "latency_ms": elapsed},
+				duration_ms=elapsed,
 			)
 		return self.result_for(
-			request, outcome="succeeded", observed_state="Connected",
+			request,
+			outcome="succeeded",
+			observed_state="Connected",
 			capabilities=self.capabilities(),
 			data={"connection_status": "Connected", "latency_ms": elapsed, "transport": "SSH"},
 			duration_ms=elapsed,
+		)
+
+	@staticmethod
+	def _persist_connection_evidence(node, request, connected, latency_ms):
+		"""Persist the verified SSH result and advance only the host lifecycle projection."""
+		observed_at = now_datetime()
+		state = "Host Inspection Required" if connected else "Connection Required"
+		evidence = {
+			"schema_version": "1.0.0",
+			"node": node.name,
+			"operation_id": request.operation_id,
+			"observed_at": str(observed_at),
+			"connection_status": "Connected" if connected else "Failed",
+			"latency_ms": latency_ms,
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"access_verified": 1 if connected else 0,
+				"docker_host_state": state,
+				"docker_host_operation": request.operation_id,
+				"docker_host_state_updated_on": observed_at,
+				"docker_host_management_snapshot": json.dumps(
+					evidence, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
 		)
 
 	def _inspect(self, request, execution_context=None):
@@ -171,7 +235,9 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				"os_version_codename": os_info.get("version_codename"),
 				"os_id_like": os_info.get("id_like"),
 				"raw_architecture": os_info.get("architecture"),
-				"architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(os_info.get("architecture"), os_info.get("architecture")),
+				"architecture": {"x86_64": "amd64", "aarch64": "arm64"}.get(
+					os_info.get("architecture"), os_info.get("architecture")
+				),
 				"package_manager": os_info.get("package_manager"),
 				"service_manager": os_info.get("service_manager"),
 				"cpu_cores": compute.get("logical_cpu_cores"),
@@ -184,19 +250,33 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			values = parsed
 
 		required = (
-			"hostname", "os", "os_id", "os_version_id", "os_version_codename",
-			"raw_architecture", "architecture", "package_manager", "service_manager",
-			"cpu_cores", "memory_bytes", "root_available_bytes",
+			"hostname",
+			"os",
+			"os_id",
+			"os_version_id",
+			"os_version_codename",
+			"raw_architecture",
+			"architecture",
+			"package_manager",
+			"service_manager",
+			"cpu_cores",
+			"memory_bytes",
+			"root_available_bytes",
 		)
 		missing = [key for key in required if values.get(key) in (None, "")]
 		if missing:
 			return self.result_for(
-				request, outcome="failed", observed_state="Unknown",
+				request,
+				outcome="failed",
+				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INCOMPLETE", "severity": "error",
-					"message": "Host inspection returned an incomplete observation.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INCOMPLETE",
+						"severity": "error",
+						"message": "Host inspection returned an incomplete observation.",
+					},
+				),
 				data={"inspection_status": "Invalid", "missing_fields": missing},
 				duration_ms=elapsed,
 			)
@@ -212,22 +292,42 @@ class HostRuntimeAdapter(RuntimeAdapter):
 				raise ValueError("negative measurement")
 		except (TypeError, ValueError):
 			return self.result_for(
-				request, outcome="failed", observed_state="Unknown",
+				request,
+				outcome="failed",
+				observed_state="Unknown",
 				capabilities=self.capabilities(),
-				diagnostics=({
-					"code": "HOST_INSPECTION_INVALID_MEASUREMENT", "severity": "error",
-					"message": "Host inspection returned invalid capacity measurements.",
-				},),
+				diagnostics=(
+					{
+						"code": "HOST_INSPECTION_INVALID_MEASUREMENT",
+						"severity": "error",
+						"message": "Host inspection returned invalid capacity measurements.",
+					},
+				),
 				data={"inspection_status": "Invalid"},
 				duration_ms=elapsed,
 			)
 
 		os_support_status = self._os_support(values)
-		bench_available = discovery.get("bench_available", False) if discovery else values.get("bench_available") == "true"
-		tools = discovery.get("tools", {}) if discovery else {
-			key: parsed.get(f"{key}_available") == "true"
-			for key in ("python3", "node", "npm", "yarn", "nginx", "supervisorctl", "redis_cli", "mariadb")
-		}
+		bench_available = (
+			discovery.get("bench_available", False) if discovery else values.get("bench_available") == "true"
+		)
+		tools = (
+			discovery.get("tools", {})
+			if discovery
+			else {
+				key: parsed.get(f"{key}_available") == "true"
+				for key in (
+					"python3",
+					"node",
+					"npm",
+					"yarn",
+					"nginx",
+					"supervisorctl",
+					"redis_cli",
+					"mariadb",
+				)
+			}
+		)
 		data = {
 			"schema_version": discovery.get("schema_version", "1.0.0") if discovery else "1.0.0",
 			"inspection_status": "Successful",
@@ -252,6 +352,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			data["discovery"] = discovery
 			self._persist_discovery_snapshot(node, discovery)
 
+		self._persist_host_inspection_evidence(node, request, data)
+
 		return self.result_for(
 			request,
 			outcome="succeeded",
@@ -262,6 +364,43 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		)
 
 	@staticmethod
+	def _persist_host_inspection_evidence(node, request, inspection):
+		"""Advance the host lifecycle only after a complete, valid inspection."""
+		observed_at = now_datetime()
+		try:
+			previous = json.loads(node.docker_host_management_snapshot or "{}")
+		except (TypeError, ValueError):
+			previous = {}
+		if not isinstance(previous, dict):
+			previous = {}
+		evidence = {
+			"schema_version": "1.0.0",
+			"node": node.name,
+			"connection_status": "Connected",
+			"connection_operation_id": previous.get("operation_id"),
+			"host_inspection": {
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+				"inspection_status": inspection["inspection_status"],
+				"os_support_status": inspection["os_support_status"],
+				"os_support_policy_version": inspection["os_support_policy_version"],
+			},
+		}
+		frappe.db.set_value(
+			"Infrastructure Node",
+			node.name,
+			{
+				"docker_host_state": "Privilege Setup Required",
+				"docker_host_operation": request.operation_id,
+				"docker_host_state_updated_on": observed_at,
+				"docker_host_management_snapshot": json.dumps(
+					evidence, sort_keys=True, separators=(",", ":")
+				),
+			},
+			update_modified=False,
+		)
+
+	@staticmethod
 	def _persist_discovery_snapshot(node, discovery):
 		"""Persist the latest observed snapshot and fill only blank inventory fields."""
 		updates = {
@@ -269,7 +408,6 @@ class HostRuntimeAdapter(RuntimeAdapter):
 			"host_discovered_on": now_datetime(),
 			"host_discovery_snapshot": json.dumps(discovery, separators=(",", ":"), sort_keys=True),
 		}
-		identity = discovery.get("identity") or {}
 		os_info = discovery.get("os") or {}
 		compute = discovery.get("compute") or {}
 		storage = discovery.get("storage") or {}
@@ -280,8 +418,8 @@ class HostRuntimeAdapter(RuntimeAdapter):
 		disk_bytes = _positive_inventory_int(storage.get("disk_total_bytes"))
 		prefill = {
 			"cpu_cores": _positive_inventory_int(compute.get("logical_cpu_cores")),
-			"ram_gb": memory_bytes // (1024 ** 3) if memory_bytes else None,
-			"storage_gb": disk_bytes // (1024 ** 3) if disk_bytes else None,
+			"ram_gb": memory_bytes // (1024**3) if memory_bytes else None,
+			"storage_gb": disk_bytes // (1024**3) if disk_bytes else None,
 			"os_version": _clean_inventory_text(os_info.get("version_id")),
 		}
 		os_id = _clean_inventory_text(os_info.get("id"))

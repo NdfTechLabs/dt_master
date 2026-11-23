@@ -55,10 +55,10 @@ def _empty(payload):
 
 
 def _install(payload):
-	payload = _object(payload, {"confirm", "expected_state_fingerprint"})
+	payload = _object(payload, {"confirm"})
 	if payload.get("confirm") is not True:
 		raise ValueError("Docker installation requires explicit confirmation")
-	return _normalized_fingerprint(payload)
+	return {"confirm": True}
 
 
 def _versioned_mutation(payload, *, require_version):
@@ -95,6 +95,8 @@ def validate_docker_lifecycle_payload(operation_type, payload):
 		raise ValueError("Unsupported Docker lifecycle operation")
 	if operation_type in READ_ONLY_OPERATIONS or operation_type in PRIVILEGE_BOOTSTRAP_OPERATIONS:
 		return _empty(payload)
+	if operation_type == "host.node.docker.install":
+		return _install(payload)
 	if operation_type.endswith(".install"):
 		return _install(payload)
 	if operation_type.endswith(".upgrade") or operation_type.endswith(".downgrade"):

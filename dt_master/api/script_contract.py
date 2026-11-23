@@ -367,6 +367,63 @@ class TrustedHelperExecutionError(RuntimeError):
 		self.may_have_executed = bool(may_have_executed)
 
 
+def parse_trusted_install_engine_result(return_code, stdout, stderr, *, expected_operation_id):
+	"""Parse and validate one bounded install_engine helper response.
+
+	Only a single JSON object on stdout is accepted. Stderr is never surfaced
+	and any content there makes the response untrusted. A dispatched helper
+	with an invalid response has an uncertain outcome and requires recovery.
+	"""
+	from dt_master.runtime_adapters.docker_helper_contracts import (
+		DockerHelperContractError,
+		validate_install_engine_result,
+	)
+
+	def _unique_object(pairs):
+		value = {}
+		for key, item in pairs:
+			if key in value:
+				raise ValueError("Duplicate JSON object key")
+			value[key] = item
+		return value
+
+	def _reject_constant(_value):
+		raise ValueError("Non-finite JSON constant")
+
+	if type(return_code) is not int or return_code != 0:
+		raise TrustedHelperExecutionError(
+			"helper_process_failed",
+			"Trusted helper exited unsuccessfully; remote execution outcome is uncertain.",
+			may_have_executed=True,
+		)
+	if not isinstance(stdout, str) or not stdout.strip() or not isinstance(stderr, str):
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper returned an invalid response.",
+			may_have_executed=True,
+		)
+	if stderr.strip():
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper returned unexpected diagnostic output.",
+			may_have_executed=True,
+		)
+	try:
+		result = json.loads(
+			stdout,
+			object_pairs_hook=_unique_object,
+			parse_constant=_reject_constant,
+		)
+		validate_install_engine_result(result, expected_operation_id=expected_operation_id)
+	except (ValueError, TypeError) as exc:
+		raise TrustedHelperExecutionError(
+			"invalid_helper_result",
+			"Trusted helper response failed protocol validation; remote execution outcome is uncertain.",
+			may_have_executed=True,
+		) from exc
+	return result
+
+
 def run_trusted_helper(
 	node,
 	ssh,
@@ -374,6 +431,7 @@ def run_trusted_helper(
 	*,
 	timeout_seconds=20,
 	max_output_bytes=8192,
+	heartbeat=None,
 ):
 	"""Invoke only the root-owned Docker helper using its exact sudoers command.
 
@@ -381,16 +439,22 @@ def run_trusted_helper(
 	owned here. Callers can supply only the versioned JSON request object.
 	"""
 	helper_path = "/usr/local/lib/dt-master/docker/docker_lifecycle_helper.py"
-	if (
-		not isinstance(request, dict)
-		or set(request) != {"schema_version", "operation"}
-		or request.get("schema_version") != "1.0.0"
-		or request.get("operation") != "self_test"
-	):
+	if not isinstance(request, dict):
 		raise ValueError("Unsupported trusted Docker helper request")
 
-	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 120:
-		raise ValueError("Trusted helper timeout must be between 1 and 120 seconds")
+	operation = request.get("operation")
+	if operation in {"self_test", "prepare_repository"}:
+		if set(request) != {"schema_version", "operation"} or request.get("schema_version") != "1.0.0":
+			raise ValueError("Unsupported trusted Docker helper request")
+	elif operation == "install_engine":
+		from dt_master.runtime_adapters.docker_helper_contracts import validate_install_engine_request
+
+		validate_install_engine_request(request)
+	else:
+		raise ValueError("Unsupported trusted Docker helper request")
+
+	if not isinstance(timeout_seconds, int | float) or not 1 <= timeout_seconds <= 960:
+		raise ValueError("Trusted helper timeout must be between 1 and 960 seconds")
 	if not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 65536:
 		raise ValueError("Trusted helper output limit must be between 1 and 65536 bytes")
 
@@ -437,9 +501,7 @@ def run_trusted_helper(
 				may_have_executed=False,
 			) from exc
 
-		try:
-			proc.communicate(input=request_bytes, timeout=timeout_seconds)
-		except subprocess.TimeoutExpired as exc:
+		def stop_transport():
 			try:
 				os.killpg(proc.pid, signal.SIGTERM)
 			except ProcessLookupError:
@@ -452,9 +514,40 @@ def run_trusted_helper(
 				except ProcessLookupError:
 					pass
 				proc.wait()
+
+		try:
+			proc.stdin.write(request_bytes)
+			proc.stdin.close()
+			deadline = monotonic() + timeout_seconds
+			while proc.poll() is None:
+				remaining = deadline - monotonic()
+				if remaining <= 0:
+					stop_transport()
+					raise TrustedHelperExecutionError(
+						"execution_timeout",
+						"Trusted helper execution timed out; remote execution outcome is uncertain.",
+						may_have_executed=True,
+					)
+				try:
+					proc.wait(timeout=min(15, remaining))
+				except subprocess.TimeoutExpired:
+					if heartbeat is not None:
+						try:
+							heartbeat()
+						except Exception as exc:
+							stop_transport()
+							raise TrustedHelperExecutionError(
+								"lease_lost",
+								"Worker lease was lost during Docker installation; remote outcome requires reconciliation.",
+								may_have_executed=True,
+							) from exc
+		except TrustedHelperExecutionError:
+			raise
+		except (BrokenPipeError, OSError) as exc:
+			stop_transport()
 			raise TrustedHelperExecutionError(
-				"execution_timeout",
-				"Trusted helper execution timed out; remote execution outcome is uncertain.",
+				"transport_io_failed",
+				"Trusted helper transport failed after dispatch; remote execution outcome is uncertain.",
 				may_have_executed=True,
 			) from exc
 

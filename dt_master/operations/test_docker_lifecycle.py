@@ -26,15 +26,26 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					validate_docker_lifecycle_payload(operation, {"confirm": True})
 
-	def test_install_requires_explicit_confirmation(self):
-		for operation in ("host.node.docker.install", "host.node.docker.compose.install"):
-			with self.subTest(operation=operation):
-				with self.assertRaisesRegex(ValueError, "confirmation"):
-					validate_docker_lifecycle_payload(operation, {})
-				self.assertEqual(
-					validate_docker_lifecycle_payload(operation, {"confirm": True}),
-					{"confirm": True},
-				)
+	def test_compose_install_requires_explicit_confirmation(self):
+		with self.assertRaisesRegex(ValueError, "confirmation"):
+			validate_docker_lifecycle_payload("host.node.docker.compose.install", {})
+		self.assertEqual(
+			validate_docker_lifecycle_payload("host.node.docker.compose.install", {"confirm": True}),
+			{"confirm": True},
+		)
+
+	def test_engine_install_requires_only_explicit_confirmation(self):
+		self.assertEqual(
+			validate_docker_lifecycle_payload("host.node.docker.install", {"confirm": True}),
+			{"confirm": True},
+		)
+		for payload in ({}, {"confirm": False}, {"confirm": 1}):
+			with self.subTest(payload=payload), self.assertRaises(ValueError):
+				validate_docker_lifecycle_payload("host.node.docker.install", payload)
+		with self.assertRaises(ValueError):
+			validate_docker_lifecycle_payload(
+				"host.node.docker.install", {"confirm": True, "plan_digest": "a" * 64}
+			)
 
 	def test_upgrade_and_downgrade_require_explicit_version_and_confirmation(self):
 		operations = (
@@ -101,6 +112,21 @@ class TestDockerLifecycleContracts(unittest.TestCase):
 			docker_lifecycle_resource_lock_keys(
 				target, SimpleNamespace(operation_type="host.node.docker.updates.check")
 			)
+
+	def test_install_engine_is_registered_on_existing_durable_operation_runtime(self):
+		from dt_master.operations.registry import get_operation
+
+		definition = get_operation("host.node.docker.install")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 1200)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(
+			definition.resource_lock_keys(
+				SimpleNamespace(doctype="Infrastructure Node", name="NODE-01"),
+				SimpleNamespace(operation_type="host.node.docker.install"),
+			),
+			["node-docker:NODE-01"],
+		)
 
 	def test_authorization_requires_system_manager_and_verified_ssh(self):
 		target = SimpleNamespace(doctype="Infrastructure Node", access_verified=False)

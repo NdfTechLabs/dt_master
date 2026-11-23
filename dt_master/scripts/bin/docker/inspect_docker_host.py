@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -153,15 +154,27 @@ def _service_state() -> dict:
 	return {"manager": "systemd", **states}
 
 
+def _docker_query(argv: list[str]) -> tuple[int, str]:
+	"""Observe Docker using the SSH identity so fingerprints match unprivileged inspection."""
+	user = os.environ.get("DT_DOCKER_WORKLOAD_USER")
+	if not user:
+		return _run(argv, timeout=8)
+	if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or not shutil.which("runuser"):
+		return 127, ""
+	return _run(["runuser", "-u", user, "--", *argv], timeout=8)
+
+
 def _workload_summary() -> dict:
 	if not shutil.which("docker"):
-		return {"available": False, "running_containers": None, "total_containers": None}
+		# A missing Docker CLI on a host without a partial Engine install means
+		# there is no Docker CLI workload inventory to enumerate.
+		return {"available": True, "running_containers": 0, "total_containers": 0}
 	# Count only; never collect container names, IDs, labels, images, environment or logs.
-	code, output = _run(["docker", "ps", "--all", "--quiet"], timeout=8)
+	code, output = _docker_query(["docker", "ps", "--all", "--quiet"])
 	if code != 0:
 		return {"available": False, "running_containers": None, "total_containers": None}
 	total = min(sum(bool(line.strip()) for line in output.splitlines()), 100000)
-	code, output = _run(["docker", "ps", "--quiet"], timeout=8)
+	code, output = _docker_query(["docker", "ps", "--quiet"])
 	if code != 0:
 		return {"available": False, "running_containers": None, "total_containers": None}
 	running = min(sum(bool(line.strip()) for line in output.splitlines()), 100000)
@@ -241,11 +254,20 @@ def _parse_gpg_key_inventory(output: str) -> tuple[list[str], list[dict]]:
 		fields = line.split(":")
 		record = fields[0]
 		if record == "pub":
+			if len(fields) > 1 and fields[1] in {"r", "e", "d", "i", "n"}:
+				current_primary = None
+				current_record = None
+				continue
 			current_primary = {"fingerprint": None, "identity": None, "subkey_fingerprints": []}
 			primary_keys.append(current_primary)
 			current_record = "pub"
 		elif record == "sub":
-			current_record = "sub" if current_primary is not None else None
+			if current_primary is not None and len(fields) > 1 and fields[1] in {"r", "e", "d", "i", "n"}:
+				current_primary["fingerprint"] = None
+				current_primary["identity"] = None
+				current_record = None
+			else:
+				current_record = "sub" if current_primary is not None else None
 		elif record == "fpr" and len(fields) > 9:
 			fingerprint = fields[9].upper()
 			if not fingerprint:
@@ -335,11 +357,13 @@ def _package_manager_state() -> dict:
 		Path("/var/lib/apt/lists/lock"),
 		Path("/var/cache/apt/archives/lock"),
 	)
-	locked = False
-	if shutil.which("fuser"):
+	# Fail closed when the lock-inspection utility is unavailable; a missing
+	# observer is not evidence that dpkg/APT is unlocked.
+	locked = not bool(shutil.which("fuser"))
+	if not locked:
 		for lock_path in lock_paths:
 			code, output = _run(["fuser", str(lock_path)], timeout=3)
-			if code == 0 and output.strip():
+			if code != 1:
 				locked = True
 				break
 	return {"locked": locked, "dpkg_audit_clean": audit_clean}
@@ -360,7 +384,7 @@ def _storage() -> dict:
 def _docker_engine_health(services: dict, workloads: dict) -> str:
 	if not shutil.which("docker"):
 		return "not_installed"
-	code, output = _run(["docker", "info", "--format", "{{.ServerVersion}}"], timeout=8)
+	code, output = _docker_query(["docker", "info", "--format", "{{.ServerVersion}}"])
 	if code == 0 and output.strip():
 		return "healthy"
 	return "unhealthy" if services.get("docker") in {"active", "failed", "activating"} else "unavailable"
@@ -413,6 +437,10 @@ def collect() -> dict:
 	host = _os_release()
 	services = _service_state()
 	workloads = _workload_summary()
+	if not shutil.which("docker") and any(state != "inactive" for state in services.values()):
+		# Do not infer an empty workload set when a Docker/containerd service
+		# may exist but its CLI is unavailable.
+		workloads = {"available": False, "running_containers": None, "total_containers": None}
 	return {
 		"schema_version": SCHEMA_VERSION,
 		"observed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

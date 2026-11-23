@@ -18,6 +18,8 @@ def request(method="inspect"):
 		target_name="NODE-0001",
 		method=method,
 		payload={},
+		operation_id="operation-001",
+		correlation_id="correlation-001",
 	)
 
 
@@ -54,6 +56,12 @@ def inspection_output(**overrides):
 class TestHostRuntimeAdapter(unittest.TestCase):
 	def setUp(self):
 		self.adapter = HostRuntimeAdapter()
+		now_datetime_patcher = patch(
+			"dt_master.runtime_adapters.host.now_datetime",
+			return_value=datetime.datetime(2026, 11, 22, 10, 0, 0),
+		)
+		now_datetime_patcher.start()
+		self.addCleanup(now_datetime_patcher.stop)
 		self.node = SimpleNamespace(
 			name="NODE-0001",
 			access_verified=1,
@@ -64,6 +72,14 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			ssh_user="deploy",
 			ssh_port=22,
 			ssh_host_alias=None,
+			docker_host_state="Host Inspection Required",
+			docker_host_management_snapshot=json.dumps(
+				{
+					"schema_version": "1.0.0",
+					"operation_id": "connection-op-001",
+					"connection_status": "Connected",
+				}
+			),
 			check_permission=lambda permission: self.assertEqual(permission, "read"),
 		)
 
@@ -71,6 +87,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		stdout = stdout if stdout is not None else inspection_output()
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.frappe.db.set_value"),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script", return_value=(code, stdout, stderr)
 			) as run,
@@ -83,7 +100,7 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch(
 				"dt_master.runtime_adapters.host.run_remote_script",
-				return_value=(0, "DT_MASTER_SSH_OK\n", ""),
+				return_value=(0, "DT_MASTER_SSH_OK" + chr(10), ""),
 			) as run,
 		):
 			result = self.adapter.invoke("connection_check", request("connection_check"))
@@ -105,15 +122,19 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Unreachable")
 		self.assertEqual(result.diagnostics[0]["code"], "NODE_SSH_CONNECTION_FAILED")
 
-	def test_connection_check_rejects_unverified_node_before_ssh(self):
+	def test_connection_check_can_probe_before_access_is_verified(self):
 		self.node.access_verified = 0
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
-			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
+			patch("dt_master.runtime_adapters.host.frappe.db.set_value"),
+			patch(
+				"dt_master.runtime_adapters.host.run_remote_script",
+				return_value=(0, "DT_MASTER_SSH_OK" + chr(10), ""),
+			) as run,
 		):
-			with self.assertRaises(ValueError):
-				self.adapter.invoke("connection_check", request("connection_check"))
-		run.assert_not_called()
+			result = self.adapter.invoke("connection_check", request("connection_check"))
+		self.assertEqual(result.outcome, "succeeded")
+		run.assert_called_once()
 
 	def test_inspection_uses_existing_ssh_script_contract_without_sudo(self):
 		result, run = self._run_inspection()
@@ -136,21 +157,39 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			"observed_at": "2026-11-20T17:17:33Z",
 			"identity": {"hostname": "node-01", "fqdn": "node-01.example.test"},
 			"os": {
-				"pretty_name": "Ubuntu 24.04.4 LTS", "id": "ubuntu", "version_id": "24.04",
-				"version_codename": "noble", "id_like": "debian", "architecture": "x86_64",
-				"package_manager": "apt", "service_manager": "systemd",
+				"pretty_name": "Ubuntu 24.04.4 LTS",
+				"id": "ubuntu",
+				"version_id": "24.04",
+				"version_codename": "noble",
+				"id_like": "debian",
+				"architecture": "x86_64",
+				"package_manager": "apt",
+				"service_manager": "systemd",
 			},
 			"compute": {
-				"logical_cpu_cores": 6, "physical_cpu_cores": 3, "memory_total_bytes": 8 * 1024**3,
-				"memory_available_bytes": 4 * 1024**3, "swap_total_bytes": 2 * 1024**3,
-				"swap_free_bytes": 1 * 1024**3, "cpu_model": "Example CPU",
-				"load_average": [0.1, 0.2, 0.3], "uptime_seconds": 3600, "virtualization": "kvm",
+				"logical_cpu_cores": 6,
+				"physical_cpu_cores": 3,
+				"memory_total_bytes": 8 * 1024**3,
+				"memory_available_bytes": 4 * 1024**3,
+				"swap_total_bytes": 2 * 1024**3,
+				"swap_free_bytes": 1 * 1024**3,
+				"cpu_model": "Example CPU",
+				"load_average": [0.1, 0.2, 0.3],
+				"uptime_seconds": 3600,
+				"virtualization": "kvm",
 			},
 			"storage": {
-				"filesystems": [], "root_available_bytes": 50 * 1024**3,
-				"root_size_bytes": 100 * 1024**3, "disk_total_bytes": 100 * 1024**3,
+				"filesystems": [],
+				"root_available_bytes": 50 * 1024**3,
+				"root_size_bytes": 100 * 1024**3,
+				"disk_total_bytes": 100 * 1024**3,
 			},
-			"network": {"interfaces": [], "default_routes": [], "dns_nameservers": [], "listening_sockets": []},
+			"network": {
+				"interfaces": [],
+				"default_routes": [],
+				"dns_nameservers": [],
+				"listening_sockets": [],
+			},
 			"tools": {"python3": True, "nginx": True},
 			"services": {"nginx": {"active": "active", "enabled": "enabled"}},
 			"bench_available": False,
@@ -173,14 +212,18 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 			result = self.adapter.invoke("inspect", request())
 		self.assertEqual(result.data["schema_version"], "2.0.0")
 		self.assertEqual(result.data["discovery"]["network"]["interfaces"], [])
-		updates = set_value.call_args.args[2]
-		self.assertEqual(updates["cpu_cores"], 6)
-		self.assertEqual(updates["ram_gb"], 8)
-		self.assertEqual(updates["storage_gb"], 100)
-		self.assertEqual(updates["os_type"], "Ubuntu")
-		self.assertEqual(updates["os_version"], "24.04")
-		self.assertEqual(updates["host_discovery_status"], "Successful")
-		self.assertIn("host_discovery_snapshot", updates)
+		updates = [entry.args[2] for entry in set_value.call_args_list]
+		discovery_updates = next(item for item in updates if "host_discovery_status" in item)
+		lifecycle_updates = next(item for item in updates if "docker_host_state" in item)
+		self.assertEqual(discovery_updates["cpu_cores"], 6)
+		self.assertEqual(discovery_updates["ram_gb"], 8)
+		self.assertEqual(discovery_updates["storage_gb"], 100)
+		self.assertEqual(discovery_updates["os_type"], "Ubuntu")
+		self.assertEqual(discovery_updates["os_version"], "24.04")
+		self.assertEqual(discovery_updates["host_discovery_status"], "Successful")
+		self.assertIn("host_discovery_snapshot", discovery_updates)
+		self.assertEqual(lifecycle_updates["docker_host_state"], "Privilege Setup Required")
+		self.assertEqual(lifecycle_updates["docker_host_operation"], "operation-001")
 
 	def test_prefill_preserves_operator_values_and_treats_zero_as_blank(self):
 		node = SimpleNamespace(
@@ -207,14 +250,22 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertNotIn("os_type", updates)
 		self.assertNotIn("os_version", updates)
 		self.assertIn("host_discovery_snapshot", updates)
-		self.assertEqual(set(updates) - {
-			"host_discovery_status", "host_discovered_on", "host_discovery_snapshot",
-			"storage_gb",
-		}, set())
+		self.assertEqual(
+			set(updates)
+			- {
+				"host_discovery_status",
+				"host_discovered_on",
+				"host_discovery_snapshot",
+				"storage_gb",
+			},
+			set(),
+		)
 
 	def test_fresh_host_is_inspectable_without_bench_project_paths(self):
 		result, run = self._run_inspection(
-			stdout=inspection_output(bench_available="false", python3_available="false", node_available="false")
+			stdout=inspection_output(
+				bench_available="false", python3_available="false", node_available="false"
+			)
 		)
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.data["host_stage"], "Fresh Host")
@@ -302,8 +353,23 @@ class TestHostRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.outcome, "failed")
 		self.assertEqual(result.observed_state, "Blocked")
 
-	def test_unverified_node_is_rejected_before_ssh(self):
-		self.node.access_verified = 0
+	def test_inspection_requires_successful_connection_evidence_and_next_state(self):
+		self.node.docker_host_management_snapshot = "{}"
+		with (
+			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
+			patch("dt_master.runtime_adapters.host.run_remote_script") as run,
+		):
+			with self.assertRaises(ValueError):
+				self.adapter.invoke("inspect", request())
+		run.assert_not_called()
+
+		self.node.docker_host_management_snapshot = json.dumps(
+			{
+				"operation_id": "connection-op-001",
+				"connection_status": "Connected",
+			}
+		)
+		self.node.docker_host_state = "Privilege Setup Required"
 		with (
 			patch("dt_master.runtime_adapters.host.frappe.get_doc", return_value=self.node),
 			patch("dt_master.runtime_adapters.host.run_remote_script") as run,

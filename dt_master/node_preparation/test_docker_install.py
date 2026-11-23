@@ -1,14 +1,13 @@
 """Tests for the pure N3.2 Docker Engine installation planner."""
 
 import copy
-import hashlib
-import json
 import unittest
 
 from dt_master.node_preparation.docker_install import (
 	ENGINE_PACKAGES,
 	DockerInstallPlanError,
 	build_docker_engine_install_plan,
+	docker_engine_install_state_fingerprint,
 	validate_docker_engine_install_plan,
 )
 
@@ -52,6 +51,39 @@ def inventory(**overrides):
 
 
 class TestDockerEngineInstallPlan(unittest.TestCase):
+	def test_state_fingerprint_ignores_observation_clock_but_binds_host_state(self):
+		first = inventory()
+		second = copy.deepcopy(first)
+		second["observed_at"] = "2026-11-21T11:00:00Z"
+		second["apt_metadata"]["age_seconds"] = 7200
+		self.assertEqual(
+			docker_engine_install_state_fingerprint(first),
+			docker_engine_install_state_fingerprint(second),
+		)
+
+	def test_state_fingerprint_changes_when_package_or_workload_state_changes(self):
+		original = inventory()
+		package_change = copy.deepcopy(original)
+		package_change["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
+		workload_change = copy.deepcopy(original)
+		workload_change["workloads"]["running_containers"] = 1
+		self.assertNotEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(package_change),
+		)
+		self.assertNotEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(workload_change),
+		)
+
+	def test_state_fingerprint_rejects_unknown_or_sensitive_inventory_fields(self):
+		bad = inventory()
+		bad["ssh_host"] = "host.example"
+		with self.assertRaises(DockerInstallPlanError):
+			docker_engine_install_state_fingerprint(bad)
+		with self.assertRaises(DockerInstallPlanError):
+			docker_engine_install_state_fingerprint({"schema_version": "1.0.0"})
+
 	def test_supported_platforms_are_accepted(self):
 		for os_id, version in (("ubuntu", "22.04"), ("ubuntu", "24.04"), ("debian", "12")):
 			host = {"id": os_id, "version_id": version, "codename": "stable", "architecture": "amd64"}
@@ -59,6 +91,18 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 				build_docker_engine_install_plan("NODE-1", inventory(host_os=host))["target"]["name"],
 				"NODE-1",
 			)
+
+	def test_plan_digest_ignores_aging_apt_counter_but_binds_freshness(self):
+		first = inventory()
+		second = copy.deepcopy(first)
+		second["apt_metadata"]["age_seconds"] += 1
+		first_plan = build_docker_engine_install_plan("NODE-1", first)
+		second_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertEqual(first_plan["plan_digest"], second_plan["plan_digest"])
+
+		second["apt_metadata"]["status"] = "Stale"
+		stale_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertNotEqual(first_plan["plan_digest"], stale_plan["plan_digest"])
 
 	def test_unsupported_platform_is_blocked(self):
 		plan = build_docker_engine_install_plan(
@@ -167,11 +211,32 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertEqual(plan["status"], "blocked")
 
 	def test_active_workloads_require_impact_approval(self):
+		repository = copy.deepcopy(inventory()["repository"])
+		repository["fingerprints"] = ["9DC858229FC7DD38854AE2D88D81803C0EBFCD88"]
+		repository["primary_keys"] = [
+			{
+				"fingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+				"identity": "Docker Release (CE deb) <docker@docker.com>",
+				"subkey_fingerprints": [],
+			}
+		]
 		plan = build_docker_engine_install_plan(
-			"NODE-1", inventory(workloads={"available": True, "running_containers": 2, "total_containers": 3})
+			"NODE-1",
+			inventory(
+				repository=repository,
+				workloads={"available": True, "running_containers": 2, "total_containers": 3},
+			),
 		)
 		self.assertIn("ACTIVE_WORKLOADS_IMPACT_APPROVAL_REQUIRED", plan["reason_codes"])
 		self.assertTrue(plan["workload_impact"]["operator_impact_approval_required"])
+		self.assertEqual(plan["status"], "ready")
+
+	def test_unavailable_workload_evidence_blocks_install(self):
+		plan = build_docker_engine_install_plan(
+			"NODE-1",
+			inventory(workloads={"available": False, "running_containers": None, "total_containers": None}),
+		)
+		self.assertIn("WORKLOAD_STATE_UNAVAILABLE", plan["reason_codes"])
 		self.assertEqual(plan["status"], "blocked")
 
 	def test_package_manager_lock_blocks(self):
@@ -202,6 +267,15 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		second = build_docker_engine_install_plan("NODE-1", second_inventory)
 		self.assertEqual(first, second)
 		self.assertEqual(first["plan_digest"], second["plan_digest"])
+
+	def test_plan_exposes_inventory_state_fingerprint_and_binds_it_into_digest(self):
+		host_inventory = inventory()
+		plan = build_docker_engine_install_plan("NODE-1", host_inventory)
+		self.assertEqual(plan["state_fingerprint"], docker_engine_install_state_fingerprint(host_inventory))
+		tampered = copy.deepcopy(plan)
+		tampered["state_fingerprint"] = "f" * 64
+		with self.assertRaises(DockerInstallPlanError):
+			validate_docker_engine_install_plan(tampered)
 
 	def test_plan_tampering_is_rejected(self):
 		plan = build_docker_engine_install_plan("NODE-1", inventory())
@@ -254,9 +328,15 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertIn("PARTIAL_DOCKER_CE_INSTALLATION", plan["reason_codes"])
 		self.assertEqual(plan["status"], "blocked")
 
+	def test_human_readable_node_name_with_spaces_is_accepted(self):
+		plan = build_docker_engine_install_plan("NDF Tech Labs Contabo", inventory())
+		self.assertEqual(plan["target"]["name"], "NDF Tech Labs Contabo")
+
 	def test_invalid_node_name_is_rejected(self):
-		with self.assertRaises(DockerInstallPlanError):
-			build_docker_engine_install_plan("../node", inventory())
+		for invalid_name in ("../node", "", " NODE-1", "NODE-1\\n"):
+			with self.subTest(node_name=invalid_name):
+				with self.assertRaises(DockerInstallPlanError):
+					build_docker_engine_install_plan(invalid_name, inventory())
 
 
 if __name__ == "__main__":

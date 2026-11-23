@@ -48,10 +48,22 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 		operation = SimpleNamespace(operation_type="host.node.docker.privileges.bootstrap")
 		self.assertEqual(definition.resource_lock_keys(target, operation), ["node-docker:NODE-01"])
 
-	def test_docker_package_lifecycle_mutations_are_not_registered(self):
+	def test_engine_install_is_registered_on_durable_task_manager(self):
+		definition = get_operation("host.node.docker.install")
+		self.assertEqual(definition.queue, "long")
+		self.assertEqual(definition.timeout_seconds, 1200)
+		self.assertEqual(definition.max_attempts, 1)
+		self.assertEqual(definition.validate_payload({"confirm": True}), {"confirm": True})
+		target = SimpleNamespace(doctype="Infrastructure Node", name="NODE-01")
+		operation = SimpleNamespace(operation_type="host.node.docker.install")
+		self.assertEqual(
+			definition.resource_lock_keys(target, operation),
+			["node-docker:NODE-01"],
+		)
+
+	def test_other_docker_package_lifecycle_mutations_are_not_registered(self):
 		types = set(registered_operation_types())
 		for operation_type in (
-			"host.node.docker.install",
 			"host.node.docker.upgrade",
 			"host.node.docker.downgrade",
 			"host.node.docker.uninstall",
@@ -61,7 +73,6 @@ class TestDockerLifecycleRegistry(unittest.TestCase):
 			"host.node.docker.compose.uninstall",
 		):
 			self.assertNotIn(operation_type, types)
-
 
 if __name__ == "__main__":
 	unittest.main()

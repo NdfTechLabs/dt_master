@@ -1,8 +1,8 @@
 """Docker runtime adapter for Infrastructure Nodes.
 
-The adapter supports read-only observations and the constrained initial
-privilege bootstrap. Docker package and container lifecycle mutations remain
-disabled until their later acceptance increments.
+The adapter reuses the durable operation bridge and trusted helper for the
+initial exact-version Docker Engine installation, alongside read-only
+observations and the existing constrained privilege bootstrap.
 """
 
 import json
@@ -10,9 +10,11 @@ from copy import deepcopy
 from time import monotonic
 
 import frappe
+from frappe.utils import now_datetime
 
 from dt_master.api.script_contract import (
 	TrustedHelperExecutionError,
+	parse_trusted_install_engine_result,
 	run_remote_script,
 	run_trusted_helper,
 )
@@ -26,7 +28,240 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 	runtime_type = "docker"
 
 	def capabilities(self):
-		return ("bootstrap_privileges", "inspect", "preflight", "updates_check", "verify", "privilege_check")
+		return (
+			"bootstrap_privileges",
+			"install_engine",
+			"inspect",
+			"preflight",
+			"updates_check",
+			"verify",
+			"privilege_check",
+		)
+
+	@staticmethod
+	def _interpret_install_engine_result(request, helper_result):
+		"""Convert validated helper evidence without declaring package install success.
+
+		A successful privileged helper response is only an intermediate result.
+		The caller must perform independent read-only postcondition inspection
+		before the durable operation can be marked successful.
+		"""
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		result = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		status = result["status"]
+		if status == "failed_before_mutation":
+			outcome, state = "failed", "Install Not Applied"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_INSTALL_REJECTED",
+					"severity": "error",
+					"message": "The trusted helper rejected the request before package mutation.",
+				},
+			)
+		elif status == "succeeded":
+			outcome, state = "partial", "Awaiting Postcondition Verification"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_POSTCONDITION_REQUIRED",
+					"severity": "warning",
+					"message": "The helper completed its package action; independent host inspection is still required.",
+				},
+			)
+		else:
+			outcome, state = "partial", "Recovery Required"
+			diagnostics = (
+				{
+					"code": "DOCKER_ENGINE_INSTALL_RECONCILIATION_REQUIRED",
+					"severity": "error",
+					"message": "The helper reported a possible or partial mutation; fresh host reconciliation is required.",
+				},
+			)
+
+		return DockerRuntimeAdapter.result_for(
+			request,
+			outcome=outcome,
+			observed_state=state,
+			capabilities=(),
+			diagnostics=diagnostics,
+			data={
+				"helper_status": status,
+				"helper_phase": result["phase"],
+				"helper_version": result["helper_version"],
+				"before_state_fingerprint": result["before_state_fingerprint"],
+				"after_state_fingerprint": result["after_state_fingerprint"],
+				"packages": result["packages"],
+				"package_manager_exit_code": result["package_manager_exit_code"],
+				"daemon_action": result["daemon_action"],
+				"diagnostic_codes": result["diagnostics"],
+				"postcondition_verified": False,
+			},
+		)
+
+	@staticmethod
+	def _interpret_install_engine_postcondition(request, helper_result, inventory):
+		"""Require fresh independent inventory before declaring Engine installation successful."""
+		from dt_master.node_preparation.docker_install_verification import (
+			evaluate_docker_engine_install_postcondition,
+		)
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		helper = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		if helper["status"] == "failed_before_mutation":
+			return DockerRuntimeAdapter._interpret_install_engine_result(request, helper)
+
+		verification = evaluate_docker_engine_install_postcondition(
+			request.target_name,
+			inventory,
+			helper,
+			expected_operation_id=request.operation_id,
+		)
+		if helper["status"] != "succeeded":
+			base = DockerRuntimeAdapter._interpret_install_engine_result(request, helper)
+			data = dict(base.data)
+			data["postcondition"] = verification
+			return DockerRuntimeAdapter.result_for(
+				request,
+				outcome="partial",
+				observed_state="Recovery Required",
+				capabilities=(),
+				diagnostics=base.diagnostics,
+				data=data,
+			)
+
+		verified = verification["status"] == "verified"
+		diagnostic_rows = verification["diagnostics"]
+		if verified:
+			outcome = "succeeded"
+			state = "Verified"
+			diagnostics = ()
+		else:
+			outcome = "partial"
+			state = "Recovery Required"
+			if not diagnostic_rows:
+				diagnostic_rows = [
+					{
+						"code": "DOCKER_INSTALL_POSTCONDITION_NOT_VERIFIED",
+						"message": "Fresh host inspection did not verify the requested Docker Engine installation.",
+					}
+				]
+			diagnostics = tuple(
+				{
+					"code": item["code"],
+					"severity": "error",
+					"message": sanitize_diagnostic_message(item["message"]),
+				}
+				for item in diagnostic_rows[:20]
+			)
+
+		return DockerRuntimeAdapter.result_for(
+			request,
+			outcome=outcome,
+			observed_state=state,
+			capabilities=(),
+			diagnostics=diagnostics,
+			data={
+				"helper_status": helper["status"],
+				"helper_version": helper["helper_version"],
+				"postcondition_verified": verified,
+				"postcondition": verification,
+			},
+		)
+
+	def _verify_install_engine_postcondition(self, request, helper_result, execution_context=None):
+		"""Collect a new read-only Node inventory and verify the helper's result."""
+		from dt_master.runtime_adapters.docker_helper_contracts import (
+			validate_install_engine_result,
+		)
+
+		helper = validate_install_engine_result(
+			helper_result,
+			expected_operation_id=request.operation_id,
+		)
+		if helper["status"] == "failed_before_mutation":
+			return self._interpret_install_engine_result(request, helper)
+
+		if execution_context is not None:
+			execution_context.heartbeat()
+			execution_context.assert_leases()
+
+		inspection = self._inspect(request, execution_context=execution_context)
+		if execution_context is not None:
+			execution_context.assert_leases()
+
+		snapshot = inspection.data.get("snapshot") or {}
+		inventory = None
+		if inspection.data.get("inspection_status") == "Successful":
+			host_inventory = snapshot.get("host_inventory")
+			if isinstance(host_inventory, dict):
+				inventory = host_inventory.get("docker_install_inventory")
+
+		result = self._interpret_install_engine_postcondition(request, helper, inventory)
+		if execution_context is not None:
+			execution_context.heartbeat()
+			execution_context.assert_leases()
+		return result
+
+	@staticmethod
+	def _management_snapshot(node):
+		try:
+			snapshot = json.loads(getattr(node, "docker_host_management_snapshot", None) or "{}")
+		except (TypeError, ValueError):
+			return {}
+		return snapshot if isinstance(snapshot, dict) else {}
+
+	@classmethod
+	def _require_host_inspection(cls, node):
+		snapshot = cls._management_snapshot(node)
+		inspection = snapshot.get("host_inspection") or {}
+		if (
+			getattr(node, "docker_host_state", None) != "Privilege Setup Required"
+			or inspection.get("inspection_status") != "Successful"
+			or inspection.get("os_support_status") != "Supported"
+			or not inspection.get("operation_id")
+		):
+			raise ValueError(
+				"A successful, supported Host inspection is required before Docker privilege setup."
+			)
+
+	@classmethod
+	def _require_privilege_bootstrap(cls, node):
+		cls._require_host_inspection(node)
+		snapshot = cls._management_snapshot(node)
+		bootstrap = snapshot.get("privilege_bootstrap") or {}
+		if bootstrap.get("status") != "Succeeded" or not bootstrap.get("operation_id"):
+			raise ValueError(
+				"The trusted Docker privilege helper must be installed before privilege verification."
+			)
+
+	@classmethod
+	def _require_privilege_verified(cls, node):
+		snapshot = cls._management_snapshot(node)
+		verification = snapshot.get("privilege_readiness") or {}
+		if (
+			getattr(node, "docker_host_state", None)
+			not in {
+				"Docker Inspection Required",
+				"Repository Preparation Required",
+				"Ready for Install",
+				"Engine Ready",
+			}
+			or verification.get("status") != "Ready"
+			or not verification.get("operation_id")
+		):
+			raise ValueError(
+				"Trusted Docker privilege verification must succeed before Docker Engine inspection."
+			)
 
 	@staticmethod
 	def _node_for_request(request):
@@ -115,6 +350,8 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		allowed_checks = {
 			"execution_identity",
 			"helper_integrity",
+			"policy_integrity",
+			"inventory_integrity",
 			"trusted_directories",
 			"sudoers_policy",
 			"sudoers_syntax",
@@ -165,7 +402,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid trusted Docker helper self-test response")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.1.0"
+			or payload["helper_version"] != "0.3.0"
 			or payload["operation"] != "self_test"
 			or payload["status"] != "ok"
 			or type(payload["effective_uid"]) is not int
@@ -240,7 +477,29 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Check the trusted Docker helper and sudoers boundary without changing node state."""
 		started = monotonic()
 		node = self._node_for_request(request)
+		self._require_privilege_bootstrap(node)
 		readiness = deepcopy(self._privilege_readiness(node))
+		if readiness["status"] == "Ready":
+			observed_at = now_datetime()
+			snapshot = self._management_snapshot(node)
+			snapshot["privilege_readiness"] = {
+				"status": "Ready",
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+			}
+			frappe.db.set_value(
+				"Infrastructure Node",
+				node.name,
+				{
+					"docker_host_state": "Docker Inspection Required",
+					"docker_host_management_snapshot": json.dumps(
+						snapshot, sort_keys=True, separators=(",", ":")
+					),
+					"docker_host_operation": request.operation_id,
+					"docker_host_state_updated_on": observed_at,
+				},
+				update_modified=False,
+			)
 		for item in readiness.get("diagnostics", []):
 			item["message"] = sanitize_diagnostic_message(item["message"])
 		status = readiness["status"]
@@ -270,6 +529,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		)
 
 		node = self._node_for_request(request)
+		self._require_privilege_verified(node)
 		started = monotonic()
 		code, stdout, stderr = -1, "", ""
 		try:
@@ -441,11 +701,15 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Install the fixed helper and sudoers policy through the existing SSH runner."""
 		started = monotonic()
 		node = self._node_for_request(request)
+		self._require_host_inspection(node)
 		if not node.ssh_user:
 			raise ValueError("A configured SSH user is required for Docker privilege bootstrap")
 
-		def run_installer(script_name):
-			code, _stdout, _stderr = run_remote_script(
+		failure_details = []
+		phase = "helper_install"
+
+		def run_installer(script_name, step):
+			code, stdout, stderr = run_remote_script(
 				node,
 				self._ssh_config(node),
 				"docker",
@@ -457,22 +721,98 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				timeout_seconds=90,
 				max_output_bytes=16384,
 			)
-			return "completed" if code == 0 else "failed"
+			step.update(
+				{
+					"status": "completed" if code == 0 else "failed",
+					"exit_code": code,
+					"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+					"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+				}
+			)
+			if code != 0:
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_INSTALLER_FAILED",
+						"phase": script_name,
+						"exit_code": code,
+						"stdout": step["stdout"],
+						"stderr": step["stderr"],
+					}
+				)
+			return step["status"]
 
-		helper_status = "failed"
-		sudoers_status = "skipped"
+		helper_install = {"script": "install_docker_privilege_helper.sh", "status": "not_started"}
+		sudoers_install = {"script": "install_docker_sudoers.sh", "status": "skipped"}
+		readiness = None
 		try:
-			helper_status = run_installer("install_docker_privilege_helper.sh")
-		except Exception:
+			helper_status = run_installer(helper_install["script"], helper_install)
+		except Exception as exc:
 			helper_status = "failed"
-		if helper_status == "completed":
-			try:
-				sudoers_status = run_installer("install_docker_sudoers.sh")
-			except Exception:
-				sudoers_status = "failed"
+			helper_install.update(
+				{
+					"status": "failed",
+					"exception_type": type(exc).__name__,
+					"reason": sanitize_diagnostic_message(str(exc))[:500],
+				}
+			)
+			failure_details.append(
+				{
+					"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_EXCEPTION",
+					"phase": phase,
+					"exception_type": type(exc).__name__,
+					"reason": helper_install["reason"],
+				}
+			)
 
+		if helper_status == "completed":
+			phase = "sudoers_install"
+			sudoers_install["status"] = "not_started"
+			try:
+				sudoers_status = run_installer(sudoers_install["script"], sudoers_install)
+			except Exception as exc:
+				sudoers_status = "failed"
+				sudoers_install.update(
+					{
+						"status": "failed",
+						"exception_type": type(exc).__name__,
+						"reason": sanitize_diagnostic_message(str(exc))[:500],
+					}
+				)
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_EXCEPTION",
+						"phase": phase,
+						"exception_type": type(exc).__name__,
+						"reason": sudoers_install["reason"],
+					}
+				)
+		else:
+			sudoers_status = "skipped"
+
+		if helper_status == "completed" and sudoers_status == "completed":
+			observed_at = now_datetime()
+			snapshot = self._management_snapshot(node)
+			snapshot["privilege_bootstrap"] = {
+				"status": "Succeeded",
+				"operation_id": request.operation_id,
+				"observed_at": str(observed_at),
+			}
+			frappe.db.set_value(
+				"Infrastructure Node",
+				node.name,
+				{
+					"docker_host_management_snapshot": json.dumps(
+						snapshot, sort_keys=True, separators=(",", ":")
+					),
+					"docker_host_operation": request.operation_id,
+					"docker_host_state_updated_on": observed_at,
+				},
+				update_modified=False,
+			)
+
+		phase = "readiness_verification"
 		try:
-			code, stdout, _stderr = run_remote_script(
+			code, stdout, stderr = run_remote_script(
 				node,
 				self._ssh_config(node),
 				"docker",
@@ -485,25 +825,46 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				max_output_bytes=8192,
 			)
 			if code != 0:
-				raise ValueError("Docker privilege readiness probe failed")
+				failure_details.append(
+					{
+						"code": "DOCKER_PRIVILEGE_READINESS_PROBE_FAILED",
+						"phase": phase,
+						"exit_code": code,
+						"stdout": sanitize_diagnostic_message(stdout)[:1200] if stdout else None,
+						"stderr": sanitize_diagnostic_message(stderr)[:1200] if stderr else None,
+					}
+				)
+				raise ValueError("Docker privilege readiness probe returned a non-zero exit code")
 			readiness = self._validate_privilege_readiness(json.loads(stdout.strip()))
-		except Exception:
+		except Exception as exc:
+			failure_details.append(
+				{
+					"code": "DOCKER_PRIVILEGE_READINESS_VERIFICATION_FAILED",
+					"phase": phase,
+					"exception_type": type(exc).__name__,
+					"reason": sanitize_diagnostic_message(str(exc))[:500],
+				}
+			)
 			return self.result_for(
 				request,
 				outcome="partial",
 				observed_state="Incomplete",
 				capabilities=self.capabilities(),
-				diagnostics=(
+				diagnostics=tuple(
 					{
-						"code": "DOCKER_PRIVILEGE_BOOTSTRAP_INCOMPLETE",
-						"severity": "warning",
-						"message": "The Docker privilege bootstrap did not return a valid verification result.",
-					},
+						"code": item["code"],
+						"severity": "error",
+						"message": item.get("reason")
+						or item.get("stderr")
+						or "Privileged Docker bootstrap verification failed.",
+					}
+					for item in failure_details[:20]
 				),
 				data={
 					"bootstrap_status": "Incomplete",
-					"helper_install": helper_status,
-					"sudoers_install": sudoers_status,
+					"helper_install": helper_install,
+					"sudoers_install": sudoers_install,
+					"failure": {"phase": phase, "details": failure_details[:20]},
 				},
 				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 			)
@@ -518,20 +879,22 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			}
 			for item in readiness.get("diagnostics", [])
 		]
-		if helper_status != "completed":
-			diagnostics.append(
+		for label, step in (("helper", helper_install), ("sudoers", sudoers_install)):
+			if step["status"] == "failed":
+				diagnostics.append(
+					{
+						"code": "DOCKER_PRIVILEGE_" + label.upper() + "_INSTALL_FAILED",
+						"severity": "error",
+						"message": step.get("stderr")
+						or step.get("reason")
+						or f"The Docker {label} installer failed (exit code {step.get('exit_code', 'unknown')}).",
+					}
+				)
+		if not steps_ready:
+			failure_details.append(
 				{
-					"code": "DOCKER_PRIVILEGE_HELPER_INSTALL_FAILED",
-					"severity": "error",
-					"message": "The trusted Docker helper installer did not complete successfully.",
-				}
-			)
-		if sudoers_status != "completed":
-			diagnostics.append(
-				{
-					"code": "DOCKER_PRIVILEGE_SUDOERS_INSTALL_FAILED",
-					"severity": "error",
-					"message": "The scoped Docker sudoers installer did not complete successfully.",
+					"code": "DOCKER_PRIVILEGE_BOOTSTRAP_STEP_FAILED",
+					"phase": "installer_execution",
 				}
 			)
 		return self.result_for(
@@ -546,9 +909,12 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			diagnostics=tuple(diagnostics[:100]),
 			data={
 				"bootstrap_status": "Succeeded" if ready else "Failed",
-				"helper_install": helper_status,
-				"sudoers_install": sudoers_status,
+				"helper_install": helper_install,
+				"sudoers_install": sudoers_install,
 				"privilege_readiness": readiness,
+				"failure": {"phase": "installer_execution", "details": failure_details[:20]}
+				if failure_details
+				else None,
 			},
 			duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 		)
@@ -658,6 +1024,310 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			duration_ms=inspection.duration_ms,
 		)
 
+	def _install_engine(self, request, execution_context=None):
+		"""Install Docker through the trusted helper using existing Node readiness."""
+		from dt_master.node_preparation.docker_install import (
+			build_docker_engine_install_plan,
+			validate_docker_engine_install_plan,
+		)
+
+		started = monotonic()
+		node = self._node_for_request(request)
+		helper_dispatched = False
+		phase = "initial_inspection"
+		failure_detail = None
+		try:
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+
+			inspection = self._inspect(request, execution_context=execution_context)
+			if inspection.data.get("inspection_status") != "Successful":
+				raise ValueError("A complete fresh Docker inspection is required.")
+			privilege = inspection.data.get("privilege_readiness") or {}
+			if privilege.get("status") != "Ready":
+				raise ValueError("The trusted Docker privilege helper is not ready on this node.")
+
+			# Reuse configured Node readiness for host capacity requirements.
+			# Engine/Compose/version requirements describe the desired post-install
+			# state, so they must not prevent installing a missing Engine.
+			readiness = inspection.data.get("readiness_evaluation") or {}
+			host_requirements = {
+				"min_cpu_cores",
+				"min_total_memory_bytes",
+				"min_available_memory_bytes",
+				"min_available_storage_bytes",
+			}
+			resource_failures = [
+				item
+				for item in readiness.get("diagnostics", [])
+				if item.get("severity") == "Error" and item.get("requirement") in host_requirements
+			]
+			if resource_failures:
+				raise ValueError(
+					"The node does not satisfy its configured Docker host resource requirements."
+				)
+
+			snapshot = inspection.data.get("snapshot") or {}
+			host_inventory = snapshot.get("host_inventory") or {}
+			install_inventory = host_inventory.get("docker_install_inventory")
+			if not isinstance(install_inventory, dict):
+				raise ValueError("Docker Engine installation inventory is unavailable.")
+
+			# A healthy, trusted existing Engine is a successful no-op. Do this
+			# before package metadata freshness checks; installation is unnecessary.
+			package_rows = {
+				row.get("name"): row for row in install_inventory.get("packages", []) if isinstance(row, dict)
+			}
+			engine_packages = ("docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin")
+			engine_already_installed = install_inventory.get("docker_engine_health") == "healthy" and all(
+				package_rows.get(name, {}).get("dpkg_status") == "installed"
+				and "download.docker.com" in (package_rows.get(name, {}).get("installed_origin") or "")
+				for name in engine_packages
+			)
+			if engine_already_installed:
+				return self.result_for(
+					request,
+					outcome="succeeded",
+					observed_state="Already Installed",
+					capabilities=self.capabilities(),
+					data={
+						"installation_status": "Already Installed",
+						"postcondition_verified": True,
+						"no_op": True,
+					},
+					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+				)
+
+			# The plan is generated and validated internally. It is not an
+			# operator-supplied approval token or a separate UI workflow.
+			phase = "install_plan_validation"
+			plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+			validate_docker_engine_install_plan(plan)
+			# Repository preparation is safe to perform before installation even
+			# when workload evidence is unavailable. It must never bypass that
+			# independent workload-safety blocker: a fresh plan is required after
+			# preparation, and Engine installation proceeds only when it is ready.
+			plan_reasons = set(plan.get("reason_codes") or [])
+			preparation_reasons = {
+				"APT_METADATA_NOT_FRESH",
+				"DOCKER_KEYRING_PATH_UNTRUSTED",
+				"DOCKER_REPOSITORY_UNTRUSTED",
+				"DOCKER_SIGNING_KEY_UNVERIFIED",
+				"WORKLOAD_STATE_UNAVAILABLE",
+			}
+			package_candidate_reasons = {
+				reason
+				for reason in plan_reasons
+				if reason.startswith("PACKAGE_CANDIDATE_UNAVAILABLE_OR_UNTRUSTED:")
+			}
+			known_preparation_blockers = preparation_reasons | package_candidate_reasons
+			should_prepare_repository = (
+				bool(plan.get("prerequisites"))
+				and bool(plan_reasons)
+				and plan_reasons.issubset(known_preparation_blockers)
+				and bool(
+					set(plan.get("prerequisites") or [])
+					& {
+						"configure_official_docker_repository",
+						"refresh_apt_metadata",
+						"verify_and_pin_docker_signing_key",
+					}
+				)
+			)
+			if plan.get("status") == "preparation_required" or should_prepare_repository:
+				phase = "repository_preparation"
+				if execution_context is not None:
+					execution_context.heartbeat()
+					execution_context.assert_leases()
+				prepare_code, prepare_stdout, _prepare_stderr = run_trusted_helper(
+					node,
+					self._ssh_config(node),
+					{"schema_version": "1.0.0", "operation": "prepare_repository"},
+					timeout_seconds=420,
+					max_output_bytes=4096,
+				)
+				try:
+					prepare_result = json.loads(prepare_stdout.strip())
+				except (TypeError, ValueError) as exc:
+					raise ValueError("Docker repository preparation returned an invalid result.") from exc
+				if (
+					prepare_code != 0
+					or not isinstance(prepare_result, dict)
+					or set(prepare_result)
+					!= {"schema_version", "helper_version", "operation", "status", "diagnostics"}
+					or prepare_result.get("schema_version") != "1.0.0"
+					or prepare_result.get("operation") != "prepare_repository"
+					or prepare_result.get("status") != "succeeded"
+					or prepare_result.get("diagnostics") != []
+				):
+					failure_detail = {
+						"code": "DOCKER_REPOSITORY_PREPARATION_FAILED",
+						"message": "Trusted helper repository preparation did not satisfy its success contract.",
+						"exit_code": prepare_code,
+						"stderr": sanitize_diagnostic_message(_prepare_stderr)[:1200],
+						"helper_result": prepare_result if isinstance(prepare_result, dict) else None,
+					}
+					raise ValueError("The trusted helper could not prepare the official Docker repository.")
+				if execution_context is not None:
+					execution_context.heartbeat()
+					execution_context.assert_leases()
+				phase = "post_preparation_inspection"
+				inspection = self._inspect(request, execution_context=execution_context)
+				if inspection.data.get("inspection_status") != "Successful":
+					raise ValueError("Fresh inspection failed after Docker repository preparation.")
+				snapshot = inspection.data.get("snapshot") or {}
+				host_inventory = snapshot.get("host_inventory") or {}
+				install_inventory = host_inventory.get("docker_install_inventory")
+				if not isinstance(install_inventory, dict):
+					raise ValueError("Fresh Docker installation inventory is unavailable.")
+				plan = build_docker_engine_install_plan(request.target_name, install_inventory)
+				validate_docker_engine_install_plan(plan)
+			if plan.get("status") != "ready":
+				failure_detail = {
+					"code": "DOCKER_INSTALL_PLAN_NOT_READY",
+					"plan_status": plan.get("status"),
+					"reason_codes": plan.get("reason_codes", []),
+					"prerequisites": plan.get("prerequisites", []),
+					"package_candidates": [
+						{
+							"name": row.get("name"),
+							"candidate_version": row.get("candidate_version"),
+							"action": row.get("action"),
+						}
+						for row in plan.get("packages", [])
+						if isinstance(row, dict)
+					],
+				}
+				reasons = ", ".join(failure_detail["reason_codes"]) or "No planner reason codes supplied"
+				raise ValueError(f"Docker installation plan status is '{plan.get('status')}': {reasons}")
+			package_rows = plan.get("packages") or []
+			if len(package_rows) != 4 or any(
+				row.get("action") != "install" or not row.get("candidate_version") for row in package_rows
+			):
+				raise ValueError("The trusted Docker package set is not available for installation.")
+
+			phase = "engine_install_dispatch"
+			workload_impact = plan.get("workload_impact") or {}
+			helper_request = {
+				"schema_version": "1.0.0",
+				"operation": "install_engine",
+				"operation_id": request.operation_id,
+				"target": {"doctype": request.target_doctype, "name": request.target_name},
+				"plan": {
+					"schema_version": plan["schema_version"],
+					"policy_version": plan["policy"]["version"],
+					"plan_digest": plan["plan_digest"],
+					"packages": [
+						{"name": row["name"], "version": row["candidate_version"]} for row in package_rows
+					],
+				},
+				"expected_state_fingerprint": plan["state_fingerprint"],
+				"operator_impact_approval": bool(workload_impact.get("operator_impact_approval_required")),
+			}
+			if execution_context is not None:
+				execution_context.heartbeat()
+				execution_context.assert_leases()
+			helper_dispatched = True
+			code, stdout, stderr = run_trusted_helper(
+				node,
+				self._ssh_config(node),
+				helper_request,
+				timeout_seconds=960,
+				max_output_bytes=16384,
+				heartbeat=(
+					lambda: (
+						execution_context.heartbeat(),
+						execution_context.assert_leases(),
+					)
+					if execution_context is not None
+					else None
+				),
+			)
+			failure_detail = {
+				"code": "DOCKER_ENGINE_HELPER_RESPONSE",
+				"exit_code": code,
+				"stderr": sanitize_diagnostic_message(stderr)[:1200],
+			}
+			helper_result = parse_trusted_install_engine_result(
+				code, stdout, stderr, expected_operation_id=request.operation_id
+			)
+			phase = "postcondition_verification"
+			return self._verify_install_engine_postcondition(
+				request, helper_result, execution_context=execution_context
+			)
+		except TrustedHelperExecutionError as exc:
+			uncertain = exc.may_have_executed
+			failure = {
+				"phase": phase,
+				"exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"detail": failure_detail,
+				"helper_error_code": getattr(exc, "code", None),
+				"helper_dispatched": helper_dispatched,
+			}
+			return self.result_for(
+				request,
+				outcome="partial" if uncertain else "failed",
+				observed_state="Recovery Required" if uncertain else "Install Not Applied",
+				capabilities=(),
+				diagnostics=(
+					{
+						"code": "DOCKER_INSTALL_OUTCOME_UNCERTAIN"
+						if uncertain
+						else "DOCKER_INSTALL_TRANSPORT_FAILED",
+						"severity": "error",
+						"message": "Docker installation requires fresh host reconciliation."
+						if uncertain
+						else "Docker installation could not be dispatched.",
+					},
+				),
+				data={
+					"helper_dispatched": helper_dispatched,
+					"postcondition_verified": False,
+					"failure": failure,
+				},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+		except Exception as exc:
+			uncertain = helper_dispatched
+			failure = {
+				"phase": phase,
+				"exception_type": type(exc).__name__,
+				"reason": sanitize_diagnostic_message(str(exc))[:500],
+				"detail": failure_detail,
+				"helper_dispatched": helper_dispatched,
+			}
+			return self.result_for(
+				request,
+				outcome="partial" if uncertain else "failed",
+				observed_state="Recovery Required" if uncertain else "Install Not Applied",
+				capabilities=(),
+				diagnostics=(
+					{
+						"code": "DOCKER_INSTALL_RECONCILIATION_REQUIRED"
+						if uncertain
+						else (
+							failure_detail.get("code") if failure_detail else "DOCKER_INSTALL_PRECHECK_FAILED"
+						),
+						"severity": "error",
+						"message": "The helper may have changed the node; fresh inspection is required."
+						if uncertain
+						else (
+							f"Docker installation plan blocked: {', '.join(failure_detail.get('reason_codes', []))}."
+							if failure_detail and failure_detail.get("reason_codes")
+							else "Docker installation preconditions were not satisfied."
+						),
+					},
+				),
+				data={
+					"helper_dispatched": helper_dispatched,
+					"postcondition_verified": False,
+					"failure": failure,
+				},
+				duration_ms=min(86400000, int((monotonic() - started) * 1000)),
+			)
+
 	def _preflight(self, request, execution_context=None):
 		"""Combine runtime readiness with a read-only, deterministic Engine install plan."""
 		from dt_master.node_preparation.docker_install import build_docker_engine_install_plan
@@ -730,7 +1400,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 				"readiness_evaluation": inspection.data["readiness_evaluation"],
 				"privilege_readiness": inspection.data["privilege_readiness"],
 				"docker_engine_install_plan": install_plan,
-				"docker_engine_install_plan_status": install_plan["status"] if install_plan else "unavailable",
+				"docker_engine_install_plan_status": install_plan["status"]
+				if install_plan
+				else "unavailable",
 			},
 			duration_ms=inspection.duration_ms,
 		)
