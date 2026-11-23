@@ -125,17 +125,20 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		save.assert_called_once_with(ignore_permissions=True)
 		self.assertEqual(release.status, "Retired")
 
-	def test_node_keeps_previous_release_published_when_another_node_uses_it(self):
+	def test_node_retires_previous_release_even_when_other_nodes_still_reference_it(self):
 		node = self._new_node()
 		node.name = "NODE-1"
 		node.docker_helper_release = "NEW-RELEASE"
 		previous = type("Previous", (), {"docker_helper_release": "SHARED-RELEASE"})()
+		release = type("Release", (), {"status": "Published"})()
 		with (
-			patch.object(frappe.db, "count", return_value=1),
-			patch.object(frappe, "get_doc") as get_doc,
+			patch.object(frappe, "get_doc", return_value=release) as get_doc,
+			patch.object(release, "save") as save,
 		):
 			node._retire_unassigned_previous_helper_release(previous)
-		get_doc.assert_not_called()
+		get_doc.assert_called_once_with("Docker Helper Release", "SHARED-RELEASE")
+		save.assert_called_once_with(ignore_permissions=True)
+		self.assertEqual(release.status, "Retired")
 
 	def test_new_node_rejects_client_supplied_release_manifest(self):
 		node = self._new_node()
