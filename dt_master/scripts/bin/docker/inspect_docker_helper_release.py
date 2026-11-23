@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Inspect installed and staged Docker Helper artifacts against a supplied release manifest."""
 
+import ast
 import base64
 import grp
 import hashlib
@@ -70,6 +71,32 @@ def load_expected_manifest():
 	return manifest, rows
 
 
+VERSION_SYMBOLS = {
+	"lifecycle_helper": "HELPER_VERSION",
+	"install_policy": "POLICY_VERSION",
+	"host_inventory": "INSTALL_INVENTORY_SCHEMA_VERSION",
+}
+
+
+def observed_component_version(path, symbol):
+	"""Read a literal version declaration without importing an inspected artifact."""
+	try:
+		tree = ast.parse(path.read_text(encoding="utf-8"), filename=path.name)
+		for node in tree.body:
+			if isinstance(node, ast.Assign):
+				targets = node.targets
+			elif isinstance(node, ast.AnnAssign):
+				targets = [node.target]
+			else:
+				continue
+			if any(isinstance(target, ast.Name) and target.id == symbol for target in targets):
+				value = ast.literal_eval(node.value)
+				return value if isinstance(value, str) else None
+	except (OSError, SyntaxError, UnicodeError, ValueError, TypeError):
+		return None
+	return None
+
+
 def inspect_components(directory, expected_rows, require_root):
 	rows = []
 	for component_id in sorted(COMPONENT_IDS):
@@ -80,21 +107,22 @@ def inspect_components(directory, expected_rows, require_root):
 			if not stat.S_ISREG(info.st_mode) or artifact.is_symlink():
 				raise ValueError("not a regular file")
 			digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+			version = observed_component_version(artifact, VERSION_SYMBOLS[component_id])
 			owner = pwd.getpwuid(info.st_uid).pw_name
 			group = grp.getgrgid(info.st_gid).gr_name
 			mode = format(stat.S_IMODE(info.st_mode), "o")
-			valid = digest == expected["sha256"]
+			valid = digest == expected["sha256"] and version == expected["version"]
 			if require_root:
 				valid = valid and owner == "root" and group == "root" and stat.S_IMODE(info.st_mode) == 0o755
 			integrity = "verified" if valid else "mismatch"
 		except FileNotFoundError:
-			digest, owner, group, mode, integrity = None, "unknown", "unknown", "unknown", "missing"
+			digest, version, owner, group, mode, integrity = None, None, "unknown", "unknown", "unknown", "missing"
 		except (OSError, KeyError, ValueError):
-			digest, owner, group, mode, integrity = None, "unknown", "unknown", "unknown", "mismatch"
+			digest, version, owner, group, mode, integrity = None, None, "unknown", "unknown", "unknown", "mismatch"
 		rows.append(
 			{
 				"id": component_id,
-				"version": expected["version"],
+				"version": version,
 				"expected_sha256": expected["sha256"],
 				"observed_sha256": digest,
 				"owner": owner,
