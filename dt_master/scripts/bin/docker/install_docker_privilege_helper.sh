@@ -27,6 +27,8 @@ done
 sudo -n true >/dev/null 2>&1 || fail "Non-interactive sudo is required for initial bootstrap."
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+manifest_temp=""
+stage_dir=""
 : "${EXPECTED_RELEASE_MANIFEST_B64:?The active node-assigned Docker Helper Release manifest is required.}"
 for name in "$RELEASE_VALIDATOR" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
     source_file="${script_dir}/${name}"
@@ -46,7 +48,7 @@ import sys
 payload = base64.b64decode(os.environ["EXPECTED_RELEASE_MANIFEST_B64"], validate=True)
 json.loads(payload)
 with open(sys.argv[1], "wb") as manifest_file:
-    manifest_file.write(payload + b"\\n")
+    manifest_file.write(payload + b"\n")
 PY
 manifest_source="$manifest_temp"
 
@@ -149,7 +151,7 @@ trap cleanup EXIT
 
 for name in "$RELEASE_NAME" "$POLICY_NAME" "$INVENTORY_NAME" "$HELPER_NAME"; do
     source_file="$manifest_source"
-    [[ "$name" != "$RELEASE_NAME" ]] && source_file="${script_dir}/${name}"
+    if [[ "$name" != "$RELEASE_NAME" ]]; then source_file="${script_dir}/${name}"; fi
     sudo -n install -o root -g root -m 0755 "$source_file" "${stage_dir}/${name}" \
         || fail "Could not stage trusted helper artifact: $name"
 done
@@ -174,7 +176,7 @@ for name in "$RELEASE_NAME" "$HELPER_NAME" "$POLICY_NAME" "$INVENTORY_NAME"; do
     metadata="$(sudo -n stat -c '%u:%g:%a' "${DEST_DIR}/${name}")"
     [[ "$metadata" == "0:0:755" ]] || fail "Installed helper artifact ownership/mode verification failed: $name"
 done
-[[ "$(sudo -n sha256sum "${DEST_DIR}/${RELEASE_NAME}" | awk '{print $1}')" == "$(sha256sum "${script_dir}/${RELEASE_NAME}" | awk '{print $1}')" ]] || fail "Installed release manifest digest verification failed."
+[[ "$(sudo -n sha256sum "${DEST_DIR}/${RELEASE_NAME}" | awk '{print $1}')" == "$(sha256sum "$manifest_source" | awk '{print $1}')" ]] || fail "Installed release manifest digest verification failed."
 [[ "$(sudo -n sha256sum "${DEST_DIR}/${HELPER_NAME}" | awk '{print $1}')" == "$HELPER_SHA256" ]] \
     || fail "Installed helper digest verification failed."
 [[ "$(sudo -n sha256sum "${DEST_DIR}/${POLICY_NAME}" | awk '{print $1}')" == "$POLICY_SHA256" ]] \
