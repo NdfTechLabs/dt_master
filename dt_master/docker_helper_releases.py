@@ -316,7 +316,6 @@ def refresh_component_digests(components, source_root: str | Path) -> str:
 	return aggregate_release_digest(components)
 
 
-
 def _release_predecessor_snapshot(release):
 	"""Capture an immutable predecessor identity and its exact component fingerprints."""
 	status = _value(release, "status")
@@ -327,22 +326,27 @@ def _release_predecessor_snapshot(release):
 	if not isinstance(release_id, str) or not isinstance(version, str):
 		raise DockerHelperReleaseError("Predecessor release identity is incomplete")
 	components = []
-	for row in (_value(release, "components") or []):
+	for row in _value(release, "components") or []:
 		component = {
 			"id": _value(row, "component_id"),
 			"version": _value(row, "version"),
 			"sha256": _value(row, "sha256"),
 		}
-		if (not isinstance(component["id"], str)
-				or not isinstance(component["version"], str)
-				or not isinstance(component["sha256"], str)
-				or not _SHA256.fullmatch(component["sha256"])):
+		if (
+			not isinstance(component["id"], str)
+			or not isinstance(component["version"], str)
+			or not isinstance(component["sha256"], str)
+			or not _SHA256.fullmatch(component["sha256"])
+		):
 			raise DockerHelperReleaseError("Predecessor component fingerprint is incomplete")
 		components.append(component)
 	if {item["id"] for item in components} != MANIFEST_COMPONENT_IDS:
 		raise DockerHelperReleaseError("Predecessor component inventory is incomplete")
-	return {"release_id": release_id, "version": version,
-		"components": sorted(components, key=lambda item: item["id"])}
+	return {
+		"release_id": release_id,
+		"version": version,
+		"components": sorted(components, key=lambda item: item["id"]),
+	}
 
 
 def validate_predecessor_records(value):
@@ -362,24 +366,39 @@ def validate_predecessor_records(value):
 		if not isinstance(predecessor, dict) or set(predecessor) != {"release_id", "version", "components"}:
 			raise DockerHelperReleaseError("Invalid predecessor release record")
 		rid, version, rows = predecessor["release_id"], predecessor["version"], predecessor["components"]
-		if (not isinstance(rid, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", rid)
-				or not isinstance(version, str) or not _VERSION.fullmatch(version)
-				or (rid, version) in seen or not isinstance(rows, list)):
+		if (
+			not isinstance(rid, str)
+			or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", rid)
+			or not isinstance(version, str)
+			or not _VERSION.fullmatch(version)
+			or (rid, version) in seen
+			or not isinstance(rows, list)
+		):
 			raise DockerHelperReleaseError("Invalid or duplicate predecessor identity")
 		seen.add((rid, version))
 		components = {}
 		for row in rows:
-			if (not isinstance(row, dict) or set(row) != {"id", "version", "sha256"}
-					or row["id"] not in MANIFEST_COMPONENT_IDS
-					or not isinstance(row["version"], str) or not _VERSION.fullmatch(row["version"])
-					or not isinstance(row["sha256"], str) or not _SHA256.fullmatch(row["sha256"])
-					or row["id"] in components):
+			if (
+				not isinstance(row, dict)
+				or set(row) != {"id", "version", "sha256"}
+				or row["id"] not in MANIFEST_COMPONENT_IDS
+				or not isinstance(row["version"], str)
+				or not _VERSION.fullmatch(row["version"])
+				or not isinstance(row["sha256"], str)
+				or not _SHA256.fullmatch(row["sha256"])
+				or row["id"] in components
+			):
 				raise DockerHelperReleaseError("Invalid predecessor component fingerprint")
 			components[row["id"]] = row
 		if set(components) != MANIFEST_COMPONENT_IDS:
 			raise DockerHelperReleaseError("Predecessor component inventory is incomplete")
-		validated.append({"release_id": rid, "version": version,
-			"components": [components[key] for key in sorted(components)]})
+		validated.append(
+			{
+				"release_id": rid,
+				"version": version,
+				"components": [components[key] for key in sorted(components)],
+			}
+		)
 	return validated
 
 

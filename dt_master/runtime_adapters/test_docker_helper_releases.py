@@ -14,8 +14,8 @@ from dt_master.docker_helper_releases import (
 	compare_release_source_snapshot,
 	component_source_digest,
 	inspect_release_source,
-	write_release_manifest,
 	validate_predecessor_records,
+	write_release_manifest,
 )
 
 
@@ -60,9 +60,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		predecessor = {
 			"release_id": "docker-helper-0.3.3",
 			"version": "0.3.3",
-			"components": [
-				{"id": "lifecycle_helper", "version": "0.3.3", "sha256": "1" * 64}
-			],
+			"components": [{"id": "lifecycle_helper", "version": "0.3.3", "sha256": "1" * 64}],
 		}
 		with self.assertRaisesRegex(DockerHelperReleaseError, "incomplete"):
 			validate_predecessor_records([predecessor])
@@ -288,7 +286,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 				"compatibility": compatibility,
 				"lifecycle": lifecycle,
-			"predecessors": [],
+				"predecessors": [],
 				"components": components,
 			}
 			manifest_path = root / "scripts/bin/docker/docker_helper_release.json"
