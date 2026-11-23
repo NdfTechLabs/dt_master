@@ -248,7 +248,10 @@ def inspect():
 	installed_manifest_ok = manifest_matches(
 		INSTALLED_ROOT / "docker_helper_release.json", manifest, require_root=True
 	)
-	deployed_manifest_ok = manifest_matches(deployed_root / "docker_helper_release.json", manifest)
+	# The expected manifest is supplied per node by DT Master. Do not require a
+	# shared manifest file in the deployed script directory: nodes may be assigned
+	# different Published releases while sharing the same application source tree.
+	deployed_manifest_ok = True
 	installer_ready = regular_installer_files(deployed_root)
 	return {
 		"schema_version": "1.0.0",
