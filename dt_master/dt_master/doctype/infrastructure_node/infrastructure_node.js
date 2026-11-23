@@ -14,6 +14,17 @@ frappe.ui.form.on("Infrastructure Node", {
 							),
 							"orange"
 						);
+					} else if (
+						message &&
+						message.status === "Published" &&
+						frm.doc.docker_helper_release_assessment_status === "Scripts Deployment Required"
+					) {
+						frm.dashboard.set_headline_alert(
+							__(
+								"Deploy the updated Docker helper scripts and docker_helper_release.json to this node, then restart release assessment."
+							),
+							"orange"
+						);
 					}
 				});
 		}
