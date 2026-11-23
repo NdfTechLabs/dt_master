@@ -901,7 +901,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		"""Install the fixed helper and sudoers policy through the existing SSH runner."""
 		started = monotonic()
 		node = self._node_for_request(request)
-		if node.docker_helper_release and frappe.db.get_value(
+		if getattr(node, "docker_helper_release", None) and frappe.db.get_value(
 			"Docker Helper Release", node.docker_helper_release, "status"
 		) == "Retired":
 			raise ValueError(
