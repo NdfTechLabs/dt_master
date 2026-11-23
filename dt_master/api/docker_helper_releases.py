@@ -7,6 +7,8 @@ import frappe
 
 from dt_master.docker_helper_releases import (
 	DockerHelperReleaseError,
+	compare_release_source_snapshot,
+	create_draft_release_from_source,
 	create_draft_release_from_template,
 	create_initial_draft_release,
 )
@@ -151,4 +153,61 @@ def get_retired_node_release_recovery(node_name):
 		"retired_release": retired,
 		"published_releases": published,
 		"access_verified": bool(node.access_verified),
+	}
+
+
+
+def _next_patch_release_version(current_version):
+	"""Generate the next patch version for an automatically created source-drift Draft."""
+	match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?", current_version or "")
+	if not match:
+		frappe.throw("The assigned release version is not valid semantic versioning.")
+	return f"{match.group(1)}.{match.group(2)}.{int(match.group(3)) + 1}"
+
+
+@frappe.whitelist(methods=["POST"])
+def create_draft_for_source_drift(node_name):
+	"""Create a Draft from current local sources only after an explicit operator action."""
+	frappe.only_for("System Manager")
+	node = frappe.get_doc("Infrastructure Node", node_name)
+	node.check_permission("write")
+	if not node.docker_helper_release:
+		frappe.throw("Assign a Published Docker Helper Release before creating a source-drift Draft.")
+
+	try:
+		release = frappe.get_doc("Docker Helper Release", node.docker_helper_release)
+	except frappe.DoesNotExistError:
+		frappe.throw("The assigned Docker Helper Release no longer exists.")
+	if release.status != "Published":
+		frappe.throw("A source-drift Draft can only be created from the node's assigned Published release.")
+
+	try:
+		snapshot = json.loads(node.docker_helper_release_assessment_snapshot or "{}")
+	except (TypeError, ValueError):
+		snapshot = {}
+	if (
+		node.docker_helper_release_assessment_status != "Source Drift"
+		or snapshot.get("source_drift") is not True
+		or snapshot.get("assigned_release", {}).get("release_id") != release.release_id
+	):
+		frappe.throw("Run Docker Helper Release assessment and confirm source drift before creating a Draft.")
+
+	source_root = Path(__file__).resolve().parents[1]
+	try:
+		mismatches = compare_release_source_snapshot(release.components, source_root)
+		if not mismatches:
+			frappe.throw("The assigned release now matches local sources. Run assessment again.")
+		draft, created = create_draft_release_from_source(
+			release,
+			source_root,
+			version=_next_patch_release_version(release.version),
+		)
+	except DockerHelperReleaseError as exc:
+		frappe.throw(str(exc))
+
+	return {
+		"action": "draft_created" if created else "review_draft",
+		"draft": {"name": draft.name, "release_id": draft.release_id, "version": draft.version},
+		"created": created,
+		"source_drift_components": sorted(mismatches),
 	}
