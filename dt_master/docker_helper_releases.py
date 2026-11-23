@@ -347,6 +347,8 @@ def _release_predecessor_snapshot(release):
 
 def validate_predecessor_records(value):
 	"""Validate structured, release-bound predecessor fingerprints."""
+	if value in (None, ""):
+		value = []
 	if isinstance(value, str):
 		try:
 			value = json.loads(value or "[]")
