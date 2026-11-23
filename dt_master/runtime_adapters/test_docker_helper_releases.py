@@ -15,6 +15,7 @@ from dt_master.docker_helper_releases import (
 	component_source_digest,
 	inspect_release_source,
 	validate_predecessor_records,
+	_build_predecessor_transition,
 	write_release_manifest,
 )
 
@@ -55,6 +56,37 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 			validated[0]["components"],
 			sorted(predecessor["components"], key=lambda item: item["id"]),
 		)
+
+	def test_draft_transition_records_assigned_release_and_accepts_its_component_hashes(self):
+		previous = {
+			"release_id": "docker-helper-0.3.3",
+			"version": "0.3.3",
+			"status": "Published",
+			"components": [
+				{"component_id": component_id, "version": version, "sha256": digest}
+				for component_id, version, digest in (
+					("lifecycle_helper", "0.3.3", "1" * 64),
+					("install_policy", "1.2.0", "2" * 64),
+					("host_inventory", "1.0.0", "3" * 64),
+				)
+			],
+		}
+		current = [
+			component("lifecycle_helper", "scripts/bin/docker/docker_lifecycle_helper.py"),
+			component("install_policy", "scripts/bin/docker/docker_install_policy.py"),
+			component("host_inventory", "scripts/bin/docker/docker_install_inventory.py"),
+		]
+		current[0]["accepted_predecessor_sha256"] = ["4" * 64]
+		predecessors, upgrade_from = _build_predecessor_transition(previous, current)
+		self.assertEqual(upgrade_from, ["0.3.3"])
+		self.assertEqual(predecessors[0]["release_id"], "docker-helper-0.3.3")
+		self.assertEqual(
+			{row["id"]: row["sha256"] for row in predecessors[0]["components"]},
+			{"lifecycle_helper": "1" * 64, "install_policy": "2" * 64, "host_inventory": "3" * 64},
+		)
+		self.assertEqual(current[0]["accepted_predecessor_sha256"], ["4" * 64, "1" * 64])
+		self.assertEqual(current[1]["accepted_predecessor_sha256"], ["2" * 64])
+		self.assertEqual(current[2]["accepted_predecessor_sha256"], ["3" * 64])
 
 	def test_predecessor_provenance_rejects_incomplete_component_inventory(self):
 		predecessor = {
