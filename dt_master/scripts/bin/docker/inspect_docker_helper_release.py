@@ -56,14 +56,26 @@ def load_expected_manifest():
 	for component_id, expected_path in EXPECTED_PATHS.items():
 		row = rows[component_id]
 		if (
-			set(row) != {"id", "path", "version", "sha256", "accepted_predecessor_sha256", "required", "responsibility"}
+			set(row)
+			!= {
+				"id",
+				"path",
+				"version",
+				"sha256",
+				"accepted_predecessor_sha256",
+				"required",
+				"responsibility",
+			}
 			or row["path"] != expected_path
 			or not isinstance(row["version"], str)
 			or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", row["version"])
 			or not isinstance(row["sha256"], str)
 			or not re.fullmatch(r"[a-f0-9]{64}", row["sha256"])
 			or not isinstance(row["accepted_predecessor_sha256"], list)
-			or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value) for value in row["accepted_predecessor_sha256"])
+			or any(
+				not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value)
+				for value in row["accepted_predecessor_sha256"]
+			)
 			or type(row["required"]) is not bool
 			or not isinstance(row["responsibility"], str)
 		):
@@ -117,9 +129,23 @@ def inspect_components(directory, expected_rows, require_root):
 				valid = valid and owner == "root" and group == "root" and stat.S_IMODE(info.st_mode) == 0o755
 			integrity = "verified" if valid else "mismatch"
 		except FileNotFoundError:
-			digest, version, owner, group, mode, integrity = None, None, "unknown", "unknown", "unknown", "missing"
+			digest, version, owner, group, mode, integrity = (
+				None,
+				None,
+				"unknown",
+				"unknown",
+				"unknown",
+				"missing",
+			)
 		except (OSError, KeyError, ValueError):
-			digest, version, owner, group, mode, integrity = None, None, "unknown", "unknown", "unknown", "mismatch"
+			digest, version, owner, group, mode, integrity = (
+				None,
+				None,
+				"unknown",
+				"unknown",
+				"unknown",
+				"mismatch",
+			)
 		rows.append(
 			{
 				"id": component_id,

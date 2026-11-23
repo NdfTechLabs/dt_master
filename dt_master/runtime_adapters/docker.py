@@ -1772,7 +1772,9 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			)
 			if is_source_drift:
 				try:
-					mismatches = compare_release_source_snapshot(release.components, source_root, release.compatibility)
+					mismatches = compare_release_source_snapshot(
+						release.components, source_root, release.compatibility
+					)
 					status = "Source Drift"
 					snapshot = {
 						"schema_version": "1.0.0",

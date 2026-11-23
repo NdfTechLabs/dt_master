@@ -188,7 +188,9 @@ def _literal_module_constants(source_path: Path, names: set[str]) -> dict[str, s
 	try:
 		tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
 	except (OSError, SyntaxError, UnicodeError) as exc:
-		raise DockerHelperReleaseError(f"Cannot inspect component version declarations: {source_path.name}") from exc
+		raise DockerHelperReleaseError(
+			f"Cannot inspect component version declarations: {source_path.name}"
+		) from exc
 	values = {}
 	for node in tree.body:
 		if isinstance(node, ast.Assign):
@@ -280,9 +282,7 @@ def capture_component_source_snapshot(components, source_root: str | Path) -> di
 		component_id = _value(component, "component_id")
 		if component_id in observed:
 			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
-		observed[component_id] = component_source_digest(
-			source_root, _value(component, "source_path")
-		)
+		observed[component_id] = component_source_digest(source_root, _value(component, "source_path"))
 	return observed
 
 
@@ -329,7 +329,11 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	source_inspection = inspect_release_source(components, source_root)
 	for component in components:
 		component_id = component["component_id"]
-		component["version"] = version if component_id == "lifecycle_helper" else source_inspection["components"][component_id]["version"]
+		component["version"] = (
+			version
+			if component_id == "lifecycle_helper"
+			else source_inspection["components"][component_id]["version"]
+		)
 		component["sha256"] = source_inspection["components"][component_id]["sha256"]
 	aggregate_digest = aggregate_release_digest(components)
 	existing = frappe.db.exists("Docker Helper Release", release_id)

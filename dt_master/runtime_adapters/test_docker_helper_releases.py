@@ -12,8 +12,8 @@ from dt_master.docker_helper_releases import (
 	aggregate_release_digest,
 	build_release_manifest,
 	compare_release_source_snapshot,
-	inspect_release_source,
 	component_source_digest,
+	inspect_release_source,
 	write_release_manifest,
 )
 
