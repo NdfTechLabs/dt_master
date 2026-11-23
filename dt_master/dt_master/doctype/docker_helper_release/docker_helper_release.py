@@ -40,6 +40,7 @@ def _definition(doc):
 					"file_group",
 					"file_mode",
 					"sha256",
+					"accepted_predecessor_sha256",
 					"responsibility",
 				)
 			}
@@ -79,7 +80,7 @@ class DockerHelperRelease(Document):
 			)
 		if not self.version or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", self.version):
 			self._throw("Release version must use semantic versioning.")
-		if self.schema_version != "1.0.0":
+		if self.schema_version != "1.1.0":
 			self._throw("Unsupported Docker Helper Release manifest schema version.")
 		try:
 			validate_release_metadata(self.compatibility, self.lifecycle)
