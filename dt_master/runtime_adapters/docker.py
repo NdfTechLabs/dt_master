@@ -1752,9 +1752,16 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 					data=snapshot,
 					duration_ms=min(86400000, int((monotonic() - started) * 1000)),
 				)
-			local_manifest_json = serialize_release_manifest(
-				release, source_root=Path(__file__).resolve().parents[1]
+			source_root = Path(__file__).resolve().parents[1]
+			source_mismatches = compare_release_source_snapshot(
+				release.components, source_root, release.compatibility
 			)
+			if source_mismatches:
+				components = ", ".join(sorted(source_mismatches))
+				raise DockerHelperReleaseError(
+					"Published release source drift detected for component(s): " + components
+				)
+			local_manifest_json = serialize_release_manifest(release, source_root=source_root)
 			local_manifest = json.loads(local_manifest_json)
 			local_digest = hashlib.sha256(local_manifest_json.encode("utf-8")).hexdigest()
 			expected_manifest_b64 = base64.b64encode(local_manifest_json.encode("utf-8")).decode("ascii")
