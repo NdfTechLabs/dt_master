@@ -530,7 +530,7 @@ def create_draft_release_from_source(release, source_root: str | Path, *, versio
 		release_id=draft_id,
 		version=draft_version,
 	)
-	if not validate_predecessor_records(draft.predecessors):
+	if not validate_predecessor_records(draft.get("predecessors")):
 		raise DockerHelperReleaseError("Source-drift Draft is missing its Published predecessor provenance.")
 	return draft, created
 
