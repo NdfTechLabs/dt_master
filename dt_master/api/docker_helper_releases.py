@@ -61,7 +61,7 @@ def get_unassigned_node_release_setup(node_name):
 @frappe.whitelist()
 def create_draft_for_unassigned_node(node_name, version):
 	"""Create a replacement or initial Draft without changing any existing release."""
-	node = _require_node_release_setup_permission(node_name)
+	_require_node_release_setup_permission(node_name)
 	if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version):
 		frappe.throw("Release version must use semantic versioning.")
 
