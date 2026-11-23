@@ -886,7 +886,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 				),
 			),
 			patch(
-				"dt_master.runtime_adapters.docker.compare_release_source_snapshot",
+				"dt_master.docker_helper_releases.compare_release_source_snapshot",
 				return_value=mismatches,
 			),
 			patch(
