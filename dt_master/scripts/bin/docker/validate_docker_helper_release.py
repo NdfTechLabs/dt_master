@@ -75,6 +75,19 @@ def load_manifest(path):
     return manifest, values
 
 
+def load_installed_manifest(path):
+    """Read predecessor metadata without requiring the current manifest schema."""
+    installed = json.loads(Path(path).read_text(encoding="utf-8"))
+    if (
+        not isinstance(installed, dict)
+        or installed.get("schema_version") not in {"1.0.0", "1.1.0"}
+        or not isinstance(installed.get("release"), dict)
+        or not isinstance(installed["release"].get("version"), str)
+    ):
+        raise ValueError("installed release manifest has unsupported metadata")
+    return installed
+
+
 def main():
     if len(sys.argv) not in {3, 4, 5}:
         raise SystemExit(
@@ -93,7 +106,7 @@ def main():
                 raise ValueError("component digest mismatch: " + component_id)
 
         if len(sys.argv) >= 4 and sys.argv[3] != "--accepted-hashes":
-            installed, _ = load_manifest(sys.argv[3])
+            installed = load_installed_manifest(sys.argv[3])
             if installed["release"]["version"] not in manifest["compatibility"]["upgrade_from"]:
                 raise ValueError("installed release is not a declared upgrade predecessor")
         if len(sys.argv) >= 4 and sys.argv[-2] == "--accepted-hashes":
