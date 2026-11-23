@@ -84,6 +84,15 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 			docker_engine_install_state_fingerprint(package_change),
 		)
 
+	def test_state_fingerprint_is_independent_of_inventory_package_order(self):
+		original = inventory()
+		reordered = copy.deepcopy(original)
+		reordered["packages"].reverse()
+		self.assertEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(reordered),
+		)
+
 	def test_state_fingerprint_rejects_unknown_or_sensitive_inventory_fields(self):
 		bad = inventory()
 		bad["ssh_host"] = "host.example"
