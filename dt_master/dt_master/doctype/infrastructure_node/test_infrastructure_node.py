@@ -108,6 +108,9 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 			node.docker_helper_release_manifest,
 			'{"release":{"id":"PUBLISHED-RELEASE"}}',
 		)
+		self.assertEqual(node.docker_helper_release_assessment_status, "Scripts Deployment Required")
+		assignment_snapshot = json.loads(node.docker_helper_release_assessment_snapshot)
+		self.assertEqual(assignment_snapshot["reason"], "release_assignment_changed")
 
 	def test_node_retires_previous_release_when_no_other_nodes_use_it(self):
 		node = self._new_node()
