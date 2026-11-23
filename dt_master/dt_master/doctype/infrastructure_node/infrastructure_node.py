@@ -235,15 +235,9 @@ class InfrastructureNode(Document):
 		self.docker_helper_release_manifest = manifest
 
 	def _retire_unassigned_previous_helper_release(self, previous):
-		"""Retire the former release only when no other Node still references it."""
+		"""Retire the previous release as a signal to every node still using it."""
 		old_release = previous.docker_helper_release
 		if not old_release or old_release == self.docker_helper_release:
-			return
-		remaining = frappe.db.count(
-			"Infrastructure Node",
-			{"docker_helper_release": old_release, "name": ["!=", self.name]},
-		)
-		if remaining:
 			return
 		release = frappe.get_doc("Docker Helper Release", old_release)
 		if release.status == "Published":
