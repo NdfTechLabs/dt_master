@@ -128,7 +128,7 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			release.save(ignore_permissions=True)
 
-	def test_assigned_release_cannot_be_retired(self):
+	def test_assigned_release_can_be_retired_to_signal_node_migration(self):
 		release = self._new_release()
 		release.insert(ignore_permissions=True)
 		release.status = "Published"
@@ -136,8 +136,10 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		release.reload()
 		release.status = "Retired"
 		with patch.object(frappe.db, "exists", return_value=True):
-			with self.assertRaises(frappe.ValidationError):
-				release.save(ignore_permissions=True)
+			release.save(ignore_permissions=True)
+		release.reload()
+		self.assertEqual(release.status, "Retired")
+		self.assertTrue(release.retired_on)
 
 	def test_source_drift_draft_creation_is_idempotent_and_preserves_published_release(self):
 		release = self._new_release()
