@@ -10,6 +10,7 @@ from dt_master.docker_helper_releases import (
 	aggregate_release_digest,
 	build_release_manifest,
 	component_source_digest,
+	write_release_manifest,
 )
 
 
@@ -142,6 +143,64 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 		)
 		self.assertEqual(manifest["compatibility"], compatibility)
 		self.assertEqual(manifest["lifecycle"], lifecycle)
+
+	def test_physical_manifest_generation_is_validated_and_idempotent(self):
+		compatibility = {
+			"helper_protocol": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"docker_install_plan": {"minimum": "1.1.0", "maximum": "1.1.0"},
+			"docker_install_policy": {"minimum": "1.1.1", "maximum": "1.1.1"},
+			"inventory_schema": {"minimum": "1.0.0", "maximum": "1.0.0"},
+			"upgrade_from": ["0.3.0"],
+		}
+		lifecycle = {
+			"bootstrap": "Install the complete release.",
+			"upgrade": "Upgrade a recognized release.",
+			"reconcile": "Repair recognized release artifacts.",
+			"activation_order": ["install_policy", "host_inventory", "lifecycle_helper"],
+			"verification": "Verify every required component.",
+		}
+		components = []
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			for component_id, filename, version in (
+				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.2"),
+				("install_policy", "docker_install_policy.py", "1.1.1"),
+				("host_inventory", "docker_install_inventory.py", "1.0.0"),
+			):
+				source_path = f"scripts/bin/docker/{filename}"
+				source = root / source_path
+				source.parent.mkdir(parents=True, exist_ok=True)
+				source.write_text(component_id, encoding="utf-8")
+				components.append({
+					"component_id": component_id,
+					"version": version,
+					"source_path": source_path,
+					"install_path": f"/usr/local/lib/dt-master/docker/{filename}",
+					"required": True,
+					"file_owner": "root",
+					"file_group": "root",
+					"file_mode": "0755",
+					"sha256": hashlib.sha256(component_id.encode()).hexdigest(),
+					"responsibility": f"{component_id} responsibility",
+				})
+			release = {
+				"release_id": "dt-docker-helper-0.3.2",
+				"version": "0.3.2",
+				"channel": "stable",
+				"status": "Published",
+				"schema_version": "1.0.0",
+				"compatibility": compatibility,
+				"lifecycle": lifecycle,
+				"components": components,
+			}
+			manifest_path = root / "scripts/bin/docker/docker_helper_release.json"
+			first = write_release_manifest(release, source_root=root)
+			first_mtime = manifest_path.stat().st_mtime_ns
+			second = write_release_manifest(release, source_root=root)
+			self.assertEqual(first, second)
+			self.assertEqual(manifest_path.read_text(encoding="utf-8").strip(), first)
+			self.assertEqual(manifest_path.stat().st_mtime_ns, first_mtime)
 
 	def test_release_manifest_projection_rejects_draft_releases(self):
 		with self.assertRaises(DockerHelperReleaseError):
