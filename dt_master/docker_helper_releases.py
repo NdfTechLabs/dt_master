@@ -312,7 +312,15 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
-				"accepted_predecessor_sha256": json.dumps(["b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b", "1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe", "8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a", "afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9", "06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a2"]),
+				"accepted_predecessor_sha256": json.dumps(
+					[
+						"b9deb8114d1efde9ef23f37dc3e327a913d5f0bcbfecc7ce9a2780e426391a9b",
+						"1cf27d95c853ce1b46bbb47cc3982baa1f7dfddbe123909c7c5e564d1eaed8fe",
+						"8ec811c5ef0ae8c6f3a7733bb17cdbd088d9b5db9ae206f942b0e9267a34bf2a",
+						"afd072cd7d80a0182351ea6682779f703b95beef6c8695d8cee2a96dd59e9fa9",
+						"06aa9fa0cf7218495b0dfde5667ae50ba00ed85ed45054606939d89fae2c47a2",
+					]
+				),
 				"responsibility": "Root-owned privileged operation boundary; validates closed requests, verifies installed release dependencies and executes only explicitly supported helper operations.",
 			},
 			{
@@ -324,7 +332,9 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
-				"accepted_predecessor_sha256": json.dumps(["3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"]),
+				"accepted_predecessor_sha256": json.dumps(
+					["3fb6c49de806d380d5101679ae0c7364957d6686df5c09ff4a60c453297797f0"]
+				),
 				"responsibility": "Pure deterministic Docker Engine installation planner and canonical host-state fingerprint implementation.",
 			},
 			{
@@ -336,7 +346,12 @@ def canonical_docker_helper_release_template():
 				"file_owner": "root",
 				"file_group": "root",
 				"file_mode": "0755",
-				"accepted_predecessor_sha256": json.dumps(["99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6", "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"]),
+				"accepted_predecessor_sha256": json.dumps(
+					[
+						"99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6",
+						"f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b",
+					]
+				),
 				"responsibility": "Read-only host, package, repository, signing-key, service and workload inventory consumed by the planner and privileged helper.",
 			},
 		],
