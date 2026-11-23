@@ -80,13 +80,16 @@ else
         || fail "Could not create helper directory."
 fi
 
-# Refuse unknown pre-existing artifacts. Accept the previously deployed N3.4.8
-# validation-only helper and the earlier self-test-only helper during upgrade.
+# Refuse unknown pre-existing artifacts. The release manifest is the sole
+# source of current and explicitly accepted predecessor component digests.
 check_existing() {
     local name="$1" component_id="$2" expected="$3"
     local target="${DEST_DIR}/${name}" metadata digest candidate matched=false
+    local accepted_output
     local -a accepted_hashes=()
-    mapfile -t accepted_hashes < <(python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" --accepted-hashes "$component_id") || fail "Could not load accepted hashes for $name"
+    accepted_output="$(python3 "${script_dir}/${RELEASE_VALIDATOR}" "${script_dir}/${RELEASE_NAME}" "${script_dir}" --accepted-hashes "$component_id")" \
+        || fail "Could not load accepted hashes for $name"
+    mapfile -t accepted_hashes <<< "$accepted_output"
     if sudo -n test -e "$target"; then
         sudo -n test -f "$target" && ! sudo -n test -L "$target" \
             || fail "Existing helper artifact is not a regular file: $name"
