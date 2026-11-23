@@ -31,6 +31,12 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 		if (frm.is_new()) return;
 
+		if (frappe.user_roles.includes("System Manager") && !frm.doc.docker_helper_release) {
+			frm.add_custom_button(__("Set Up Docker Helper Release"), () => {
+				start_unassigned_node_release_setup(frm);
+			});
+		}
+
 		const { status, state } = frm.doc;
 
 		const actions = {
@@ -141,6 +147,78 @@ frappe.ui.form.on("Infrastructure Node", {
 		}
 	},
 });
+
+function start_unassigned_node_release_setup(frm) {
+	frappe.call({
+		method: "dt_master.api.docker_helper_releases.get_unassigned_node_release_setup",
+		args: { node_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Checking Docker Helper Release catalog..."),
+		callback(response) {
+			const setup = response.message || {};
+			if (setup.action === "assign_published") {
+				frappe.msgprint({
+					title: __("Published Release Available"),
+					message: __(
+						"A Published Docker Helper Release already exists. Select it in the Docker Helper Release field and save this node."
+					),
+					indicator: "blue",
+				});
+				frm.set_focus("docker_helper_release");
+				return;
+			}
+			if (setup.action === "review_draft" && setup.draft) {
+				frappe.msgprint({
+					title: __("Draft Release Available"),
+					message: __(
+						"A Draft already exists. Review and publish it before assigning it to this node."
+					),
+					indicator: "blue",
+				});
+				frappe.set_route("Form", "Docker Helper Release", setup.draft.name);
+				return;
+			}
+
+			frappe.prompt(
+				[
+					{
+						fieldname: "version",
+						fieldtype: "Data",
+						label: __("New release version"),
+						description: __("Use semantic versioning, for example 0.3.3."),
+						reqd: 1,
+					},
+				],
+				(values) => {
+					frappe.call({
+						method: "dt_master.api.docker_helper_releases.create_draft_for_unassigned_node",
+						args: { node_name: frm.doc.name, version: values.version },
+						freeze: true,
+						freeze_message: __("Creating Draft from current Docker helper source files..."),
+						callback(result) {
+							const created = result.message || {};
+							if (created.action === "assign_published") {
+								frappe.msgprint(__("A Published release now exists. Assign it to this node."));
+								return;
+							}
+						if (created.draft?.name) {
+							frappe.show_alert({
+								message: created.created
+									? __("Draft {0} created from current filesystem sources.", [created.draft.release_id])
+									: __("Existing Draft {0} is ready for review.", [created.draft.release_id]),
+								indicator: "green",
+							});
+							frappe.set_route("Form", "Docker Helper Release", created.draft.name);
+						}
+					},
+				});
+				},
+				__("Create Docker Helper Release Draft"),
+				__("Create Draft")
+			);
+		},
+	});
+}
 
 function watch_docker_operation(frm, operationId, label) {
 	if (!operationId) return;
