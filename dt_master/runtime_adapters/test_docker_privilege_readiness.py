@@ -26,6 +26,20 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		self.assertIn("serialize_release_manifest(release, source_root=source_root)", adapter)
 		self.assertNotIn('manifest["release"]["version"] != "0.3.8"', probe)
 
+	def test_installer_validator_rejects_a_manifest_for_another_release(self):
+		validator = ROOT / "validate_docker_helper_release.py"
+		manifest = ROOT / "docker_helper_release.json"
+		environment = dict(__import__("os").environ)
+		environment["EXPECTED_RELEASE_MANIFEST_B64"] = base64.b64encode(b"{}").decode("ascii")
+		result = subprocess.run(
+			["python3", str(validator), str(manifest), str(ROOT)],
+			capture_output=True,
+			text=True,
+			env=environment,
+		)
+		self.assertNotEqual(result.returncode, 0)
+		self.assertIn("does not match the node's assigned active release", result.stderr)
+
 	def test_expected_manifest_uses_nodes_assigned_published_release(self):
 		adapter = DockerRuntimeAdapter()
 		release = SimpleNamespace(status="Published")
