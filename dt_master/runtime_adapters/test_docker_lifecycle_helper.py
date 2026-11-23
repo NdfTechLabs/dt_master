@@ -48,6 +48,42 @@ def inventory():
 
 
 class TestDockerLifecycleHelper(unittest.TestCase):
+    def test_plan_decision_comparison_ignores_live_observations(self):
+        policy_path = HELPER_PATH.with_name("docker_install_policy.py")
+        policy_spec = importlib.util.spec_from_file_location("docker_install_policy_identity_test", policy_path)
+        policy = importlib.util.module_from_spec(policy_spec)
+        policy_spec.loader.exec_module(policy)
+        first = {
+            "schema_version": "1.2.0",
+            "state_fingerprint": "a" * 64,
+            "policy": {"id": "docker-engine-install", "version": "1.2.0"},
+            "target": {"doctype": "Infrastructure Node", "name": "NODE-0001"},
+            "package_set": list(helper.ENGINE_PACKAGES),
+            "packages": [
+                {"name": name, "action": "install", "installed_version": None,
+                 "candidate_version": "5:29.0.0-1~ubuntu.24.04~noble"}
+                for name in helper.ENGINE_PACKAGES
+            ],
+            "repository": {"source_id": "download.docker.com", "keyring_path": "/etc/apt/keyrings/docker.asc"},
+            "status": "ready",
+            "apt_metadata": {"status": "Fresh", "age_seconds": 10},
+            "storage": {"root_available_bytes": 10**10},
+            "services": {"docker": "inactive", "containerd": "inactive"},
+            "workload_impact": {"operator_impact_approval_required": False},
+        }
+        second = {
+            **first,
+            "status": "blocked",
+            "apt_metadata": {"status": "Aging", "age_seconds": 20},
+            "storage": {"root_available_bytes": 1},
+            "services": {"docker": "active", "containerd": "failed"},
+            "workload_impact": {"operator_impact_approval_required": True},
+        }
+        self.assertTrue(helper._same_plan_decisions(first, second, policy))
+        second["packages"] = [dict(row) for row in first["packages"]]
+        second["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
+        self.assertFalse(helper._same_plan_decisions(first, second, policy))
+
     def test_root_side_policy_artifacts_match_authoritative_sources(self):
         root = Path(__file__).resolve().parents[1]
         self.assertEqual(
