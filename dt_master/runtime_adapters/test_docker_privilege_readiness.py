@@ -1,8 +1,8 @@
 """Contracts for read-only Docker privilege readiness inspection."""
 
 import base64
-import hashlib
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -25,11 +25,15 @@ class TestDockerPrivilegeReadiness(unittest.TestCase):
 		self.assertIn('status = "Skipped"', probe)
 		self.assertIn("serialize_release_manifest(release, source_root=source_root)", adapter)
 		self.assertNotIn('manifest["release"]["version"] != "0.3.8"', probe)
+		inspector = (ROOT / "inspect_docker_helper_release.py").read_text()
+		self.assertIn("deployed_manifest_ok = True", inspector)
+		installer = subprocess.run(["bash", "-n", str(ROOT / "install_docker_privilege_helper.sh")], capture_output=True, text=True)
+		self.assertEqual(installer.returncode, 0, installer.stderr)
 
 	def test_installer_validator_rejects_a_manifest_for_another_release(self):
 		validator = ROOT / "validate_docker_helper_release.py"
 		manifest = ROOT / "docker_helper_release.json"
-		environment = dict(__import__("os").environ)
+		environment = dict(os.environ)
 		environment["EXPECTED_RELEASE_MANIFEST_B64"] = base64.b64encode(b"{}").decode("ascii")
 		result = subprocess.run(
 			["python3", str(validator), str(manifest), str(ROOT)],
