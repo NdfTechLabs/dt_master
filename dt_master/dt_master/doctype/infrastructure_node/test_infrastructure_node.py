@@ -106,8 +106,10 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 				"dt_master.docker_helper_releases.serialize_release_manifest",
 				return_value='{"release":{"id":"PUBLISHED-RELEASE"}}',
 			),
+			patch("dt_master.docker_helper_releases.write_release_manifest") as shared_writer,
 		):
 			node.validate()
+		shared_writer.assert_not_called()
 		self.assertEqual(
 			node.docker_helper_release_manifest,
 			'{"release":{"id":"PUBLISHED-RELEASE"}}',
