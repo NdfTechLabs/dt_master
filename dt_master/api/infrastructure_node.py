@@ -1230,7 +1230,6 @@ def assess_docker_helper_release(node_name):
 		"Running",
 		"Retry Waiting",
 		"Cancellation Requested",
-		"Recovery Required",
 	]
 	active = frappe.get_all(
 		"Infrastructure Operation",
