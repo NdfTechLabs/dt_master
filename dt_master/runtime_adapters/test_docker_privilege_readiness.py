@@ -1,5 +1,6 @@
 """Contracts for read-only Docker privilege readiness inspection."""
 
+import base64
 import hashlib
 import json
 import subprocess
@@ -15,37 +16,31 @@ ROOT = Path(__file__).parents[1] / "scripts" / "bin" / "docker"
 
 
 class TestDockerPrivilegeReadiness(unittest.TestCase):
-	def test_release_manifest_is_authoritative_for_component_versions_and_digests(self):
-		manifest_path = ROOT / "docker_helper_release.json"
-		manifest = json.loads(manifest_path.read_text())
-		components = {item["id"]: item for item in manifest["components"]}
-		for component in components.values():
-			artifact = ROOT / component["path"]
-			self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), component["sha256"])
-		self.assertEqual(manifest["release"]["version"], components["lifecycle_helper"]["version"])
-		self.assertEqual(components["lifecycle_helper"]["version"], "0.3.2")
-		self.assertEqual(components["install_policy"]["version"], "1.1.1")
-		self.assertEqual(components["host_inventory"]["version"], "1.0.0")
-
-		helper = (ROOT / "docker_lifecycle_helper.py").read_text()
-		installer = (ROOT / "install_docker_privilege_helper.sh").read_text()
+	def test_readiness_is_bound_to_the_active_release_manifest(self):
 		probe = (ROOT / "check_docker_privilege_readiness.py").read_text()
-		self.assertNotIn("EXPECTED_POLICY_SHA256 =", helper)
-		self.assertNotIn("EXPECTED_INVENTORY_SHA256 =", helper)
-		self.assertNotIn("EXPECTED_HELPER_SHA256 =", probe)
-		self.assertIn("docker_helper_release.json", installer)
-		self.assertIn("validate_docker_helper_release.py", installer)
-		self.assertIn("load_release_manifest", probe)
-		self.assertIn("docker_helper_release.json", helper)
+		adapter = (ROOT.parent.parent / "runtime_adapters" / "docker.py").read_text()
+		self.assertIn('"predecessors"', probe)
+		self.assertIn("EXPECTED_RELEASE_MANIFEST_B64", probe)
+		self.assertIn("manifest != expected_manifest", probe)
+		self.assertIn('status = "Skipped"', probe)
+		self.assertIn("serialize_release_manifest(release, source_root=source_root)", adapter)
+		self.assertNotIn('manifest["release"]["version"] != "0.3.8"', probe)
 
-		validator = ROOT / "validate_docker_helper_release.py"
-		result = subprocess.run(
-			["python3", str(validator), str(manifest_path), str(ROOT)],
-			capture_output=True,
-			text=True,
-		)
-		self.assertEqual(result.returncode, 0, result.stderr)
-		self.assertEqual(len(result.stdout.splitlines()), 4)
+	def test_expected_manifest_uses_nodes_assigned_published_release(self):
+		adapter = DockerRuntimeAdapter()
+		release = SimpleNamespace(status="Published")
+		node = SimpleNamespace(docker_helper_release="docker-helper-9.8.7")
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.get_doc", return_value=release),
+			patch(
+				"dt_master.docker_helper_releases.serialize_release_manifest",
+				return_value='{"release":{"id":"docker-helper-9.8.7","version":"9.8.7"}}',
+			),
+		):
+			environment = adapter._expected_release_manifest_env(node)
+		manifest = json.loads(base64.b64decode(environment["EXPECTED_RELEASE_MANIFEST_B64"]))
+		self.assertEqual(manifest["release"]["id"], "docker-helper-9.8.7")
+		self.assertEqual(manifest["release"]["version"], "9.8.7")
 
 	def payload(self):
 		return {
