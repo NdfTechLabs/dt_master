@@ -188,7 +188,7 @@ def _load_policy():
 		if (
 			not isinstance(manifest, dict)
 			or set(manifest) != {"schema_version", "release", "compatibility", "components", "lifecycle"}
-			or manifest["schema_version"] != "1.0.0"
+			or manifest["schema_version"] != "1.1.0"
 			or manifest["release"].get("version") != HELPER_VERSION
 			or manifest["release"].get("status") != "supported"
 		):
@@ -200,10 +200,12 @@ def _load_policy():
 		for component in components:
 			if (
 				not isinstance(component, dict)
-				or set(component) != {"id", "path", "version", "sha256", "required", "responsibility"}
+				or set(component) != {"id", "path", "version", "sha256", "accepted_predecessor_sha256", "required", "responsibility"}
 				or component["path"] not in {"docker_lifecycle_helper.py", "docker_install_policy.py", "docker_install_inventory.py"}
 				or not isinstance(component["sha256"], str)
 				or not SHA256.fullmatch(component["sha256"])
+				or not isinstance(component["accepted_predecessor_sha256"], list)
+				or any(not isinstance(value, str) or not SHA256.fullmatch(value) for value in component["accepted_predecessor_sha256"])
 			):
 				raise HelperError("RELEASE_COMPONENT_INVALID", "host_validation")
 			expected[component["path"]] = component["sha256"]
