@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Validate a Docker Helper Release manifest and its fixed source artifacts."""
 
+import base64
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -28,6 +30,14 @@ COMPATIBILITY_FIELDS = {
 
 def load_manifest(path):
 	manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+	expected_encoded = os.environ.get("EXPECTED_RELEASE_MANIFEST_B64", "")
+	if expected_encoded:
+		try:
+			expected_manifest = json.loads(base64.b64decode(expected_encoded, validate=True).decode("utf-8"))
+		except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
+			raise ValueError("invalid active release manifest supplied by DT Master") from exc
+		if manifest != expected_manifest:
+			raise ValueError("deployed release manifest does not match the node's assigned active release")
 	if set(manifest) != {
 		"schema_version",
 		"release",
