@@ -1,7 +1,7 @@
 """Operator-facing setup actions for the Docker Helper Release catalog."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 import frappe
 
