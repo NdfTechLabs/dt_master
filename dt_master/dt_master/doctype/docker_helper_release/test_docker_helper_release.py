@@ -154,7 +154,9 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		original_digest = release.aggregate_digest
 		source_root = Path(__file__).resolve().parents[3]
 
-		source_version = inspect_release_source(release.components, source_root)["components"]["lifecycle_helper"]["version"]
+		source_version = inspect_release_source(release.components, source_root)["components"][
+			"lifecycle_helper"
+		]["version"]
 		first, created = create_draft_release_from_source(release, source_root, version=source_version)
 		second, created_again = create_draft_release_from_source(release, source_root, version=source_version)
 
