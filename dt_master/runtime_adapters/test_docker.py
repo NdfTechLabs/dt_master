@@ -1373,6 +1373,16 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.outcome, "succeeded")
 		self.assertEqual(result.observed_state, "Repository Preparation Required")
 
+	def test_bootstrap_privileges_rejects_retired_release_assignment(self):
+		self.node.docker_helper_release = "dt-docker-helper-old"
+		with (
+			patch("dt_master.runtime_adapters.docker.frappe.db.get_value", return_value="Retired"),
+			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
+			self.assertRaisesRegex(ValueError, "release is retired"),
+		):
+			self.adapter._bootstrap_privileges(request("bootstrap_privileges"))
+		remote.assert_not_called()
+
 	def test_bootstrap_privileges_requires_successful_supported_host_inspection(self):
 		self.node.docker_host_state = "Privilege Setup Required"
 		self.node.docker_host_management_snapshot = "{}"
