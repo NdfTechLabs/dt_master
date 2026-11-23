@@ -138,7 +138,7 @@ def _request(raw: bytes) -> dict:
 		"packages",
 	}:
 		raise HelperError("INVALID_PLAN_FIELDS", "request_validation")
-	if plan["schema_version"] != "1.1.0" or plan["policy_version"] != "1.1.1":
+	if plan["schema_version"] != "1.2.0" or plan["policy_version"] != "1.2.0":
 		raise HelperError("UNSUPPORTED_PLAN_VERSION", "request_validation")
 	if not isinstance(plan["plan_digest"], str) or not SHA256.fullmatch(plan["plan_digest"]):
 		raise HelperError("INVALID_PLAN_DIGEST", "request_validation")
@@ -448,15 +448,9 @@ def _result(
 	return result
 
 
-def _same_plan_decisions(first: dict, second: dict) -> bool:
-	"""Compare plan decisions while ignoring the continuously aging APT counter."""
-	left = {key: value for key, value in first.items() if key != "plan_digest"}
-	right = {key: value for key, value in second.items() if key != "plan_digest"}
-	for plan in (left, right):
-		apt = plan.get("apt_metadata")
-		if isinstance(apt, dict):
-			plan["apt_metadata"] = {"status": apt.get("status")}
-	return left == right
+def _same_plan_decisions(first: dict, second: dict, policy) -> bool:
+	"""Compare semantic package transaction identity, excluding live observations."""
+	return policy.docker_engine_install_plan_identity(first) == policy.docker_engine_install_plan_identity(second)
 
 
 def _simulate_exact_install(versions: list[str]) -> None:
@@ -542,8 +536,10 @@ def _install(request: dict) -> dict:
 		raise HelperError("FRESH_INVENTORY_INVALID", "state_validation") from exc
 	if (
 		fresh_fingerprint != fingerprint
-		or not _same_plan_decisions(plan, fresh_plan)
+		or not _same_plan_decisions(plan, fresh_plan, policy)
 		or fresh_plan.get("status") != "ready"
+		or (fresh_plan.get("workload_impact") or {}).get("operator_impact_approval_required")
+		is not request["operator_impact_approval"]
 	):
 		raise HelperError("STATE_CHANGED_AFTER_SIMULATION", "state_validation")
 	current_versions = _installed_versions(fresh_inventory)
