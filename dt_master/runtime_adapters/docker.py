@@ -1240,7 +1240,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 			raise ValueError("Invalid Docker repository preparation result fields.")
 		if (
 			payload["schema_version"] != "1.0.0"
-			or payload["helper_version"] != "0.3.2"
+			or payload["helper_version"] != "0.3.3"
 			or payload["operation"] != "prepare_repository"
 			or payload["status"] != "succeeded"
 			or payload["diagnostics"] != []
