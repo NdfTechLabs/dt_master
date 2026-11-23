@@ -7,3 +7,4 @@
 dt_master.patches.encrypt_tenant_site_secrets
 dt_master.patches.add_infrastructure_operation_constraints
 dt_master.patches.seed_docker_helper_release_0_3_2
+dt_master.patches.align_docker_helper_release_manifest_schema_1_1_0
