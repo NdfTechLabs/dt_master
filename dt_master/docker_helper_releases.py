@@ -373,7 +373,11 @@ def _build_predecessor_transition(release, components):
 			if not isinstance(accepted, list):
 				raise DockerHelperReleaseError(f"Invalid accepted predecessor hashes: {component_id}")
 		previous_digest = previous_components[component_id]["sha256"]
-		if previous_digest not in accepted:
+		current_digest = _value(component, "sha256")
+		# An unchanged component already accepts its current digest. Listing it
+		# as a predecessor is invalid because predecessor hashes must differ
+		# from the component's current fingerprint.
+		if previous_digest != current_digest and previous_digest not in accepted:
 			accepted.append(previous_digest)
 		if isinstance(component, dict):
 			component["accepted_predecessor_sha256"] = accepted
