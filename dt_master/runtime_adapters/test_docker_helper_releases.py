@@ -62,14 +62,12 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				"privilege_readiness_contract": {"minimum": "1.0.0", "maximum": "1.0.0"},
 			}
 			mismatches = compare_release_source_snapshot(components, directory, compatibility)
+			observed_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
 
 		self.assertEqual(mismatches["_compatibility"]["helper_protocol"]["observed"]["minimum"], "1.0.0")
 		self.assertEqual(mismatches["lifecycle_helper"]["expected"]["version"], "1.0.0")
 		self.assertEqual(mismatches["lifecycle_helper"]["observed"]["version"], "2.0.0")
-		self.assertEqual(
-			mismatches["lifecycle_helper"]["observed"]["sha256"],
-			hashlib.sha256(source.read_bytes()).hexdigest(),
-		)
+		self.assertEqual(mismatches["lifecycle_helper"]["observed"]["sha256"], observed_sha256)
 
 	def test_source_inspection_extracts_actual_protocol_and_component_versions(self):
 		with tempfile.TemporaryDirectory() as directory:
