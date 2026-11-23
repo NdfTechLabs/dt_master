@@ -63,10 +63,7 @@ def load_expected_manifest():
 		raise ValueError("invalid predecessor compatibility metadata")
 	seen_predecessors = set()
 	for predecessor in predecessor_records:
-		if (
-			not isinstance(predecessor, dict)
-			or set(predecessor) != {"release_id", "version", "components"}
-		):
+		if not isinstance(predecessor, dict) or set(predecessor) != {"release_id", "version", "components"}:
 			raise ValueError("invalid predecessor release record")
 		release_id = predecessor["release_id"]
 		version = predecessor["version"]
