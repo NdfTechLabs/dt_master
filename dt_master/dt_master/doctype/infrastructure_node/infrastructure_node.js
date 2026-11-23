@@ -496,7 +496,6 @@ function test_node_connection(frm) {
 	});
 }
 
-
 function maybe_assess_docker_helper_release(frm) {
 	if (frm.__docker_helper_release_assessment_started) return;
 	if (!frappe.user_roles.includes("System Manager")) return;
@@ -515,7 +514,9 @@ function maybe_assess_docker_helper_release(frm) {
 				return;
 			}
 			watch_docker_operation(
-				frm, operation.operation_id, "Docker Helper Release assessment"
+				frm,
+				operation.operation_id,
+				"Docker Helper Release assessment"
 			);
 		},
 		error() {
