@@ -133,7 +133,7 @@ class IntegrationTestInfrastructureNode(IntegrationTestCase):
 		node.name = "NODE-1"
 		node.docker_helper_release = "NEW-RELEASE"
 		previous = type("Previous", (), {"docker_helper_release": "SHARED-RELEASE"})()
-		release = type("Release", (), {"status": "Published"})()
+		release = type("Release", (), {"status": "Published", "save": lambda *args, **kwargs: None})()
 		with (
 			patch.object(frappe, "get_doc", return_value=release) as get_doc,
 			patch.object(release, "save") as save,
