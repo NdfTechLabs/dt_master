@@ -64,11 +64,12 @@
       "id": "host_inventory",
       "path": "docker_install_inventory.py",
       "version": "1.0.0",
-      "sha256": "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b",
+      "sha256": "0cb582671b2983d8794f69563a94564d2335c6b0c52e960dd30ead8cfbe9f089",
       "required": true,
       "responsibility": "Read-only host, package, repository, signing-key, service and workload inventory consumed by the planner and privileged helper.",
       "accepted_predecessor_sha256": [
-        "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6"
+        "99863a6d5d78c95ba3111d6574c3ae5c3bd653de004b24c0859904f86ac641a6",
+        "f558523497595bcd890450405789eda7d418807160c2fab8f4c11758f636502b"
       ]
     }
   ],
