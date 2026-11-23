@@ -1,5 +1,8 @@
 frappe.ui.form.on("Infrastructure Node", {
 	refresh(frm) {
+		frm.set_query("docker_helper_release", () => ({
+			filters: { status: "Published" },
+		}));
 		if (frm.is_new()) return;
 
 		const { status, state } = frm.doc;
