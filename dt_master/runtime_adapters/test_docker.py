@@ -800,7 +800,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 			}
 			for component_id, filename, version in (
 				("lifecycle_helper", "docker_lifecycle_helper.py", "0.3.3"),
-				("install_policy", "docker_install_policy.py", "1.1.1"),
+				("install_policy", "docker_install_policy.py", "1.2.0"),
 				("host_inventory", "docker_install_inventory.py", "1.0.0"),
 			)
 		]
@@ -830,7 +830,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		rows = []
 		for component_id, version in (
 			("lifecycle_helper", "0.3.3"),
-			("install_policy", "1.1.1"),
+			("install_policy", "1.2.0"),
 			("host_inventory", "1.0.0"),
 		):
 			integrity = (
