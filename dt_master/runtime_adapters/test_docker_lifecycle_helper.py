@@ -18,6 +18,14 @@ helper = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(helper)
 
 
+def _plan_identity(plan):
+    policy_path = HELPER_PATH.with_name("docker_install_policy.py")
+    policy_spec = importlib.util.spec_from_file_location("docker_install_policy_test_identity", policy_path)
+    policy = importlib.util.module_from_spec(policy_spec)
+    policy_spec.loader.exec_module(policy)
+    return policy.docker_engine_install_plan_identity(plan)
+
+
 def request():
     return {
         "schema_version": "1.0.0",
@@ -382,6 +390,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=Mock(side_effect=[plan, fresh_plan]),
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -410,6 +419,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: plan,
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "c" * 64]),
         )
         fake_inventory = SimpleNamespace(
@@ -439,6 +449,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: plan,
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -471,6 +482,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: plan,
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -499,6 +511,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: plan,
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -528,6 +541,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: plan,
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "b" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -544,6 +558,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=lambda _name, _inventory: {},
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=lambda _inventory: "c" * 64,
         )
         fake_inventory = SimpleNamespace(collect=lambda: {"docker_install_inventory": inventory()})
@@ -579,6 +594,7 @@ class TestDockerLifecycleHelper(unittest.TestCase):
         fake_policy = SimpleNamespace(
             build_docker_engine_install_plan=Mock(side_effect=[plan, dict(plan)]),
             validate_docker_engine_install_plan=lambda _plan: None,
+            docker_engine_install_plan_identity=_plan_identity,
             docker_engine_install_state_fingerprint=Mock(side_effect=["b" * 64, "b" * 64, "c" * 64]),
         )
         fake_inventory = SimpleNamespace(
