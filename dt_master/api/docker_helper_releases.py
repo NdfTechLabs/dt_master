@@ -150,4 +150,5 @@ def get_retired_node_release_recovery(node_name):
 		"action": "update_retired",
 		"retired_release": retired,
 		"published_releases": published,
+		"access_verified": bool(node.access_verified),
 	}
