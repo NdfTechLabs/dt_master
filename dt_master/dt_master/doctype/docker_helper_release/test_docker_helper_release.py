@@ -164,7 +164,6 @@ class IntegrationTestDockerHelperRelease(IntegrationTestCase):
 		self.assertEqual(release.status, "Published")
 		self.assertEqual(release.aggregate_digest, original_digest)
 
-
 	def test_initial_draft_uses_canonical_metadata_and_hashes_actual_files(self):
 		source_root = Path(__file__).resolve().parents[3]
 		template = canonical_docker_helper_release_template()

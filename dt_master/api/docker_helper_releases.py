@@ -19,7 +19,9 @@ def _require_node_release_setup_permission(node_name):
 	if not node.has_permission("write"):
 		frappe.throw("You do not have permission to modify this Infrastructure Node.", frappe.PermissionError)
 	if node.docker_helper_release:
-		frappe.throw("Clear the node's current Docker Helper Release assignment before setting up a replacement.")
+		frappe.throw(
+			"Clear the node's current Docker Helper Release assignment before setting up a replacement."
+		)
 	return node
 
 
@@ -62,7 +64,9 @@ def get_unassigned_node_release_setup(node_name):
 def create_draft_for_unassigned_node(node_name, version):
 	"""Create a replacement or initial Draft without changing any existing release."""
 	_require_node_release_setup_permission(node_name)
-	if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version):
+	if not isinstance(version, str) or not re.fullmatch(
+		r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version
+	):
 		frappe.throw("Release version must use semantic versioning.")
 
 	published = frappe.get_all(
