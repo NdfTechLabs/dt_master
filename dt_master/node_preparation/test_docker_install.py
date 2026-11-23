@@ -61,19 +61,27 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 			docker_engine_install_state_fingerprint(second),
 		)
 
-	def test_state_fingerprint_changes_when_package_or_workload_state_changes(self):
+	def test_state_fingerprint_ignores_live_preconditions_but_binds_package_inputs(self):
+		original = inventory()
+		changed = copy.deepcopy(original)
+		changed["storage"]["root_available_bytes"] = 1
+		changed["storage"]["apt_cache_available_bytes"] = 2
+		changed["services"] = {"docker": "active", "containerd": "failed"}
+		changed["workloads"] = {"available": True, "running_containers": 9, "total_containers": 12}
+		changed["package_manager_state"] = {"locked": True, "dpkg_audit_clean": False}
+		changed["apt_metadata"] = {"status": "Stale", "age_seconds": 999999}
+		self.assertEqual(
+			docker_engine_install_state_fingerprint(original),
+			docker_engine_install_state_fingerprint(changed),
+		)
+
+	def test_state_fingerprint_changes_when_package_or_repository_identity_changes(self):
 		original = inventory()
 		package_change = copy.deepcopy(original)
 		package_change["packages"][0]["candidate_version"] = "5:30.0.0-1~ubuntu.24.04~noble"
-		workload_change = copy.deepcopy(original)
-		workload_change["workloads"]["running_containers"] = 1
 		self.assertNotEqual(
 			docker_engine_install_state_fingerprint(original),
 			docker_engine_install_state_fingerprint(package_change),
-		)
-		self.assertNotEqual(
-			docker_engine_install_state_fingerprint(original),
-			docker_engine_install_state_fingerprint(workload_change),
 		)
 
 	def test_state_fingerprint_rejects_unknown_or_sensitive_inventory_fields(self):
@@ -92,7 +100,7 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 				"NODE-1",
 			)
 
-	def test_plan_digest_ignores_aging_apt_counter_but_binds_freshness(self):
+	def test_plan_digest_ignores_all_live_preconditions(self):
 		first = inventory()
 		second = copy.deepcopy(first)
 		second["apt_metadata"]["age_seconds"] += 1
@@ -101,8 +109,13 @@ class TestDockerEngineInstallPlan(unittest.TestCase):
 		self.assertEqual(first_plan["plan_digest"], second_plan["plan_digest"])
 
 		second["apt_metadata"]["status"] = "Stale"
-		stale_plan = build_docker_engine_install_plan("NODE-1", second)
-		self.assertNotEqual(first_plan["plan_digest"], stale_plan["plan_digest"])
+		second["storage"]["root_available_bytes"] = 1
+		second["storage"]["apt_cache_available_bytes"] = 2
+		second["services"] = {"docker": "active", "containerd": "failed"}
+		second["workloads"] = {"available": True, "running_containers": 2, "total_containers": 3}
+		live_changed_plan = build_docker_engine_install_plan("NODE-1", second)
+		self.assertEqual(first_plan["plan_digest"], live_changed_plan["plan_digest"])
+		self.assertNotEqual(first_plan["status"], live_changed_plan["status"])
 
 	def test_unsupported_platform_is_blocked(self):
 		plan = build_docker_engine_install_plan(
