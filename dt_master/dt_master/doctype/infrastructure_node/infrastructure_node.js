@@ -6,8 +6,7 @@ frappe.ui.form.on("Infrastructure Node", {
 		if (frm.doc.docker_helper_release) {
 			load_retired_release_recovery(frm);
 			if (
-				frm.doc.docker_helper_release_assessment_status ===
-				"Scripts Deployment Required"
+				frm.doc.docker_helper_release_assessment_status === "Scripts Deployment Required"
 			) {
 				frm.dashboard.set_headline_alert(
 					__(
@@ -136,7 +135,6 @@ frappe.ui.form.on("Infrastructure Node", {
 	},
 });
 
-
 function load_retired_release_recovery(frm) {
 	frappe.call({
 		method: "dt_master.api.docker_helper_releases.get_retired_node_release_recovery",
@@ -152,14 +150,21 @@ function load_retired_release_recovery(frm) {
 				frm.dashboard.set_headline_alert(
 					__(
 						"This node is still using retired release {0}. Published release {1} is available. Update the node to restore supported helper management.",
-						[retired.release_id || retired.name, recommended.release_id || recommended.name]
+						[
+							retired.release_id || retired.name,
+							recommended.release_id || recommended.name,
+						]
 					),
 					"orange"
 				);
 				if (frappe.user_roles.includes("System Manager")) {
-					frm.add_custom_button(__("Update Docker Helper Release"), () => {
-						show_retired_release_update_dialog(frm, recovery);
-					}, __("Docker Helper Release"));
+					frm.add_custom_button(
+						__("Update Docker Helper Release"),
+						() => {
+							show_retired_release_update_dialog(frm, recovery);
+						},
+						__("Docker Helper Release")
+					);
 				}
 			} else {
 				frm.dashboard.set_headline_alert(
@@ -178,7 +183,9 @@ function show_retired_release_update_dialog(frm, recovery) {
 	if (!recovery.access_verified) {
 		frappe.msgprint({
 			title: __("SSH Verification Required"),
-			message: __("Verify SSH access to this node before starting a Docker Helper Release update."),
+			message: __(
+				"Verify SSH access to this node before starting a Docker Helper Release update."
+			),
 			indicator: "orange",
 		});
 		return;
@@ -208,32 +215,38 @@ function show_retired_release_update_dialog(frm, recovery) {
 				fieldtype: "HTML",
 				options:
 					'<div class="text-muted small">' +
-					__("The node will be reassigned, saved, and its Docker helper release assessment will be restarted. The update is not complete until remote verification succeeds.") +
+					__(
+						"The node will be reassigned, saved, and its Docker helper release assessment will be restarted. The update is not complete until remote verification succeeds."
+					) +
 					"</div>",
 			},
 		],
 		primary_action_label: __("Assign and Start Update"),
 		primary_action() {
-			const selected = options.find(
-				(item) => item.label === dialog.get_value("release")
-			);
+			const selected = options.find((item) => item.label === dialog.get_value("release"));
 			if (!selected) return;
 			dialog.hide();
 			frappe.confirm(
-				__("Assign {0} to this node and start the helper release installation?", [selected.label]),
+				__("Assign {0} to this node and start the helper release installation?", [
+					selected.label,
+				]),
 				async () => {
 					try {
 						await frm.set_value("docker_helper_release", selected.value);
 						await frm.save();
 						frappe.show_alert({
-							message: __("Replacement release assigned. Starting remote release assessment..."),
+							message: __(
+								"Replacement release assigned. Starting remote release assessment..."
+							),
 							indicator: "blue",
 						});
 						run_docker_helper_release_assessment(frm);
 					} catch (error) {
 						frappe.msgprint({
 							title: __("Release Update Not Started"),
-							message: __("The replacement release could not be saved. No remote installation was started."),
+							message: __(
+								"The replacement release could not be saved. No remote installation was started."
+							),
 							indicator: "red",
 						});
 					}
