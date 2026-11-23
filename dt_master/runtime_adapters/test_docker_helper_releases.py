@@ -217,7 +217,7 @@ class TestDockerHelperReleaseFingerprints(unittest.TestCase):
 				"version": "0.3.2",
 				"channel": "stable",
 				"status": "Published",
-				"schema_version": "1.0.0",
+				"schema_version": RELEASE_MANIFEST_SCHEMA_VERSION,
 				"compatibility": compatibility,
 				"lifecycle": lifecycle,
 				"components": components,
