@@ -195,7 +195,7 @@ def create_draft_for_source_drift(node_name):
 
 	source_root = Path(__file__).resolve().parents[1]
 	try:
-		mismatches = compare_release_source_snapshot(release.components, source_root)
+		mismatches = compare_release_source_snapshot(release.components, source_root, release.compatibility)
 		if not mismatches:
 			frappe.throw("The assigned release now matches local sources. Run assessment again.")
 		draft, created = create_draft_release_from_source(
