@@ -936,13 +936,13 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		failure_details = []
 		phase = "helper_install"
 
-		def run_installer(script_name, step):
+		def run_installer(script_name, step, environment=None):
 			code, stdout, stderr = run_remote_script(
 				node,
 				self._ssh_config(node),
 				"docker",
 				script_name,
-				{},
+				environment or {},
 				"script_execution_log",
 				{"execution": script_name, "node": node.name},
 				use_sudo=False,
@@ -973,7 +973,7 @@ class DockerRuntimeAdapter(RuntimeAdapter):
 		sudoers_install = {"script": "install_docker_sudoers.sh", "status": "skipped"}
 		readiness = None
 		try:
-			helper_status = run_installer(helper_install["script"], helper_install)
+			helper_status = run_installer(helper_install["script"], helper_install, expected_release_env)
 		except Exception as exc:
 			helper_status = "failed"
 			helper_install.update(
