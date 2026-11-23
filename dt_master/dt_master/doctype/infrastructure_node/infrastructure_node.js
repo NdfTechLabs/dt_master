@@ -175,6 +175,14 @@ function load_retired_release_recovery(frm) {
 }
 
 function show_retired_release_update_dialog(frm, recovery) {
+	if (!recovery.access_verified) {
+		frappe.msgprint({
+			title: __("SSH Verification Required"),
+			message: __("Verify SSH access to this node before starting a Docker Helper Release update."),
+			indicator: "orange",
+		});
+		return;
+	}
 	const releases = recovery.published_releases || [];
 	if (!releases.length) {
 		frappe.msgprint(__("No Published Docker Helper Release is currently available."));
@@ -191,7 +199,7 @@ function show_retired_release_update_dialog(frm, recovery) {
 				fieldname: "release",
 				fieldtype: "Select",
 				label: __("Published replacement release"),
-				options: options.map((item) => item.label).join("\\n"),
+				options: options.map((item) => item.label).join("\n"),
 				default: options[0].label,
 				reqd: 1,
 			},
