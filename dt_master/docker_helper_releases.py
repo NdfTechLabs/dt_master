@@ -221,7 +221,10 @@ def inspect_release_source(components, source_root: str | Path) -> dict:
 	observed = {}
 	compatibility = {}
 	for component in components:
-		validate_component_definition(component)
+		# Draft creation intentionally omits the Published hash so it can be
+		# regenerated from source. Validate the definition without requiring
+		# that stale/absent digest; the observed digest is calculated below.
+		validate_component_definition(component, require_digest=False)
 		component_id = _value(component, "component_id")
 		if component_id in observed:
 			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
