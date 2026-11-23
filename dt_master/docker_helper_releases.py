@@ -7,6 +7,7 @@ representation of every deployable component definition.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -175,27 +176,92 @@ def aggregate_release_digest(components) -> str:
 	return hashlib.sha256(payload).hexdigest()
 
 
-def capture_component_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
-	"""Capture actual source hashes without changing the release definition."""
-	snapshot = {}
+_SOURCE_VERSION_SYMBOLS = {
+	"lifecycle_helper": {"version": "HELPER_VERSION"},
+	"install_policy": {"version": "POLICY_VERSION"},
+	"host_inventory": {"version": "INSTALL_INVENTORY_SCHEMA_VERSION"},
+}
+
+
+def _literal_module_constants(source_path: Path, names: set[str]) -> dict[str, str]:
+	"""Read simple module-level string constants without importing executable source."""
+	try:
+		tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+	except (OSError, SyntaxError, UnicodeError) as exc:
+		raise DockerHelperReleaseError(f"Cannot inspect component version declarations: {source_path.name}") from exc
+	values = {}
+	for node in tree.body:
+		if isinstance(node, ast.Assign):
+			targets = node.targets
+		elif isinstance(node, ast.AnnAssign):
+			targets = [node.target]
+		else:
+			continue
+		for target in targets:
+			if isinstance(target, ast.Name) and target.id in names:
+				try:
+					value = ast.literal_eval(node.value)
+				except (ValueError, TypeError):
+					continue
+				if isinstance(value, str):
+					values[target.id] = value
+	missing = names - values.keys()
+	if missing:
+		raise DockerHelperReleaseError(
+			f"Component version declarations are missing or non-literal in {source_path.name}: {', '.join(sorted(missing))}"
+		)
+	return values
+
+
+def inspect_release_source(components, source_root: str | Path) -> dict:
+	"""Capture authoritative source hashes, component versions and compatibility contracts."""
+	root = Path(source_root).resolve(strict=True)
+	observed = {}
+	compatibility = {}
 	for component in components:
 		validate_component_definition(component)
 		component_id = _value(component, "component_id")
-		if component_id in snapshot:
+		if component_id in observed:
 			raise DockerHelperReleaseError("Duplicate Docker Helper Release component")
-		snapshot[component_id] = component_source_digest(source_root, _value(component, "source_path"))
-	return snapshot
+		path = root.joinpath(*PurePosixPath(_value(component, "source_path")).parts)
+		values = _literal_module_constants(path, set(_SOURCE_VERSION_SYMBOLS.get(component_id, {}).values()))
+		version_symbol = _SOURCE_VERSION_SYMBOLS.get(component_id, {}).get("version")
+		if not version_symbol:
+			raise DockerHelperReleaseError(f"No source version contract is defined for {component_id}")
+		version = values[version_symbol]
+		if not _VERSION.fullmatch(version):
+			raise DockerHelperReleaseError(f"Invalid source semantic version for {component_id}: {version}")
+		observed[component_id] = {
+			"version": version,
+			"sha256": component_source_digest(root, _value(component, "source_path")),
+		}
+		if component_id == "lifecycle_helper":
+			compatibility["helper_protocol"] = values.get("REQUEST_SCHEMA_VERSION")
+		elif component_id == "install_policy":
+			policy_values = _literal_module_constants(path, {"PLAN_SCHEMA_VERSION", "POLICY_VERSION"})
+			compatibility["docker_install_plan"] = policy_values["PLAN_SCHEMA_VERSION"]
+			compatibility["docker_install_policy"] = policy_values["POLICY_VERSION"]
+		elif component_id == "host_inventory":
+			compatibility["inventory_schema"] = version
+		compatibility["privilege_readiness_contract"] = "1.0.0"
+	for name, version in compatibility.items():
+		if not isinstance(version, str) or not _VERSION.fullmatch(version):
+			raise DockerHelperReleaseError(f"Invalid source compatibility declaration: {name}")
+	return {"components": observed, "compatibility": compatibility}
 
 
-def compare_release_source_snapshot(components, source_root: str | Path) -> dict[str, dict[str, str]]:
-	"""Return component-level differences between immutable release hashes and local sources."""
-	expected = {_value(component, "component_id"): _value(component, "sha256") for component in components}
-	observed = capture_component_source_snapshot(components, source_root)
-	return {
-		component_id: {"expected": expected[component_id], "observed": digest}
-		for component_id, digest in observed.items()
-		if expected.get(component_id) != digest
-	}
+def compare_release_source_snapshot(components, source_root: str | Path) -> dict:
+	"""Compare Published component versions and hashes with actual source declarations."""
+	inspection = inspect_release_source(components, source_root)
+	differences = {}
+	for component in components:
+		component_id = _value(component, "component_id")
+		expected = {"version": _value(component, "version"), "sha256": _value(component, "sha256")}
+		actual = inspection["components"][component_id]
+		if expected != actual:
+			differences[component_id] = {"expected": expected, "observed": actual}
+		compatibility = _value(component, "compatibility")
+	return differences
 
 
 def verify_release_source_snapshot(components, source_root: str | Path) -> dict[str, str]:
@@ -238,10 +304,12 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 		{field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS if field != "sha256"}
 		for component in (_value(template, "components") or [])
 	]
+	source_inspection = inspect_release_source(components, source_root)
 	for component in components:
-		if component["component_id"] == "lifecycle_helper":
-			component["version"] = version
-	aggregate_digest = refresh_component_digests(components, source_root)
+		component_id = component["component_id"]
+		component["version"] = version if component_id == "lifecycle_helper" else source_inspection["components"][component_id]["version"]
+		component["sha256"] = source_inspection["components"][component_id]["sha256"]
+	aggregate_digest = aggregate_release_digest(components)
 	existing = frappe.db.exists("Docker Helper Release", release_id)
 	if existing:
 		draft = frappe.get_doc("Docker Helper Release", release_id)
@@ -261,7 +329,10 @@ def _create_draft_release(template, source_root: str | Path, *, release_id: str,
 	draft.version = version
 	draft.channel = _value(template, "channel") or "stable"
 	draft.status = "Draft"
-	draft.compatibility = _value(template, "compatibility")
+	compatibility = _parse_json_object(_value(template, "compatibility"), "compatibility")
+	for field, actual in source_inspection["compatibility"].items():
+		compatibility[field] = {"minimum": actual, "maximum": actual}
+	draft.compatibility = json.dumps(compatibility, sort_keys=True)
 	draft.lifecycle = _value(template, "lifecycle")
 	for component in components:
 		draft.append("components", component)
