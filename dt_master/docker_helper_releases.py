@@ -68,6 +68,8 @@ def validate_component_definition(component, *, require_digest=True):
 	mode = _value(component, "file_mode")
 	digest = _value(component, "sha256")
 	predecessors = _value(component, "accepted_predecessor_sha256")
+	if predecessors is None:
+		predecessors = []
 	if isinstance(predecessors, str):
 		try:
 			predecessors = json.loads(predecessors or "[]")
@@ -151,6 +153,8 @@ def canonical_component_records(components):
 	seen = set()
 	for component in components:
 		record = {field: _value(component, field) for field in COMPONENT_FINGERPRINT_FIELDS}
+		if record["accepted_predecessor_sha256"] is None:
+			record["accepted_predecessor_sha256"] = []
 		validate_component_definition(record)
 		record["required"] = bool(record["required"])
 		if isinstance(record["accepted_predecessor_sha256"], str):
