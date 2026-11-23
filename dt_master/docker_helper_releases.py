@@ -369,12 +369,12 @@ def write_release_manifest(release, *, source_root: str | Path) -> str:
 	if manifest_path.is_symlink():
 		raise DockerHelperReleaseError("Docker helper manifest must not be a symlink")
 
-	payload = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\\n"
+	payload = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\n"
 	if manifest_path.exists():
 		if not manifest_path.is_file():
 			raise DockerHelperReleaseError("Docker helper manifest path is not a regular file")
 		if manifest_path.read_bytes() == payload:
-			return payload.decode("utf-8").rstrip("\\n")
+			return payload.decode("utf-8").rstrip("\n")
 
 		# Preserve the existing file mode while replacing its contents atomically.
 		mode = manifest_path.stat().st_mode & 0o777
@@ -400,7 +400,7 @@ def write_release_manifest(release, *, source_root: str | Path) -> str:
 
 	# Recheck source after the write so a concurrent source change cannot leave
 	# a manifest that falsely represents a mixed or stale source snapshot.
-	verified = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\\n"
+	verified = serialize_release_manifest(release, source_root=root).encode("utf-8") + b"\n"
 	if verified != payload or manifest_path.read_bytes() != payload:
 		raise DockerHelperReleaseError("Docker helper source changed during manifest generation")
-	return payload.decode("utf-8").rstrip("\\n")
+	return payload.decode("utf-8").rstrip("\n")
