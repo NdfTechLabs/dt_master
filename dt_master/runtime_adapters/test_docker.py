@@ -903,7 +903,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 		self.assertEqual(result.observed_state, "Release Retired")
 		self.assertEqual(result.outcome, "partial")
 		self.assertEqual(result.diagnostics[0]["code"], "DOCKER_HELPER_RELEASE_RETIRED")
-		self.assertIn("assign the active Published release", result.diagnostics[0]["message"])
+		self.assertIn("Select the active Published release", result.diagnostics[0]["message"])
 		remote.assert_not_called()
 		self.assertEqual(
 			self.db_set_value.call_args.args[2]["docker_helper_release_assessment_status"],
@@ -1376,6 +1376,7 @@ class TestDockerRuntimeAdapter(unittest.TestCase):
 	def test_bootstrap_privileges_rejects_retired_release_assignment(self):
 		self.node.docker_helper_release = "dt-docker-helper-old"
 		with (
+			patch.object(self.adapter, "_node_for_request", return_value=self.node),
 			patch("dt_master.runtime_adapters.docker.frappe.db.get_value", return_value="Retired"),
 			patch("dt_master.runtime_adapters.docker.run_remote_script") as remote,
 			self.assertRaisesRegex(ValueError, "release is retired"),
