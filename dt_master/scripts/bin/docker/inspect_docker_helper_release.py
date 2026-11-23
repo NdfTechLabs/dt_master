@@ -39,7 +39,8 @@ def load_expected_manifest():
 	manifest = json.loads(base64.b64decode(encoded, validate=True).decode("utf-8"))
 	if (
 		not isinstance(manifest, dict)
-		or set(manifest) != {"schema_version", "release", "compatibility", "components", "lifecycle"}
+		or set(manifest)
+		!= {"schema_version", "release", "compatibility", "predecessors", "components", "lifecycle"}
 		or manifest["schema_version"] != "1.1.0"
 		or not isinstance(manifest["release"], dict)
 		or set(manifest["release"]) != {"id", "version", "channel", "status"}
@@ -50,6 +51,53 @@ def load_expected_manifest():
 		or not isinstance(manifest["components"], list)
 	):
 		raise ValueError("invalid expected release manifest")
+	compatibility = manifest["compatibility"]
+	predecessor_records = manifest["predecessors"]
+	if (
+		not isinstance(compatibility, dict)
+		or not isinstance(compatibility.get("upgrade_from"), list)
+		or any(not isinstance(version, str) for version in compatibility["upgrade_from"])
+		or len(compatibility["upgrade_from"]) != len(set(compatibility["upgrade_from"]))
+		or not isinstance(predecessor_records, list)
+	):
+		raise ValueError("invalid predecessor compatibility metadata")
+	seen_predecessors = set()
+	for predecessor in predecessor_records:
+		if (
+			not isinstance(predecessor, dict)
+			or set(predecessor) != {"release_id", "version", "components"}
+		):
+			raise ValueError("invalid predecessor release record")
+		release_id = predecessor["release_id"]
+		version = predecessor["version"]
+		predecessor_components = predecessor["components"]
+		if (
+			not isinstance(release_id, str)
+			or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", release_id)
+			or not isinstance(version, str)
+			or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version)
+			or (release_id, version) in seen_predecessors
+			or version not in compatibility["upgrade_from"]
+			or not isinstance(predecessor_components, list)
+		):
+			raise ValueError("invalid predecessor identity or compatibility")
+		seen_predecessors.add((release_id, version))
+		component_rows = {}
+		for row in predecessor_components:
+			if (
+				not isinstance(row, dict)
+				or set(row) != {"id", "version", "sha256"}
+				or row["id"] not in COMPONENT_IDS
+				or not isinstance(row["version"], str)
+				or not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?", row["version"])
+				or not isinstance(row["sha256"], str)
+				or not re.fullmatch(r"[a-f0-9]{64}", row["sha256"])
+				or row["id"] in component_rows
+			):
+				raise ValueError("invalid predecessor component fingerprint")
+			component_rows[row["id"]] = row
+		if set(component_rows) != COMPONENT_IDS:
+			raise ValueError("incomplete predecessor component inventory")
 	rows = {row.get("id"): row for row in manifest["components"] if isinstance(row, dict)}
 	if set(rows) != COMPONENT_IDS or len(manifest["components"]) != len(COMPONENT_IDS):
 		raise ValueError("invalid expected component inventory")
