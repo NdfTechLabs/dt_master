@@ -186,10 +186,11 @@ def create_draft_for_source_drift(node_name):
 		snapshot = json.loads(node.docker_helper_release_assessment_snapshot or "{}")
 	except (TypeError, ValueError):
 		snapshot = {}
+	assigned_snapshot = snapshot.get("assigned_release") or {}
 	if (
 		node.docker_helper_release_assessment_status != "Source Drift"
 		or snapshot.get("source_drift") is not True
-		or snapshot.get("assigned_release", {}).get("release_id") != release.release_id
+		or assigned_snapshot.get("release_id") != release.release_id
 	):
 		frappe.throw("Run Docker Helper Release assessment and confirm source drift before creating a Draft.")
 
